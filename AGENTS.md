@@ -24,6 +24,10 @@ Before your first task in a session, read (in `docs/`):
    `Remote Service Delivery Specification — Interconnect (Stretch Goal).md`
    (R0–R5, post-M6 only).
 
+Then find your role file in `.github/agents/` (roster in that directory's
+README) and follow it — it defines your scope and handoffs within this
+contract.
+
 Open findings (r3: F3-1…F3-11, r4: F4-1…F4-8) await Marshal's disposition.
 Treat undispositioned findings as **constraints you must not silently
 violate**, not as approved work: you may implement a finding's delta, but
@@ -251,3 +255,13 @@ docs updated in the same commit (same-commit rule); experiment claims
 have captures; and the PR text states which gate/workstream it serves and
 which findings/open items it touches. Work that can't meet this stays a
 draft and says why.
+
+## 13. Role agents
+
+This repo carries a nine-agent roster under `.github/agents/` — architect,
+PM, PO, core dev, RF dev, console dev, QA, scrum master, and research
+expert — plus a README defining the Oob project board (fields, columns,
+labels, standing rules). Every agent in this repo works as exactly one of
+those roles at a time; the role files refine this contract, never replace
+it. Board conventions (gate/workstream fields, `Blocked (entry criteria)`
+state, Done = gate-passed only) are binding on all roles.
