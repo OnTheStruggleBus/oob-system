@@ -1,0 +1,234 @@
+# mini-headend — Project Overview
+
+**Faithful lab reproduction of a GI/Motorola cable television headend, for home-lab use**
+
+- **Date:** 2026-11-22
+- **Status:** Living document — orientation layer over the plan, ADR, reviews, and specs
+- **Owner:** Marshal (@Marshal)
+
+---
+
+## 1. What this is
+
+**mini-headend** is a preservation-grade functional reproduction of the
+decommissioned General Instrument / Motorola cable TV headend ecosystem —
+the DAC 6000 controller, OM 1000/2000 out-of-band modulator, DLS code
+download system, and their companion services — operated as a **closed
+home-lab RF plant**. Its purpose is to return legacy DCT2000-series digital
+cable boxes to full working operation: boot, authorization, channel map,
+clear and encrypted tiers, firmware/application download, and the resident
+interactive program guide, all behaving the way they did when these systems
+were in service.
+
+The boxes this project serves are real, unmodified consumer hardware —
+e-waste feedstock to the rest of the world, historically significant
+artifacts here. They were designed to be helpless without a headend: no
+connect message, no channel map, no guide, eventually an `E 01` on the
+front panel forever. mini-headend rebuilds the other half of that
+relationship, faithfully enough that the boxes cannot tell the difference.
+
+This is reproduction work in the same spirit as vintage computer
+restoration or period telephone exchange revival: the goal is authentic
+*behavior* of the original system, verified against original documentation
+and the original endpoints — not a modern re-imagining.
+
+**Naming (adopted 2026-11-22).** The software is **Oob** — OOB,
+*Out-of-Band*: *an out-of-band headend for DCT-class cable boxes — an MVPD
+of one*. mini-headend stays as the lab/estate nickname. The parts:
+
+| Part | Name |
+| --- | --- |
+| DAC reproduction — unit DB, entitlements, scheduler, WireLink-verb API | `oob-dac` |
+| OOB transport — TS writer, PSI/SI, insertion-bandwidth shaper | `oob-mux` |
+| GI message layer — the protocol document as code | `oob-msg` |
+| Code download (DLS) | `oob-cdl` |
+| Clear-tier playout | `oob-playout` |
+| STARFONE modem-bank bridge (stretch) | `oob-starfone` |
+| **Guide stack — listings synthesizer, guide feed, R12 fallback grid** | **VueGuide+** (`oob-guide`) |
+| Operator front-end | **Oob Console** |
+
+Releases are tagged after the OOB hunt-table carriers in box scroll order
+(75.25 → 104.20 → 72.75 → …). The fictional operator carried in the guide's
+brand skin slot is **ArchaiTel Digital Cable** — *ArchaiTel, powered by
+Oob*.
+
+## 2. Ground rules (what "faithful" means here)
+
+1. **The boxes are the referee.** Every behavior is validated against real
+   fleet hardware — front-panel codes, diagnostic screens, and observed
+   state changes — not against what we assume the protocol ought to be.
+2. **The census defines "correct."** The fleet's actual hardware, firmware,
+   and resident applications (recorded per box at census) decide what the
+   headend must speak and which guide experience is the fidelity target.
+3. **Period-authentic means period-authentic.** MPEG-2 MP@ML only (these
+   boxes decode nothing newer); 68k-era guide redraw lag is a feature to
+   preserve, not a bug to fix; degradation modes behave the way the
+   originals did.
+4. **Closed plant, always.** All RF lives in coax, terminated into dummy
+   loads and taps on the bench. Nothing radiates; nothing touches outside
+   plant. Several of our operating frequencies sit inside the FM broadcast
+   band — shielding and termination are policy, not preference.
+5. **Self-authored content.** Playout is our own generated loops and
+   authored listings. No off-air re-distribution, ever.
+6. **Every experiment is a commit.** Discovery work is logged with message
+   templates, box responses, and verdicts, so the protocol documentation
+   grows from reproducible evidence.
+7. **Software first; surplus is opportunism.** The reproduction is the
+   path. Period hardware joins the estate when it appears (and it has —
+   see the SEM below), but no milestone may depend on eBay.
+8. **Documentation is a build artifact.** Heavy human-readable docs ship
+   *with* the software from day one: the mdBook site builds in CI on every
+   commit (broken links fail the build), every crate carries rustdoc, the
+   API spec is drift-checked, and no stage gate passes with stale docs
+   (gate rule 9).
+
+## 3. What is being reproduced
+
+| Original system | Role in the original network | mini-headend realization |
+| --- | --- | --- |
+| **DAC 6000** (Digital Addressable Controller) | System brain: unit database, entitlements, message scheduler, operator interface | `oob-dac` — Rust daemon, sqlite unit DB, WireLink-verb admin API |
+| **OM 1000/2000** (OOB Modulator) | Generates the out-of-band control channel (QPSK, 1.024 Msym/s, 70–130 MHz) | GNU Radio flowgraph → SDR (HackRF One primary, ADALM-Pluto spare) |
+| **KLS/DLS** (Code Download System) | Delivers firmware and applications to boxes as 68k objects over the OOB stream | `oob-cdl` crate — .obj/.dat loader + carousel builder |
+| **SEM V8** (SmartStream Encryptor Modulator) | Edge QAM + MediaCipher encryption | **Period hardware in the estate** — Motorola SEM V8, P/N 507199-001-00, ACP confirmed |
+| **STARVUE II** | Upstream return-path receiver (5–42 MHz) | SDR receive flowgraph (stretch) |
+| **STARFONE** | Telephone return path for purchases/polls | VoIP-modem bridge to an mgetty bank (stretch) |
+| **EPG inserter + TV Guide Interactive (i-Guide)** | Resident guide app fed listings over OOB | W8 / **VueGuide+**: donor app re-served over our own download system + synthesized listings feed |
+| **DAC operator terminals + WireLink interface** | Day-to-day operations: units, messages, lineups, downloads | **Oob Console** — web front-end over the WireLink-verb API (see Console spec) |
+
+Everything not marked "period hardware" is software we write, deployed as
+Docker/Podman containers on a Debian 13 host. The one deliberate hardware
+exception — the SEM — collapsed our two largest risks (QAM modulation and
+MediaCipher FPK encryption) into a single period-correct appliance that was
+already in the estate.
+
+## 4. Lab topology
+
+```javascript
+┌─────────────────────────────────────────────────────────────────┐
+│  Debian 13 host (Docker/Podman)                                 │
+│                                                                 │
+│  oob-dac ── oob-mux ── oob-msg ── oob-cdl ── oob-playout        │
+│     │            │                        │                     │
+│     │            ▼                        ▼ UDP/GigE            │
+│     │      GNU Radio flowgraph     ┌──────────────┐             │
+│     │            │                 │ SEM V8 (ACP) │             │
+│     │            ▼                 │ FPK: DES/CSA │             │
+│     │      HackRF One (OOB TX)     └──────┬───────┘             │
+│     │            │ QPSK ~104 MHz          │ QAM Annex B         │
+│     └────────────┼────────────────────────┼─────────────────────┘
+│                  ▼                        ▼                     │
+│               combiner ──► directional tap ──► plant            │
+│                              (dummy load first)                 │
+│                                                                 │
+│  Capture rig: camera→OCR (front panel), capture card (diag      │
+│  screens), RS-232 scrape (DCT2500) — the discovery feedback     │
+│  loop's eyes.                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+The fleet: DCT2000 + DCT2500 boxes (DVR models included), each recorded at
+census with its platform/family/model IDs, tuner variant, firmware,
+resident modules, serial, and cord date. One DCT2500 is the designated
+instrumented unit; a sacrificial DCT2000 fronts the risky experiments.
+
+## 5. How the work is organized
+
+Eight workstreams, W1–W8: PHY/carrier, core+mux, message discovery lab,
+clear-tier playout, FPK tier, code download, return path + polish, and the
+guide. Discovery runs **box-as-oracle**: the boxes *want* to connect and
+their diagnostics report exactly how far each attempt got, so candidate
+message formats iterate against a cooperative referee with an OCR-rigged
+camera watching its front panel.
+
+Key discoveries already banked (from the DCT2000 Installation Manual, in
+hand): the full ten-carrier OOB hunt table in fixed scroll order; the
+EMM provider-ID constraint (0x0000/0x0001) that gates stream acceptance;
+the manual carrier-select diagnostic that serves as our acquisition test
+harness; the official E-code table and its manufacturer-documented
+remedies; and — best of all — a built-in fleet-wide protocol sniffer
+(d 14 Message Types) that counts PIDs and message IDs on both the OOB and
+in-band sides.
+
+Milestones: **M0** documentation base (done) → **M0.5** PHY + SCTE 55-1 →
+**M1** connect (box reaches `E 00`) → **M2** clear tier → **M3** FPK
+encrypted tier (via the SEM's ACP) → **M4** code download → **M5**
+return-path stretch → **M6** polish, including the resident guide grid
+populating from our own listings feed.
+
+## 6. The guide question (a fidelity chapter of its own)
+
+The interactive guide is box-side software historically delivered by the
+headend's code-download system and fed listings over the control channel.
+Our strategy is residency-first: census the fleet for the guide application
+(i-Guide / TV Guide Interactive), re-serve a donor object to the rest of
+the fleet through our own download infrastructure — a legitimate first use
+of it — and then synthesize the listings feed in whatever format the
+resident app parses, discovered through the box-as-oracle loop plus the
+Gemstar/StarSight patent record.
+
+Fidelity references are curated period footage and screenshots (13-frame
+i-Guide analysis and a Passport Echo frame from Cincinnati Bell are already
+logged): genre-colored grid cells, surf banners, quick menus, favorite
+lists, the works. If no fleet box carries any guide application, the
+fallback is a substitute grid themed after **Navigator/Passport** — the
+interfaces the operator remembers most — with a headend-rendered
+Prevue-style video guide channel as the zero-box-side-code option.
+
+## 7. Stretch goals (registered, post-M6)
+
+| # | Stretch goal | Document |
+| --- | --- | --- |
+| S1 | **Return path** — STARVUE II upstream receive + STARFONE modem-bank bridge, enabling purchases/polls | Reproduction Plan W7 |
+| S2 | **Interconnect — remote service delivery.** Operate boxes at remote sites over the internet off this headend, via small hub kits that regenerate RF locally. The modern stand-in for a master-headend-plus-hubs plant. | `Remote Service Delivery Specification — Interconnect (Stretch Goal).md` |
+| S3 | **Analog tier** — the platform's period analog descrambling modes (gated sync suppression, video inversion, Hamlin compatibility) | noted in Plan §3.1; out of current scope |
+
+## 8. Where everything lives (document map)
+
+| Document | What it is |
+| --- | --- |
+| **This file** | Orientation — start here |
+| `ADR-001 — Emulated GI Cable Headend for DCT2000 Revival.md` (rev 7) | The decision record: scope, goals, kill criteria — awaits final approval |
+| `Oob Reproduction Plan — mini-headend.md` | The working plan: discovery methodology, workstreams, milestones, tech stack (§8), manual findings (§3.1/§3.2) — *renamed from "rust-dac Reproduction Plan" at the Oob naming adoption* |
+| `DAC-6000 Operations Reference — Oob Design Basis.md` | Everything the DAC manual teaches, organized as design input |
+| `Sci-Atlanta Ecosystem Specification — Explorer, DNCS, SCTE 55-2.md` | Companion spec for the rival ecosystem (theming source; possible far-future second front) |
+| `Remote Service Delivery Specification — Interconnect (Stretch Goal).md` | The S2 remote-delivery design |
+| `Management Console Specification — Oob Console.md` | The operator front-end — every setting, template, and campaign, API-first over the WireLink verbs |
+| `Project Milestones & Stage Gates — mini-headend.md` | The operating contract: milestone/gate map G0–G6 with entry/exit/evidence rules, enabling tracks, the living gate register, and the full development tool stack |
+| `ADR-001-adversarial-review.md`, `-r2.md` | Reviews of the ADR (rounds 1–2) |
+| `Reproduction Plan — Adversarial Review r3.md`, `r4.md` | Reviews of the plan (rounds 3–4, dispositions pending) |
+
+Reviews are part of the process, not an obstacle course: every round so
+far has ended with "the approach survives; here are deltas," and the deltas
+get folded in at the next revision.
+
+## 9. Status snapshot (2026-11-22)
+
+- Documentation base: **done** (M0). Two manuals mined in full (DAC 6000
+  V3.1, SEM V8 7.1.x), DCT2000 Installation Manual in hand and folded in.
+- Tech stack: **decided** — Rust workspace, Docker deployment, GNU Radio
+  PHY, ffmpeg/tsp playout, SEM for QAM + encryption. Development tool
+  stack (build, discovery, capture, RE, CI) documented in the
+  Milestones & Stage Gates doc §6.
+- Process: **stage gates adopted** — every milestone G0–G6 now has entry
+  criteria, exit criteria, an evidence-pack requirement, and a review
+  level; G0 recorded as passed; gate register open.
+- Naming: **adopted** — the software is **Oob** (OOB — Out-of-Band), the
+  guide stack is **VueGuide+**, crates are `oob-*`; docs are a build
+  artifact (ground rule 8).
+- SEM V8: **in the estate**, ACP encryption module confirmed by part
+  number; bench bring-up (provisioning, license check, first-contact
+  archive of its management payload) is on the two-week list.
+- Awaiting: Marshal's dispositions on adversarial reviews r3 (11 findings)
+  and r4 (8 findings); ADR-001 rev 7 approval; the buy list (upstream SDR,
+  RF chain, capture rig, flash tooling, sundries).
+- Next physical actions: box census, SEM bench bring-up, PHY bench at a
+  high hunt carrier, first connect-message experiment.
+
+## 10. A note on intent
+
+Nothing here touches a live cable network, a licensed service, or anyone
+else's content. The plant is coax and terminators on a bench; the
+subscribers are boxes that would otherwise be landfill; the programming is
+made in-house. The output of the project is working history — plus a
+public protocol document, so the next person who finds a DCT2000 at a
+thrift store can bring it back to life too.
