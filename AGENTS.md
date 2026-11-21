@@ -146,7 +146,7 @@ new component names; extend this set only via Marshal.
 - No real broadcaster content anywhere in the pipeline: playout is
   self-authored loops and authored listings only.
 
-## 6. Reviews, findings, and commit conventions
+## 6. Reviews, findings, pull requests, and commit conventions
 
 - **Adversarial reviews** use the r-series format (see
   `docs/Reproduction Plan — Adversarial Review r4.md`): findings are
@@ -162,6 +162,47 @@ new component names; extend this set only via Marshal.
 - **Nightly canary** (post-M1): reboot box → assert `AUTH`/`E 00` → scrape
   d 02/d 15. Canary red >3 nights reopens a milestone; treat canary
   failures as highest-priority work.
+
+### Pull requests (mandatory for declared features)
+
+Every **declared feature** — any board item of Type `feature` or
+`experiment`, and any change touching `crates/`, `flowgraphs/`, `ops/`,
+`lab/`, or `.github/` — merges **only** through a pull request that
+satisfies all of the following. Docs-only typo fixes may still land
+directly on `main`; everything else goes through review.
+
+1. **Human approval, always.** At least one approving review from
+   Marshal (the repo owner) before merge. `CODEOWNERS` routes every path
+   to the owner so GitHub enforces this. Agents never approve, never
+   merge, never review their own work.
+2. **Completed role reviews** per change class — all required reviewers
+   have submitted a review and no change request stands open:
+   - crate boundaries / wire formats / PID plan / OpenAPI surface →
+     **oob-architect**
+   - box-behavior claims, captures, canary, drills → **oob-qa**
+   - flowgraphs, RF chain, SEM integration → **oob-dev-rf**
+   - Console SPA and journeys → **oob-dev-console** (plus oob-architect
+     when the API surface moves)
+   - core cross-review for shared crates → **oob-dev-core**
+   - board/process/gate items → **oob-scrum** or **oob-pm**
+   The PR template's Review routing section records which apply; "not
+   applicable" must be justified in the PR body.
+3. **Reviews are completed, not merely started.** An approval with open
+   change requests is not mergeable. New commits after an approval
+   dismiss it — re-review is required.
+4. **The template is the price of entry.** PRs use
+   `.github/pull_request_template.md` in full: gate/workstream served,
+   findings and open items touched, evidence links, docs checklist, test
+   evidence, safety declarations, review routing. An incomplete template
+   is not reviewable.
+5. **Marshal merges.** Agents prepare branches, PRs, and evidence;
+   a human merges. Gate tags remain manual and Marshal-only.
+6. **Branch protection (one-time owner action).** On `main`: require a
+   pull request before merging; require ≥1 approval and CODEOWNERS
+   review; dismiss stale approvals on new commits; require status checks
+   (fmt/clippy/nextest, schema + lineup CI, mdBook build, OpenAPI drift,
+   gitleaks); require branches up to date; block force pushes and
+   deletion.
 
 ## 7. Hardware safety and the closed-plant doctrine
 
@@ -244,6 +285,9 @@ These are hard rules with legal weight:
   modes) — fidelity targets come from the census and the docs.
 - Do not start work whose gate entry criteria are unmet, and do not give
   surplus-hardware finds any planning weight (opportunism only).
+- Do not approve, merge, or self-review pull requests. Declared features
+  merge only with Marshal's human approval and completed role reviews
+  (§6); direct pushes to `main` beyond docs-only typos are out of bounds.
 - Do not touch live cable plant, licensed services, or anyone else's
   content — ever.
 
@@ -252,9 +296,10 @@ These are hard rules with legal weight:
 A task is done when: code builds with warnings denied; tests pass under
 nextest; schemas and lineup CI are green; OpenAPI drift check is clean;
 docs updated in the same commit (same-commit rule); experiment claims
-have captures; and the PR text states which gate/workstream it serves and
-which findings/open items it touches. Work that can't meet this stays a
-draft and says why.
+have captures; the PR text states which gate/workstream it serves and
+which findings/open items it touches; and — for any declared feature —
+the PR carries Marshal's human approval with all required role reviews
+completed. Work that can't meet this stays a draft and says why.
 
 ## 13. Role agents
 
@@ -264,4 +309,5 @@ expert — plus a README defining the Oob project board (fields, columns,
 labels, standing rules). Every agent in this repo works as exactly one of
 those roles at a time; the role files refine this contract, never replace
 it. Board conventions (gate/workstream fields, `Blocked (entry criteria)`
-state, Done = gate-passed only) are binding on all roles.
+state, Done = gate-passed only, feature PRs human-approved with completed
+role reviews) are binding on all roles.
