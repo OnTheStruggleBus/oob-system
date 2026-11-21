@@ -195,6 +195,7 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | `Management Console Specification — Oob Console.md` | The operator front-end — every setting, template, and campaign, API-first over the WireLink verbs |
 | `Project Milestones & Stage Gates — mini-headend.md` | The operating contract: milestone/gate map G0–G6 with entry/exit/evidence rules, enabling tracks, the living gate register, and the full development tool stack |
 | `Hardware Acquisition List — mini-headend.md` | The prioritized buy list: what to acquire, in P0→P3 order, and which gate or track each purchase unblocks |
+| `Prior Art & External References — mini-headend.md` | The 2026-11-22 prior-art scan: closest relatives (a Mode B OOB decoder; the 33c3 DigiCipher II talk), vendor-side corroboration, box-side hobby docs, adjacent scenes, and the gap this project fills |
 | `ADR-001-adversarial-review.md`, `-r2.md` | Reviews of the ADR (rounds 1–2) |
 | `Reproduction Plan — Adversarial Review r3.md`, `r4.md` | Reviews of the plan (rounds 3–4, dispositions pending) |
 
@@ -216,6 +217,7 @@ get folded in at the next revision.
 - Naming: **adopted** — the software is **Oob** (OOB — Out-of-Band), the
   guide stack is **VueGuide+**, crates are `oob-*`; docs are a build
   artifact (ground rule 8).
+- Prior art: **scanned** — no public attempt at a 55-1 Mode A headend reproduction found; the closest living relative is a receive-only Mode B (55-2) decoder, and the CA deep dive is Gerlinsky's 33c3 talk. Full results and follow-up actions in the Prior Art & External References doc.
 - SEM V8: **in the estate**, ACP encryption module confirmed by part
   number; bench bring-up (provisioning, license check, first-contact
   archive of its management payload) is on the two-week list.
