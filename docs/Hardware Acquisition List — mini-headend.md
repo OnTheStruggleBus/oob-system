@@ -1,6 +1,6 @@
 # Hardware Acquisition List — mini-headend
 
-*2026-11-22, rev 2. Consolidates the Reproduction Plan §8 buy list, the
+*2026-11-22, rev 3. Consolidates the Reproduction Plan §8 buy list, the
 r3/r4 review deltas (F3-2 capture rig, F3-3/F4-3 D0 tooling, F4-1 radio
 roles, F4-4 batteries, F4-7 networking), and the Milestones & Stage Gates
 §6 tool stack into one prioritized list. Priority follows the gate plan:
@@ -16,6 +16,11 @@ undispositioned finding r4 F4-1 (HackRF primary); the metering F4-1
 requires happens either way, and this plan is offered for Marshal's
 disposition alongside r4.
 
+**Rev 3 changes (Marshal's direction, 2026-11-22):** **LibreSDR** folded
+in as an *eventual option* — source listing logged (AliExpress item
+3256807990830574). Profile and caveats in P3-4; referenced from the
+P0-1 fallback set and the hub kit (Appendix A). Not an immediate buy.
+
 **Already in the estate (no purchase):** Motorola SEM V8 P/N
 507199-001-00 (ACP confirmed — QAM + FPK encryption), ADALM-Pluto (OOB
 TX candidate and upstream monitor), the DCT fleet (DCT2000 + DCT2500 +
@@ -26,9 +31,9 @@ NAS) for STARFONE.
 
 ## P0 — Buy now (unblocks G0.5 and G1)
 
-### P0-1. OOB radio — Pluto first ($0), HackRF *clone* as metered fallback
+### P0-1. OOB radio — Pluto first ($0), metered fallbacks
 
-**Cost-optimized plan (rev 2):**
+**Cost-optimized plan (rev 2, fallback set extended rev 3):**
 
 1. **ADALM-Pluto (in estate, $0).** Apply the AD9364-identity range
    hack (required at *every* hunt carrier, r4 F4-1), then meter actual
@@ -37,18 +42,29 @@ NAS) for STARFONE.
    the box input with the mandatory bandpass filter in-line (the filter
    is already in P0-2 and cleans the Pluto's sub-150 MHz spurs), the
    Pluto is the OOB TX and no radio purchase happens at all.
-2. **Fallback: HackRF One *clone* (~$105–150), not a genuine unit
-   (~$340).** rtl-sdr.com's clone-vs-original bench comparison found the
-   $339.95 genuine vs $105 clone gap hard to justify; for a
-   constant-envelope 1.024 Msym/s QPSK carrier into a filter +
-   attenuator, clone phase noise is not the bottleneck. Buy a bare
-   clone board (no PortaPack) from a listing with returns; verify
-   output on the meter before it enters the chain. Covers the whole
-   hunt table (75.25–116.25 MHz) in spec, no hack; doubles as the
-   STARVUE upstream receiver later if the Pluto stays on TX.
+2. **Fallback set (buy one, only if the Pluto meters short):**
+   - **HackRF One *clone* (~$105–150), not a genuine unit (~$340).**
+     rtl-sdr.com's clone-vs-original bench comparison found the price
+     gap hard to justify; for a constant-envelope 1.024 Msym/s QPSK
+     carrier into a filter + attenuator, clone phase noise is not the
+     bottleneck. Bare clone board (no PortaPack), listing with returns,
+     metered before entering the chain. Covers the whole hunt table in
+     spec, no hack; doubles as the STARVUE upstream receiver later.
+   - **LibreSDR (~$120–180 at the logged AliExpress listing; other
+     sellers up to ~$260–320 — verify seller and price).** PlutoSDR-
+     firmware-compatible clone (AD9363 + Zynq 7020): **native
+     70 MHz–6 GHz** (whole hunt table, no range hack), 0.5 ppm-class
+     VCTCXO (answers the drift/GPSDO escalation path), built-in
+     Ethernet (network-attached like the SEM — fits the containerized
+     lab). Caveat: a bench review observed a TX center (LO) spike in a
+     DATV test that a genuine Pluto did not show — right where a
+     narrowband carrier lives — so it goes through the same metered
+     dummy-load bench rule; full profile in P3-4. Choose this over the
+     HackRF clone if the gr-iio flowgraph stack and Ethernet placement
+     are worth more than the HackRF's wider community support.
 3. **Decision point:** G0.5 exit records which radio committed, with
    the level log as evidence (unchanged from r4 F4-1's metering
-   requirement — only the preferred order changes).
+   requirement — only the preference order changes).
 
 - **Unblocks:** G0.5 exit (OOB TX committed), G1 entry.
 
@@ -58,7 +74,7 @@ The chain between SDR and plant, bought as one kit:
 
 | Item | Spec / notes |
 | --- | --- |
-| Bandpass filter | For the chosen OOB carrier (104.2/110.25 class, decided at census); also suppresses Pluto spurs (r4 F4-8: FM-band adjacency makes this mandatory, not optional) |
+| Bandpass filter | For the chosen OOB carrier (104.2/110.25 class, decided at census); also suppresses Pluto/LibreSDR spurs (r4 F4-8: FM-band adjacency makes this mandatory, not optional) |
 | Small gain block / PA | Sized after metering radio output through the chain — buy only if the level budget doesn't close (r4 F4-1 delta) |
 | Variable/step attenuators | 0–30 dB class, to land ≈0 dBmV at the box input (window −10…+5 dBmV) |
 | 2-way combiner | Merges OOB carrier with SEM QAM output |
@@ -111,7 +127,8 @@ The chain between SDR and plant, bought as one kit:
 - Between playout host and SEM to keep GigE multicast clean (IGMP
   behavior with the SEM's GigE port is untested — the switch is the
   controlled environment for that test). Small 5–8 port managed unit is
-  sufficient.
+  sufficient. (If a LibreSDR ever joins the bench, its native Ethernet
+  lands on this switch too.)
 
 ### P1-2. Copper 1000BASE-T SFP — *conditional*
 
@@ -145,7 +162,9 @@ bandwidth is ample, so a receive-only dongle does the G5 job.
    post-G4 stretch, so waiting costs nothing; the V4's street price was
    $29.95 dongle-only / $39.95 with antennas.
 3. **$0 interim:** the Pluto can monitor the upstream window at the
-   bench (r4 F4-1) — evaluate before buying anything.
+   bench (r4 F4-1) — evaluate before buying anything. If a LibreSDR
+   joins the estate (P3-4) it is also a competent full-duplex upstream
+   receiver in this window.
 
 (A second HackRF or an SDRplay RSP1A remains the buy only if upstream
 bursts prove to need better dynamic range than a dongle provides —
@@ -174,7 +193,9 @@ decide from the first STARVUE capture, not before.)
 ### P3-1. GPSDO
 
 - Only if d 02 ever shows carrier drift (F4 escalation path, not a
-  default buy). A TCXO-upgraded radio is the first remedy.
+  default buy). A TCXO-upgraded radio is the first remedy — note the
+  LibreSDR (P3-4) already ships a 0.5 ppm-class VCTCXO, which may
+  retire this item entirely if one joins the estate.
 
 ### P3-2. Extra capture-rig units
 
@@ -188,13 +209,42 @@ decide from the first STARVUE capture, not before.)
   clear-tier redundancy, r4 F4-2) or another -001 (full redundancy).
   Logged by the research desk; buy on sight, plan on nothing.
 
+### P3-4. LibreSDR — eventual option (logged 2026-11-22, Marshal's direction)
+
+- **Source listing:** AliExpress item 3256807990830574 (~$120–180 class
+  at logging; other sellers list up to ~$260–320 — verify seller,
+  returns, and current price before any order).
+- **What it is:** PlutoSDR-firmware-compatible clone — AD9363
+  transceiver + Zynq 7020, runs the unofficial Pluto firmware port, so
+  the project's gr-iio flowgraphs and libiio tooling work unchanged.
+- **Why it fits this project:** native **70 MHz–6 GHz** range (the
+  whole hunt table with no firmware hack); 0.5 ppm-class VCTCXO +
+  external reference option (drift answers P3-1); built-in Gigabit
+  Ethernet (network-attached like the SEM — clean fit for the
+  containerized deployment and for rack placement away from the host);
+  second RF channel accessible for a future TX/RX split.
+- **Caveats (bench before trust):** a review observed a TX center (LO)
+  spike in DATV testing absent on a genuine Pluto — for our narrowband
+  QPSK carrier that spike sits mid-channel, so the P0-1 metering rule
+  (dummy load, spectrum + level log) applies in full; seller variance
+  and a thinner support trail than genuine Analog hardware; Ethernet
+  support varies by software stack (worked in SDR-Console, not in
+  SDR++ at review time — verify gr-iio-over-network on arrival).
+- **Status:** eventual option, not an immediate buy. Enters through
+  one of three doors: (a) the P0-1 fallback set if the Pluto meters
+  short and its gr-iio/Ethernet fit is preferred over a HackRF clone;
+  (b) a second-radio need where full-duplex + Ethernet beats a dongle;
+  (c) the Interconnect hub radio (Appendix A), where its Ethernet
+  native placement is the best fit of any radio on this list.
+
 ---
 
 ## Appendix A — Interconnect hub kit (post-G6, no schedule weight)
 
 Per the Interconnect spec §3, per hub: SBC (RPi 5 / x86 mini-PC, 8 GB
-class), HackRF-class radio *or* a recycled Pluto (the master's retired
-OOB radio is the natural hand-me-down), QAM source in preference order
+class), OOB radio in preference order — **LibreSDR** (P3-4; Ethernet-
+native placement is ideal for an unattended hub) → the master's retired
+Pluto (hand-me-down) → HackRF clone — QAM source in preference order
 (surplus SEM 507199-002 → HDMI→QAM gadget → GNU Radio QAM on a second
 SDR), mini F3-7 chain (combiner, tap, attenuator, dummy loads, RG6),
 optional RTL-SDR + capture rig for R4 return path, optional smart PDU
