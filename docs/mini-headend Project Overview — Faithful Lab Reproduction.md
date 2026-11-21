@@ -194,6 +194,7 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | `Remote Service Delivery Specification — Interconnect (Stretch Goal).md` | The S2 remote-delivery design |
 | `Management Console Specification — Oob Console.md` | The operator front-end — every setting, template, and campaign, API-first over the WireLink verbs |
 | `Project Milestones & Stage Gates — mini-headend.md` | The operating contract: milestone/gate map G0–G6 with entry/exit/evidence rules, enabling tracks, the living gate register, and the full development tool stack |
+| `Hardware Acquisition List — mini-headend.md` | The prioritized buy list: what to acquire, in P0→P3 order, and which gate or track each purchase unblocks |
 | `ADR-001-adversarial-review.md`, `-r2.md` | Reviews of the ADR (rounds 1–2) |
 | `Reproduction Plan — Adversarial Review r3.md`, `r4.md` | Reviews of the plan (rounds 3–4, dispositions pending) |
 
@@ -220,7 +221,8 @@ get folded in at the next revision.
   archive of its management payload) is on the two-week list.
 - Awaiting: Marshal's dispositions on adversarial reviews r3 (11 findings)
   and r4 (8 findings); ADR-001 rev 7 approval; the buy list (upstream SDR,
-  RF chain, capture rig, flash tooling, sundries).
+  RF chain, capture rig, flash tooling, sundries — see the Hardware
+  Acquisition List).
 - Next physical actions: box census, SEM bench bring-up, PHY bench at a
   high hunt carrier, first connect-message experiment.
 
