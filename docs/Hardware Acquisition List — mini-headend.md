@@ -1,6 +1,6 @@
 # Hardware Acquisition List — mini-headend
 
-*2026-11-22, rev 3. Consolidates the Reproduction Plan §8 buy list, the
+*2026-11-22, rev 4. Consolidates the Reproduction Plan §8 buy list, the
 r3/r4 review deltas (F3-2 capture rig, F3-3/F4-3 D0 tooling, F4-1 radio
 roles, F4-4 batteries, F4-7 networking), and the Milestones & Stage Gates
 §6 tool stack into one prioritized list. Priority follows the gate plan:
@@ -20,6 +20,13 @@ disposition alongside r4.
 in as an *eventual option* — source listing logged (AliExpress item
 3256807990830574). Profile and caveats in P3-4; referenced from the
 P0-1 fallback set and the hub kit (Appendix A). Not an immediate buy.
+
+**Rev 4 changes (Marshal's question, 2026-11-22):** commercial /
+purpose-built hardware survey added as P3-5 — period GI gear (extends
+O1), the DekTec DTA-2115B metrology-grade modulator (benchmark
+reference), commercial QAM alternatives (SEM-spare/hub class), and
+receiver-side verification instruments. All watch-list entries with
+zero planning weight.
 
 **Already in the estate (no purchase):** Motorola SEM V8 P/N
 507199-001-00 (ACP confirmed — QAM + FPK encryption), ADALM-Pluto (OOB
@@ -228,14 +235,65 @@ decide from the first STARVUE capture, not before.)
   QPSK carrier that spike sits mid-channel, so the P0-1 metering rule
   (dummy load, spectrum + level log) applies in full; seller variance
   and a thinner support trail than genuine Analog hardware; Ethernet
-  support varies by software stack (worked in SDR-Console, not in
-  SDR++ at review time — verify gr-iio-over-network on arrival).
+  support varies by software stack (verify gr-iio-over-network on
+  arrival).
 - **Status:** eventual option, not an immediate buy. Enters through
   one of three doors: (a) the P0-1 fallback set if the Pluto meters
   short and its gr-iio/Ethernet fit is preferred over a HackRF clone;
   (b) a second-radio need where full-duplex + Ethernet beats a dongle;
   (c) the Interconnect hub radio (Appendix A), where its Ethernet
   native placement is the best fit of any radio on this list.
+
+### P3-5. Commercial / purpose-built watch (logged 2026-11-22)
+
+Survey of commercial hardware designed for this job class. **All
+zero-planning-weight watch entries** — the SDR path and the SEM already
+cover every function below cheaper; these are opportunism, fallback
+depth, and benchmarks.
+
+**A. Period GI gear — literally designed for this (extends O1):**
+
+| Unit | Role if found |
+| --- | --- |
+| OM-1000/2000 | The real OOB modulator — TS in over UDP/IP or RS-530, proper 55-1 carrier out. The ultimate conformance reference for our SDR chain; worth real money to the project if one surfaces cheap |
+| RPD-1000/2000 | STARVUE upstream demod — the G5 return path done in period hardware |
+| DAC-6000 / RADD-6000 | R11 escalation only (message ground truth if discovery stalls past the M1 timebox) |
+| DLS / KLS-1000 / NC-1500 | Completeness; documentation and mating-ops value |
+
+**B. Metrology-grade modulator — DekTec DTA-2115B** (predecessor
+DTA-2115, discontinued): all-standard PCIe test modulator, fully agile
+**32–2186 MHz** (whole hunt table natively), DVB-S QPSK at
+0.088–85 MBd with programmable roll-off, plus an **arbitrary I/Q sample
+playback mode** (0.088–85 Msps via StreamXpress/DTAPI) that could take
+GNU-Radio-computed 55-1 baseband straight to RF. Lab-grade specs:
+−116 dBc phase noise @ 10 kHz, ±0.5 ppm, 10 MHz/1pps sync input, MER
+≥42 dB. Price reality: the DTA-2115-GOLD bundle listed at **€6,960**
+(no stock). **Verdict: the money-no-object correct instrument and a
+terrible purchase against a $0 Pluto** — logged as the signal-quality
+benchmark and as a rent/borrow candidate if the SDR chain ever needs an
+independent reference transmitter.
+
+**C. Commercial QAM alternatives — SEM-spare / hub class:**
+
+| Unit | Notes |
+| --- | --- |
+| DekTec DTE-3114 | Standalone **quad QAM-A/B/C** modulator, TS-over-IP in, GigE with IGMP + SNMP, agile 36–1002 MHz — same network-attached shape as the SEM; slots into the r4 F4-2 W4 fallback chain and the hub QAM list |
+| Carrier-grade edge QAMs (Vecima, Harmonic NSG class) | MPTS-over-GigE in, many QAMs out; surface on surplus at hobbyist prices occasionally — check Annex B support and licensing state before buying |
+| HDMI→QAM gadgets (Blonder Tongue, Thor, Pico) | Pragmatic but period-wrong; already the hub fallback in the Interconnect spec, unchanged |
+
+**D. Receiver-side verification instruments:** cable field meters
+(VIAVI/JDSU DSAM class) — QAM MER/BER with constellation views, sweep,
+ingress analysis, return QAM generator; some DSAM-era units reportedly
+carried forward-data-channel checks for DSG plants — **unverified:
+confirm FDC capability against the specific firmware before buying**.
+DekTec's professional cable receiver line (54–1002 MHz, J.83 A/B/C,
+MER/SNR/BER metrology + Xpect monitoring) is the bench-grade version.
+Verdict: convenience instruments for level logs and leakage sweeps; the
+RTL-SDR (P2-1) already covers the cheap version of this job.
+
+**E. S-A/Cisco DNCS-era gear:** wrong wire format (55-2 ATM/DSM-CC) —
+relevant only to the far-future second front in the S-A ecosystem spec;
+not watched.
 
 ---
 
@@ -245,11 +303,12 @@ Per the Interconnect spec §3, per hub: SBC (RPi 5 / x86 mini-PC, 8 GB
 class), OOB radio in preference order — **LibreSDR** (P3-4; Ethernet-
 native placement is ideal for an unattended hub) → the master's retired
 Pluto (hand-me-down) → HackRF clone — QAM source in preference order
-(surplus SEM 507199-002 → HDMI→QAM gadget → GNU Radio QAM on a second
-SDR), mini F3-7 chain (combiner, tap, attenuator, dummy loads, RG6),
-optional RTL-SDR + capture rig for R4 return path, optional smart PDU
-for remote box power-cycling. R1 is a loopback bench kit — much of it
-borrows from the master bench.
+(surplus SEM 507199-002 → DekTec DTE-3114 or carrier-grade EQAM
+[P3-5 C] → HDMI→QAM gadget → GNU Radio QAM on a second SDR), mini F3-7
+chain (combiner, tap, attenuator, dummy loads, RG6), optional RTL-SDR +
+capture rig for R4 return path, optional smart PDU for remote box
+power-cycling. R1 is a loopback bench kit — much of it borrows from the
+master bench.
 
 ## Appendix B — Estate verification checklist (before any P1/P2 order)
 
