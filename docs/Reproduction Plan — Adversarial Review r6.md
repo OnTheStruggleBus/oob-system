@@ -374,8 +374,8 @@ AGENTS.md is not the only stale document:
 
 **Why it matters.** Drift has already caused a defect. The PR #5 role review
 followed AGENTS.md and reworded the `oob-mux` and `oob-dac` crate docs to
-call F5-6 and F5-12 "pending disposition". Both are dispositioned. That
-wording needs reverting.
+call F5-6 and F5-12 "pending disposition". Both are dispositioned. The
+wording was reverted in PR #5 (`c51d810`).
 
 **Delta.**
 
@@ -457,7 +457,7 @@ time slots depend on them.
 | F6-10 | medium | Slice D (oob-dac API) |
 | F6-11 | medium | Slice D (oob-dac API) |
 | F6-12 | medium | Slice C (seam only; zero pre-G6 hub work) |
-| F6-13 | medium | Immediate docs sweep; revert the PR #5 "pending" wording |
+| F6-13 | medium | Immediate docs sweep (PR #5 wording already reverted) |
 | F6-14 | low | With each daemon's first binary |
 | F6-15 | low | Slice C |
 | F6-16 | low | Host build; F5-8 catalog entry |
