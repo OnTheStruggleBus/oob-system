@@ -123,7 +123,7 @@ and caps**. Per-class rates live in the plant config, not in code.
 | Class | Traffic | Policy |
 | --- | --- | --- |
 | C0 system | time, connect/config carousel | guaranteed floor, highest priority |
-| C1 addressed | lifecycle ops, EMMs, polls | floor; 250 ms inter-terminal spacing enforced here |
+| C1 addressed | lifecycle ops, EMMs, polls | floor; honors per-PDU release times set by the command layer (F6-11) |
 | C2 EAS | alert messages | preempts C3–C5 |
 | C3 guide | listings carousel | floor sized from measured N (G6) |
 | C4 CDL | download carousel | best-effort, capped |
@@ -191,8 +191,20 @@ can regenerate.
 - **Derived:** terminal status, last response, d-screen cache, carousel
   state. These may be rebuilt.
 - **Precious:** the entitlement-change journal, purchase ledger, campaign
-  ledger and audit log (bsilog). These go in a separate sqlite file in WAL
-  mode with continuous backup, and/or are journaled to `ops-state` (F6-4).
+  ledger and audit log (bsilog). These must be backed up and/or journaled
+  to `ops-state` (F6-4).
+
+**Atomicity rule.** Many operations write both kinds of state in one
+logical step: an entitlement change plus terminal status, or a purchase
+upload plus its poll result. Splitting them across sqlite files breaks
+that, because in WAL mode a transaction spanning `ATTACH`ed databases is
+atomic per file but not across files. So:
+
+- **Keep one database file** and classify durability per table. Back up
+  the whole file continuously; on restore, rebuild the derived tables.
+- Where derived state follows from a precious event, use an **outbox**:
+  commit the precious event first, then derive the status from it
+  idempotently, so a crash between the two is repaired on replay.
 
 Schema migrations are versioned from the first table.
 
@@ -234,14 +246,19 @@ becomes an honor system at exactly the gates (G1, G3) that need it most.
 
 **Delta.** Split each capture in two:
 
-- **A plaintext manifest:** capture ID, sha256 of the decrypted payload,
+- **A plaintext manifest:** capture ID, an **HMAC-SHA256 of the
+  decrypted payload, keyed with a secret held in the git-crypt tier**,
   timestamp, experiment ID, template hash, verdict, and a box-role
-  pseudonym. Never the UA or serial.
+  pseudonym. Never the UA or serial. A plain hash would leak: many
+  captures are low-entropy (a front-panel `E 00`, a single d-screen
+  field), and an unkeyed hash of a short, known-format payload can be
+  confirmed or brute-forced offline.
 - **The encrypted payload.**
 
-GitHub CI checks that every `verified` catalog entry resolves to a manifest
-entry with a matching template hash. The key-holding lab runner (F6-8)
-re-hashes payloads nightly. mdBook renders manifests, never payloads.
+GitHub CI, which holds no key, checks that every `verified` catalog entry
+resolves to a manifest entry with a matching template hash. The
+key-holding lab runner (F6-8) recomputes the HMACs nightly. mdBook renders
+manifests, never payloads.
 
 ### F6-8 — The CI topology doesn't match the hardware canary (medium, CI / safety)
 
@@ -333,6 +350,11 @@ and the code should keep it single.
 - One internal **command layer**: an enum of the §11 catalog plus the
   Define Operations targeting and lifecycle. It is the only path into the
   scheduler.
+- **Campaign pacing lives here and nowhere else.** The ≥250 ms
+  inter-terminal delay and Repeat-Every belong to a *bulk operation*, so
+  only the command layer knows which PDUs belong to which campaign. It
+  enforces the spacing by setting each PDU's release time. The F6-3 shaper
+  only honors those release times; it never infers campaign spacing.
 - REST, WireLink-wire, billing and lab entry points are adapters over it.
 - OpenAPI is generated from the REST adapter.
 - The WireLink-wire endpoint has no authentication, true to the period, so
