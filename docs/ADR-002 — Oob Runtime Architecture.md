@@ -3,7 +3,8 @@
 - **Status:** Proposed — awaiting Marshal's approval
 - **Date:** 2026-11-22
 - **Deciders:** Marshal (approval); oob-architect (author role);
-  oob-dev-core and oob-dev-rf (review)
+  oob-dev-core and oob-dev-rf (consulted, per AGENTS.md §14 step 3 —
+  PR review is oob-qa and oob-architect only)
 - **Addresses:** r6 F6-1, F6-2, F6-3, F6-9, F6-12
 - **Builds on:** ADR-001 rev 8 (what to build); this ADR decides *how the
   running system is shaped*.

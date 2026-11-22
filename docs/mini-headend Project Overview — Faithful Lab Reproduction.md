@@ -242,8 +242,9 @@ get folded in at the next revision.
   DB is declared derived state (F5-12); release tags are `rel/<carrier>`
   (F5-13).
 - Awaiting (Marshal's manual actions): ADR-001 rev 7 approval; branch
-  protection (AGENTS.md §6 checklist); Projects board + labels
-  (`.github/agents/README.md` spec); git-crypt init before G1 (F5-11) —
+  protection (AGENTS.md §6 checklist); the `gh` `project` scope so oob-pm
+  can build the Projects board + labels (`.github/agents/README.md` spec,
+  AGENTS.md §14); git-crypt init before G1 (F5-11) —
   needs Marshal's key escrow; the buy list (HackRF One clone primary OOB
   TX, RF chain, capture rig, flash tooling, sundries — see the Hardware
   Acquisition List).

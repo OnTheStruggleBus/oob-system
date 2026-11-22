@@ -295,6 +295,8 @@ Pinned where it matters, FOSS where possible, everything scriptable.
 | pre-commit | Local gates | fmt, lint, YAML schema validation |
 | Containerized CI on the lab host | Continuous verification | cargo test/clippy/fmt, pnpm build, schema validation, lineup-consistency CI, OpenAPI drift check; **nightly hardware canary** post-M1 (reboot box → `E 00` → scrape d 02/d 15) — the regression tripwire behind gate rule 8 |
 | ADR + adversarial-review docs | Decision/risk record | The r-series format is the major-gate review format (rule 4) |
+| Claude Code subagents (`.claude/agents/`) | Role agents at work | One launcher per role; the orchestrating session hands each AGENTS.md §14 step to its role; PR review is oob-qa (bugs) + oob-architect (drift) |
+| Agent command guard (`ops/agent-guard.py`) | Blocks agent merge/approve/admin/token commands | Wired per tool by committed hook files (`.claude/settings.json`, `.cursor/`, `.gemini/`, `.codex/`, `.github/hooks/`) and, for Kimi Code, `ops/install-agent-guards.py`; CI job `agent-guard` runs its self-test and `ops/check-agent-hooks.py`, which runs every tool's hook (in the checkout and on the git-fallback path) and fails if one is disabled, mis-wired, or stops blocking (AGENTS.md §14) |
 | Pandoc + **mdBook (required)** | Doc exports + the doc site | mdBook builds `docs/` into the human-readable doc site on every CI run — broken links fail the build (see §8); `docs/protocol/` stays Markdown-first |
 
 ### 6.6 Later-phase additions
@@ -319,8 +321,9 @@ carrier drift — F4 escalation path, not a default buy).
 *Rows are filled at each gate review. Dispositions closed 2026-11-22:
 adversarial reviews r3 (×11), r4 (×8), r5 (×14) — all accepted, deltas
 folded. Still open (Marshal's manual actions): ADR-001 rev 7 approval,
-branch protection (AGENTS.md §6.6), Projects board + labels
-(`.github/agents/README.md` spec).*
+branch protection (AGENTS.md §6.6), the `gh` `project` scope so oob-pm
+can build the Projects board + labels (`.github/agents/README.md` spec,
+AGENTS.md §14).*
 
 **Release tags (r5 F5-13):** tags use the collision-safe format
 `rel/<carrier>` — hunt-table carriers in the box's d 02 scroll order:

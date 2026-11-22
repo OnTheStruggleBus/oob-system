@@ -23,6 +23,16 @@ Routing rule: pick the role whose "owns" column matches the task. A task
 spanning roles gets handed off explicitly per each file's Handoffs
 section — never silently absorbed.
 
+**Roles build, and run as subagents.** Each role has a Claude Code
+subagent in `.claude/agents/<role>.md` that loads `AGENTS.md` and this
+role file. The orchestrating session hands each step of the AGENTS.md §14
+workflow to its role: PO shapes issues, PM builds the board, architect
+designs before `Ready`, a dev subagent builds one issue per run, QA and
+the architect review, and PO accepts on the issue. Marshal grants the
+`project` scope once; after that, oob-pm creates and maintains the
+board. Only **oob-qa** (bugs and fixes) and
+**oob-architect** (drift) comment on PRs.
+
 ## The Oob project board
 
 All work flows through the GitHub Projects board **"Oob"** (create it
@@ -44,9 +54,10 @@ under the owner's account, linked to this repo). Board setup:
    in the issue (e.g., "needs D0 verified restore", "needs O7").
 3. **Ready** — gate entry criteria met; devs pull only from here.
 4. **In progress** — small WIP; one active slice per workstream.
-5. **In review** — PR + evidence pack assembled; QA/architect eyes.
+5. **In review** — PR + evidence pack assembled; oob-qa bug review and
+   oob-architect drift review at the head SHA.
 6. **Gate review** — queued for Marshal's PASS / PASS-WITH-DELTAS / HOLD.
-7. **Done** — gate-passed only. Nobody else moves cards here.
+7. **Done** — gate-passed only. Only Marshal moves cards here.
 
 **Labels (repo)**
 
@@ -70,8 +81,13 @@ under the owner's account, linked to this repo). Board setup:
 5. Stretch columns (`post-G6`) hold Interconnect/S3 items with no
    schedule weight; they never enter `Ready` early.
 6. **Every declared feature merges only by pull request, merged by
-   Marshal after all required role reviews are completed on the head
-   commit** — Marshal's merge is the human approval (AGENTS.md §6;
-   template at `.github/pull_request_template.md`). Cards sit in **In
-   review** until the role reviews are complete and Marshal merges; no
-   agent moves a card past this state itself.
+   Marshal after the required reviews (AGENTS.md §6 rule 2) are
+   completed and current (§6 rule 3) and oob-po has accepted on the
+   issue (for a PR with no issue — Marshal's direct request — his merge
+   is the acceptance)** —
+   Marshal's merge is the human approval (AGENTS.md §6; template at
+   `.github/pull_request_template.md`). Cards sit in **In review** until
+   the reviews are clean, PO has accepted, and Marshal merges; a PO
+   reject sends the card back to **In progress**. After the merge,
+   oob-scrum moves the card to **Gate review**. No agent moves a card to
+   **Done**.

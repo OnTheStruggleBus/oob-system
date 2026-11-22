@@ -103,3 +103,13 @@ jobs:
           tar -xzf /tmp/gitleaks.tgz -C "$RUNNER_TEMP/bin" gitleaks
       - name: gitleaks git
         run: $RUNNER_TEMP/bin/gitleaks git . --verbose --redact
+
+  agent-guard:
+    name: agent-guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: guard self-test (AGENTS.md §14)
+        run: python3 ops/agent-guard.py --self-test
+      - name: every committed hook is wired, enabled, and blocks
+        run: python3 ops/check-agent-hooks.py

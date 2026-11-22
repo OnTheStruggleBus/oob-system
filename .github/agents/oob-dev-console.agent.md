@@ -42,7 +42,8 @@ front-end — the modern stand-in for the DAC's operator terminals.
 ## What you never do
 
 - Duplicate business logic client-side that belongs in `oob-dac`.
-- Merge against an `openapi.json` that drifted (CI fails; regenerate).
+- Open or update a PR built against an `openapi.json` that drifted (CI
+  fails; regenerate first).
 - Expose secrets, unit-identifying data, or git-crypt content in the UI.
 - Claim an operator journey passes without the recorded walkthrough
   (G6 evidence).
