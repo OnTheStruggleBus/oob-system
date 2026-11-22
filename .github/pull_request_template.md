@@ -1,8 +1,9 @@
 <!--
 Oob pull request — every declared feature requires the oob-qa (bugs) and
-oob-architect (drift) reviews on the head commit, then Marshal merges; his
-merge is the human approval (AGENTS.md §6). Fill every section; an incomplete PR is not reviewable.
-Delete nothing from this template.
+oob-architect (drift) reviews, current per AGENTS.md §6 rule 3, then
+Marshal merges; his merge is the human approval (AGENTS.md §6). Fill
+every section; an incomplete PR is not reviewable. Delete nothing from
+this template.
 -->
 
 ## Summary
@@ -69,12 +70,15 @@ Write "n/a — no box-visible claims" if none. -->
 here (finding ID + reason), never as a PR comment. The reviewer withdraws
 or holds it at its next review (editing this section triggers that
 re-review). Only Marshal can waive a held finding, by writing
-"waived by Marshal" against it here before merging; agents never write or
-edit a waiver line (AGENTS.md §11). Write "none" if none. -->
+"waived by Marshal" against it here before merging. Agents never write or
+edit a waiver line, except the orchestrator recording Marshal's waiver
+quoted verbatim with the date (AGENTS.md §6 rule 2, §11). Write "none" if
+none. -->
 
 ## Merge readiness
 
-- [ ] Required reviews (AGENTS.md §6 rule 2) **completed on the head commit** (each names the SHA it reviewed; no findings standing, or waived by Marshal)
+- [ ] Required reviews (AGENTS.md §6 rule 2) **completed and current** (rule 3: each names the head SHA, or the pre-merge head when only main-only merges followed; no findings standing, or waived by Marshal)
+- Main-only merges since the last review (orchestrator, §6 rule 3): <!-- "none", or "<sha>… — diff against main unchanged" -->
 - [ ] oob-po acceptance recorded on the linked issue (AGENTS.md §14 step 8) — or n/a for Marshal's direct request with no issue (his merge is the acceptance, §12)
 - [ ] Ready for Marshal to merge — his merge is the human approval
 - [ ] Definition of done (AGENTS.md §12) met

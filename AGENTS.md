@@ -227,23 +227,28 @@ Marshal's merge, no review comments required.
    the same section **before** merging; a waived finding counts as
    cleared for rule 3 and §12. **Agents never write, edit, move, or remove
    a waiver line** — except the orchestrator recording a waiver Marshal
-   gave in its session, quoted verbatim with the date. Reviewers flag any
-   waiver line that is new since their last review and isn't such a
-   quote.
+   gave in its session, quoted verbatim with the date. A reviewer that
+   sees a waiver line new since its last review and not in that quoted
+   form adds a **note for Marshal to confirm** — not a finding, so it
+   never blocks the merge. Marshal confirms by merging.
    **Scope:** these rules govern PRs written by agents. Machine-opened
    PRs from the running system (e.g. r6 F6-4's Console-opened config
    PRs) need their own rule, to be set when F6-4 is dispositioned.
 3. **Reviews are completed and current.** A QA or architect review counts
-   only when it is submitted, names the head commit SHA it reviewed, and
-   leaves no change request standing. Reviews post as PR comments, so
+   only when it is submitted, is **current**, and leaves no finding
+   standing. A review is current when the SHA it names is the PR's head,
+   or is the head from before main-only merges that meet the exception
+   below. Everywhere this contract says a review is completed "on the
+   head commit", it means current in this sense. Reviews post as PR comments, so
    GitHub does not dismiss them automatically: after any new commit,
    the required reviews (rule 2) are re-run on the new head before
    Marshal merges. **Exception — main-only merges:** a merge commit that
    only brings `main` into the branch (as "require branches up to date"
    forces) needs no re-review if the PR's diff against `main` is
    byte-identical to the diff that was reviewed. The orchestrator checks
-   this and notes the result in the PR description; any difference means
-   a full re-review.
+   this and records it in the PR description's *Merge readiness* section
+   (`main-only merges since review: <sha>… — diff unchanged`); any
+   difference means a full re-review.
 4. **The template is the price of entry.** PRs use
    `.github/pull_request_template.md` in full: gate/workstream served,
    findings and open items touched, evidence links, docs checklist, test
