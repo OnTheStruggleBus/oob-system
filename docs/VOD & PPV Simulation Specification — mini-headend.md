@@ -218,6 +218,22 @@ carry IPPV purchase uploads.
   and impulse mid-event (buy-until window). Our P2 ledger (§4) must
   therefore support a **cancel-before-epoch** path for pending
   purchases, mirroring the box's own Cancel Purchase.
+- **Period PPV discovery surfaces, third instance (three Marshal-supplied
+  frames from the 1999 TV Guide Interactive instructional tape,
+  2026-11-22; plan §4.1 reference (11)):** TVGI documents a **dedicated
+  "PPV by Title" menu** — a red-pill title list (**Enemy of the State** R,
+  **Patch Adams** PG-13, **Rushmore** R, **She's All That** PG-13 — MPAA
+  rating badges right-aligned in-pill) headed by a **"Watch Previews"**
+  row, with the HBO Family bottom ad banner on the same screen. The
+  period guide-era PPV discovery surfaces are now three: **grid badging**
+  (PTCI frames above), **ad-slot promotion** (TVGI's "You've Got Mail —
+  Now on PPV" left-rail panel), and a **dedicated PPV menu with a
+  previews entry**. "Watch Previews" is period evidence for the
+  barker/preview mechanism our P1 preview epoch (§2.1) reproduces —
+  the guide deep-links into the operator's preview channel rather than
+  streaming anything. The four titles (theatrical releases Dec 1998 –
+  Jan 1999) also date the recording to mid-1999, consistent with the
+  tape's 1999 label.
 
 ### 2.5 True VOD — the NC 1500 / SEM VOD Control path
 
