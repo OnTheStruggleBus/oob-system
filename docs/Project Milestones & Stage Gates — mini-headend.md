@@ -296,6 +296,7 @@ Pinned where it matters, FOSS where possible, everything scriptable.
 | Containerized CI on the lab host | Continuous verification | cargo test/clippy/fmt, pnpm build, schema validation, lineup-consistency CI, OpenAPI drift check; **nightly hardware canary** post-M1 (reboot box → `E 00` → scrape d 02/d 15) — the regression tripwire behind gate rule 8 |
 | ADR + adversarial-review docs | Decision/risk record | The r-series format is the major-gate review format (rule 4) |
 | Claude Code subagents (`.claude/agents/`) | Role agents at work | One launcher per role; the orchestrating session hands each AGENTS.md §14 step to its role; PR review is oob-qa (bugs) + oob-architect (drift) |
+| Agent command guard (`ops/agent-guard.py`) | Blocks agent merge/approve/admin/token commands | Wired per tool by committed hook files (`.claude/settings.json`, `.cursor/`, `.gemini/`, `.codex/`, `.github/hooks/`) and, for Kimi Code, `ops/install-agent-guards.py`; CI job `agent-guard` runs its self-test (AGENTS.md §14) |
 | Pandoc + **mdBook (required)** | Doc exports + the doc site | mdBook builds `docs/` into the human-readable doc site on every CI run — broken links fail the build (see §8); `docs/protocol/` stays Markdown-first |
 
 ### 6.6 Later-phase additions

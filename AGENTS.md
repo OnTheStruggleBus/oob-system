@@ -125,9 +125,12 @@ ops/
   ci/            # nightly canary: reboot box, assert AUTH, scrape d 02/d 15
   agent-guard.py # command guard for agent shells (§14 Credentials)
   agent-guard.kimi.toml # Kimi Code hook entry for ~/.kimi-code/config.toml
+  install-agent-guards.py # installs the Kimi entry (user-level only)
 docs/            # mdBook source; protocol/ and runbook/ live here
 .github/agents/  # role files: one contract slice per role (source of truth)
 .claude/agents/  # Claude Code subagent launchers, one per role (§14)
+.claude/settings.json, .cursor/, .gemini/, .codex/, .github/hooks/
+                 # per-tool hooks running ops/agent-guard.py (§14)
 ```
 
 Naming is adopted and fixed: software **Oob**, crates `oob-*`, guide stack
@@ -267,7 +270,7 @@ Marshal's merge, no review comments required.
    the author can't approve their own PR — rule 1); require status
    checks by CI job display name — today exactly `rustfmt`,
    `clippy (-D warnings)`, `nextest`, `cargo doc (warnings denied)`,
-   `cargo-deny`, `gitleaks`; require branches up to date; do not allow
+   `cargo-deny`, `gitleaks`, `agent-guard`; require branches up to date; do not allow
    bypassing these settings; block force pushes and deletion.
    **Required checks grow with CI:** a required check that never reports
    blocks every merge, so each new CI job (mdBook link check per F5-10,
@@ -432,32 +435,54 @@ Rules for running roles as subagents:
   roles maintain issues and labels, and record intended board fields in
   each issue body.
 - **Credentials:** until agents have their own identity, subagents act
-  through the owner's `gh` login, so "never merge" is a rule-only control
-  (an unnumbered candidate for the next review round; r6 itself ends at
-  F6-16). Subagents must never call merge, approve, or
+  through the owner's `gh` login, so GitHub itself cannot stop an agent
+  from merging; "never merge" is enforced only by this rule and, best
+  effort, by the command guard below (an unnumbered candidate for the
+  next review round; r6 itself ends at F6-16). Subagents must never call merge, approve, or
   admin endpoints, and must not be given any other owner-level or
   merge-capable token. Every launcher grants `Bash`, and that shell runs
   with the owner's `gh` login, so the rule alone can't stop a misbehaving
   role. **Marshal chose option (b), a command guard (2026-11-22):**
   - `ops/agent-guard.py` blocks shell commands that merge or approve PRs,
     change repository admin settings (protection, rulesets, secrets,
-    repo settings), read or change the `gh` login, call the GitHub API
-    through curl/wget, force-push, push to `main`, or edit the guard and
-    Claude Code settings. It ignores heredoc text (commit messages, PR
-    bodies) unless that text is fed to an interpreter.
-    `python3 ops/agent-guard.py --self-test` must pass.
-  - **Claude Code** runs it as a `PreToolUse` hook on every Bash call,
-    subagents included (`.claude/settings.json`, which also carries
-    matching deny rules and blocks agent edits to the guard and settings
-    files). The hook fails closed.
-  - **Kimi Code** runs it as a `PreToolUse` hook on `Bash`. Kimi reads
-    hooks only from the user-level `~/.kimi-code/config.toml`, so the
-    entry in `ops/agent-guard.kimi.toml` is appended there by hand
-    (installed on Marshal's machine 2026-11-22; check with `/hooks` in a
-    Kimi session). Two Kimi differences: a hook that crashes or times
-    out is **fail-open**, and Kimi has no equivalent of the Claude Code
-    edit-deny rules, so only shell edits of the guard and config files
-    are blocked.
+    repo settings), read, print, or change the `gh` login, call the
+    GitHub API through curl/wget, force-push, push to `main`, or edit the
+    guard and hook files. Each rule stays within one command (pipes,
+    chains and new lines split commands). Heredoc text (commit messages,
+    PR bodies) is ignored unless it is fed to `gh api`, an interpreter,
+    or a command substitution. `python3 ops/agent-guard.py --self-test`
+    must pass; the CI job `agent-guard` runs it.
+  - **It cannot be switched off by changing branch.** Every hook file
+    runs the same launcher: the checked-out `ops/agent-guard.py` if
+    present, otherwise the copy on `origin/main`, otherwise the newest
+    commit that has it; outside a git repo it does nothing. Checking out
+    an old branch therefore neither disables the guard nor blocks every
+    command.
+  - **It fails closed on what it can see:** its own errors, and a hook
+    payload with no readable shell command (an unknown payload shape),
+    both block with a message.
+  - **It is wired for everyone who clones the repo.** This is a public
+    repository, so each tool's per-repo hook file is committed and points
+    at the same guard; CI (`agent-guard` job) runs the self-test and checks
+    every file still calls it:
+
+    | Tool | Hook file (committed unless noted) | If the guard can't start or times out |
+    | --- | --- | --- |
+    | Claude Code | `.claude/settings.json` (PreToolUse/Bash, plus edit-deny rules) | command runs |
+    | Cursor | `.cursor/hooks.json` (beforeShellExecution, `failClosed`) | command blocked |
+    | Gemini CLI | `.gemini/settings.json` (BeforeTool/run_shell_command) | command runs |
+    | Codex | `.codex/hooks.json` (PreToolUse/Bash, `--format codex`) | command runs |
+    | GitHub Copilot CLI / cloud agent | `.github/hooks/agent-guard.json` (preToolUse/bash) | blocked if it can't start; runs on timeout |
+    | Kimi Code | user-level only: run `python3 ops/install-agent-guards.py` (installs or updates the `ops/agent-guard.kimi.toml` entry in `~/.kimi-code/config.toml`) | command runs |
+
+    The column above covers what the guard can't control: a missing
+    `python3` or a hook timeout. `python3` is part of the pinned
+    toolchain (§10), so a working setup has it.
+
+    Most tools ask you to trust a folder or review its hooks (`/hooks`)
+    before project hooks run; a contributor who declines has only this
+    rule. Only Claude Code also blocks *file-tool* edits of the guard and
+    hook files; elsewhere only shell edits are blocked.
   - **Other AI tools** call it from their own pre-command hook as
     `python3 ops/agent-guard.py --check "<command>"` (exit 2 = block).
     A tool with no pre-command hook is covered by this rule only.
@@ -465,8 +490,8 @@ Rules for running roles as subagents:
     obfuscation. The alternatives Marshal did not choose — (a) a bot
     account or per-role token without merge/admin rights, (c) an
     allowlisted GitHub wrapper — remain the way to make it airtight.
-  - Changing the guard or `.claude/settings*.json` is Marshal's job;
-    agents are blocked from both. Running-system credentials (r6
+  - Changing the guard or any hook file above is Marshal's job; agents
+    are blocked from both, and a PR that weakens them is a drift finding. Running-system credentials (r6
   F6-4/F6-10) are set when those findings are dispositioned.
 - §11 still binds every subagent: no merging, approving, gate tags,
   dispositions, or moving cards to `Done`.

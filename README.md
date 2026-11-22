@@ -304,6 +304,9 @@ docs/        the mdBook source — specs, protocol, runbook, reviews
 .github/     agent role files, PR template, workflows
 .claude/     Claude Code subagent launchers, one per role, and
              settings.json (runs the agent guard on every shell call)
+.cursor/ .gemini/ .codex/ .github/hooks/
+             the same agent guard for Cursor, Gemini CLI, Codex, Copilot
+             (Kimi Code users: python3 ops/install-agent-guards.py)
 ```
 
 ## Documentation

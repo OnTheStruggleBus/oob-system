@@ -103,3 +103,20 @@ jobs:
           tar -xzf /tmp/gitleaks.tgz -C "$RUNNER_TEMP/bin" gitleaks
       - name: gitleaks git
         run: $RUNNER_TEMP/bin/gitleaks git . --verbose --redact
+
+  agent-guard:
+    name: agent-guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: guard self-test (AGENTS.md §14)
+        run: python3 ops/agent-guard.py --self-test
+      - name: hook configs parse and point at the guard
+        run: |
+          set -euo pipefail
+          for f in .claude/settings.json .cursor/hooks.json .gemini/settings.json \
+                   .codex/hooks.json .github/hooks/agent-guard.json; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f"
+            grep -q 'ops/agent-guard.py' "$f" || { echo "::error file=$f::hook does not call ops/agent-guard.py"; exit 1; }
+          done
+          python3 -c "import tomllib; d=tomllib.load(open('ops/agent-guard.kimi.toml','rb')); assert set(d['hooks'][0])=={'event','matcher','command','timeout'}"

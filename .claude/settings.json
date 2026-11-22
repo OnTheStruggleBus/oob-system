@@ -12,7 +12,13 @@
       "Edit(.claude/settings.json)",
       "Edit(.claude/settings.local.json)",
       "Edit(ops/agent-guard.py)",
-      "Edit(~/.claude/settings.json)"
+      "Edit(~/.claude/settings.json)",
+      "Edit(.cursor/hooks.json)",
+      "Edit(.gemini/settings.json)",
+      "Edit(.codex/hooks.json)",
+      "Edit(.codex/config.toml)",
+      "Edit(.github/hooks/**)",
+      "Edit(~/.kimi-code/config.toml)"
     ]
   },
   "hooks": {
@@ -22,9 +28,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/ops/agent-guard.py\"",
-            "timeout": 10,
-            "onFailure": "block"
+            "command": "r=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git rev-parse --show-toplevel 2>/dev/null) || exit 0; f=\"$r/ops/agent-guard.py\"; if [ -f \"$f\" ]; then exec python3 \"$f\"; fi; s=$(git -C \"$r\" rev-parse -q --verify origin/main:ops/agent-guard.py 2>/dev/null || git -C \"$r\" log -1 --all --diff-filter=AMR --format=%H:ops/agent-guard.py -- ops/agent-guard.py 2>/dev/null); if [ -n \"$s\" ]; then exec python3 -c \"$(git -C \"$r\" cat-file -p \"$s\")\"; fi; exit 0",
+            "timeout": 10
           }
         ]
       }
