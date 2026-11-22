@@ -239,3 +239,23 @@ harness"; no separate discovery mechanism.
 10. Requirements: guide-carousel always-on service + Zabbix watchdog; M6
     exit gains cold-box repopulation latency (F3-10).
 11. W7: EAS marked as post-connect message-family work (F3-11).
+
+## Disposition (2026-11-22 — Marshal, G0.5 agenda)
+
+**All 11 findings ACCEPTED**, with amendments as noted; deltas applied to
+the Reproduction Plan, Milestones & Stage Gates, and Hardware Acquisition
+List in the disposition commit set.
+
+| # | Disposition | Note |
+| --- | --- | --- |
+| F3-1 | Accept, narrowed | Install manual (§3.1) documented carriers/hunting/acquisition after this review; O7 shrinks to coding/framing unknowns only. 2-week timebox stands. |
+| F3-2 | Accept | Capture rig is E1; precedes connect experiments. |
+| F3-3 | Accept | Strengthened by r4 F4-3 — D0 gates W6 + W8 + O13. |
+| F3-4 | Accept | Headend-rendered video guide channel is fallback (c); native app demoted to optional (d). |
+| F3-5 | Accept | d 14 OOB-vs-INB counters are the transport-ID instrument. |
+| F3-6 | Accept, amended | Audio pin refined by F5-7 (MP2 primary; AC-3 per census). |
+| F3-7 | Accept | RF chain = filter + PA + attenuator + coupler/tap + terminators; dummy-load-first. |
+| F3-8 | Accept, softened | Install manual documented d 14 fleet-wide; instrumentation tier no longer DCT2500-gated. |
+| F3-9 | Accept | Absorbed into F5-8's mechanism (hypothesized message class in oob-msg). |
+| F3-10 | Accept | Always-on carousel + Zabbix watchdog + M6 cold-box repopulation exit. |
+| F3-11 | Accept | EAS = post-connect message-family work; registered zero-weight M6 backlog (F5-9). |
