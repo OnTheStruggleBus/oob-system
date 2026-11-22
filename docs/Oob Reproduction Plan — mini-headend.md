@@ -375,9 +375,11 @@ TVGI, corporate-ancestor lineage of i-Guide via the Comcast /
 Gemstar-TV Guide GuideWorks venture (background knowledge, not
 frame-verified; note the fidelity-target prose above uses "TV Guide
 Interactive" loosely for the i-Guide grid — this reference is the
-real 1999 artifact, a different UI generation). Content not yet
-mined: the sandbox cannot pull video bytes, so frame captures or a
-transcript are a Marshal acquisition item (screenshot pattern).
+real 1999 artifact, a different UI generation). Partially mined
+2026-11-22: three Marshal frames analyzed in the TVGI frame-analysis
+block below (Denver lineup, TVGI palette, ad-slot model); a
+transcript or further frames remain a Marshal acquisition item
+(screenshot pattern).
 Two technical takeaways from source (1): (a) **the DCT2000-series CPU is a
 Motorola 68K-series** — vector graphics are drawn by the guide app itself,
 slowly enough that the "drawing" effect is visible, so firmware RE on DCT2000
@@ -486,6 +488,57 @@ screenshot, 2026-11-22; dated Mon 12/29/2008 in-frame):**
   (HDNet 528, HDNMU 529, APHD 530; SCIFI 527, BRVOD 526); "Title
   Blocked" rendered as literal cell text (parental-control state
   in-grid).
+
+**Frame analysis — TV Guide Interactive, 1999 instructional tape
+(Marshal-supplied frames, 2026-11-22; reference (11)):**
+
+- **Provenance:** the visible lineup is **Denver broadcast** — KWGN 2,
+  KTVD 3, KCNC 4, KMGH 7, KUSA 9 ("NBC affiliate"), plus SHO 5,
+  DSC 11 — under a generic "DIGITAL CABLE" watermark, so the deployer
+  is not frame-proven. The Denver + 1999 + TVGI combination fits the
+  documented corporate facts (SEC filings / trade press): TVGI's
+  owner United Video Satellite Group was **TCI-controlled** (TCI was
+  Denver-headquartered) until it became TV Guide, Inc. (March 1999)
+  and then Gemstar-TV Guide (announced October 1999, closed July
+  2000); TVGI reached ~2 million households in 2000, growing ~5,000
+  homes/day. The tape's generic branding reads as a vendor demo for
+  the anchor market, not operator evidence.
+- **Genre color coding, TVGI palette (differs from i-Guide):**
+  general/series = **purple** (Popular, Diagnosis Murder, Whose
+  Line?, Jesse), sports = **blue** (WWF Wrestling), movies = **red**
+  (Last Days of Disco). The corpus now holds three palettes — i-Guide
+  (sports green / kids light-blue / movies purple / general dark
+  blue), Passport Echo (monochrome), TVGI (this) — proof the palette
+  is per-guide-app, not per-platform; the census-first palette
+  verification finding (i-Guide frame 11) applies a fortiori.
+- **Grid anatomy:** single-time-column list grid — ◄ ► half-hour
+  stepper around the slot header ("7:30PM"), 7 channel rows visible,
+  channel chip = number + callsign on olive/khaki, continuation "◄"
+  on cells that started earlier, selection = green cell outline,
+  scroll chevrons above/below. Header: operator watermark left,
+  **envelope (messages) icon + clock** center, TV Guide logo right.
+- **Browse banner (over video):** TV Guide logo, ◄/► time stepper,
+  envelope + clock, channel chip ("9 KUSA") + title cell ("Friends"),
+  time range "7-7:30p" — and a **bottom-left ad panel inside the
+  banner itself** ("See the Wizard of Oz on TBS").
+- **Program info screen:** title (purple), time + channel
+  ("7-7:30p 9 KUSA"), a **network-affiliation line** ("NBC
+  affiliate"), action pill-row **Last / Watch / Lock ►** (Watch
+  highlighted), and a description panel restating the title in green
+  with a cast-parenthesized synopsis ("Monica (Courteney Cox) and
+  Chandler disagree…") plus a down-chevron continuation marker.
+- **Ad model is structural:** the left rail stacks promo panels
+  ("You've Got Mail — Now on PPV", "HBO Family — Click for more"),
+  the grid adds a bottom ad banner ("Give your family the best - HBO
+  Family"), and even the browse banner carries a panel — **including
+  PPV promotion via ad slot** ("Now on PPV"). Period guide-era PPV
+  discovery rode these slots as well as grid badging; our W8 ad slot
+  (i-Guide analysis, "Bottom ad banner") inherits both patterns.
+- **Metadata fields evidenced for O13 / listings synthesis:** title,
+  time range, channel number + callsign, network affiliation string,
+  genre (cell color), cast-parenthesized synopsis with truncation /
+  continuation, PPV-promo flag (ad slot), message-envelope indicator,
+  cell continuation markers.
 
 **Architecture reality:** the look is *box-side software* — the install manual
 describes an "interactive program application resident on the DCT 2000,"
