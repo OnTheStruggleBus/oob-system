@@ -32,9 +32,12 @@ restoration or period telephone exchange revival: the goal is authentic
 *behavior* of the original system, verified against original documentation
 and the original endpoints — not a modern re-imagining.
 
-**Naming (adopted 2026-11-22).** The software is **Oob** — OOB,
-*Out-of-Band*: *an out-of-band headend for DCT-class cable boxes — an MVPD
-of one*. mini-headend stays as the lab/estate nickname. The parts:
+**Naming (adopted 2026-11-22; revised 2026-11-22).** The software is
+**Oob** — OOB, *Out-of-Band*: *an out-of-band headend for DCT-class cable
+boxes — an MVPD of one*. Full project identity: **Oob — An
+AncientEnterprise Venture** (AncientEnterprise is Marshal's lab-project
+umbrella; sibling projects carry their own names). mini-headend stays as
+the lab/estate nickname. The parts:
 
 | Part | Name |
 | --- | --- |
@@ -48,9 +51,15 @@ of one*. mini-headend stays as the lab/estate nickname. The parts:
 | Operator front-end | **Oob Console** |
 
 Releases are tagged after the OOB hunt-table carriers in box scroll order
-(75.25 → 104.20 → 72.75 → …). The fictional operator carried in the guide's
-brand skin slot is **ArchaiTel Digital Cable** — *ArchaiTel, powered by
-Oob*.
+(`rel/75.25` → `rel/104.20` → `rel/72.75` → …).
+
+**Operator-agnostic by design (Marshal's direction, 2026-11-22).** Oob is
+not oriented to any telco or provider, fictional or otherwise: the guide
+and Console brand skin is a **per-deployment config slot** — no preset
+operator identity ships, and each deployment fills the slot with its own.
+The project is built so others can stand up their own plants, interconnect
+them (the S2 Interconnect), share configs, and transfer subscribers between
+systems. (This supersedes the ArchaiTel Digital Cable placeholder skin.)
 
 ## 2. Ground rules (what "faithful" means here)
 
@@ -181,6 +190,7 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | S1 | **Return path** — STARVUE II upstream receive + STARFONE modem-bank bridge, enabling purchases/polls | Reproduction Plan W7 |
 | S2 | **Interconnect — remote service delivery.** Operate boxes at remote sites over the internet off this headend, via small hub kits that regenerate RF locally. The modern stand-in for a master-headend-plus-hubs plant. | `Remote Service Delivery Specification — Interconnect (Stretch Goal).md` |
 | S3 | **Analog tier** — the platform's period analog descrambling modes (gated sync suppression, video inversion, Hamlin compatibility) | noted in Plan §3.1; out of current scope |
+| S4 | **VOD/PPV simulation** — scheduled PPV + call-ahead (P1), impulse PPV (P2, rides S1's return path), NVOD (P3); true session VOD registered but unscoped | `VOD & PPV Simulation Specification — mini-headend.md` |
 
 ## 8. Where everything lives (document map)
 
@@ -192,18 +202,19 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | `DAC-6000 Operations Reference — Oob Design Basis.md` | Everything the DAC manual teaches, organized as design input |
 | `Sci-Atlanta Ecosystem Specification — Explorer, DNCS, SCTE 55-2.md` | Companion spec for the rival ecosystem (theming source; possible far-future second front) |
 | `Remote Service Delivery Specification — Interconnect (Stretch Goal).md` | The S2 remote-delivery design |
+| `VOD & PPV Simulation Specification — mini-headend.md` | The S4 transactional layer: scheduled PPV + call-ahead, impulse PPV, NVOD, and the registered true-VOD stretch (proposed, awaiting disposition) |
 | `Management Console Specification — Oob Console.md` | The operator front-end — every setting, template, and campaign, API-first over the WireLink verbs |
 | `Project Milestones & Stage Gates — mini-headend.md` | The operating contract: milestone/gate map G0–G6 with entry/exit/evidence rules, enabling tracks, the living gate register, and the full development tool stack |
 | `Hardware Acquisition List — mini-headend.md` | The prioritized buy list: what to acquire, in P0→P3 order, and which gate or track each purchase unblocks |
 | `Prior Art & External References — mini-headend.md` | The 2026-11-22 prior-art scan: closest relatives (a Mode B OOB decoder; the 33c3 DigiCipher II talk), vendor-side corroboration, box-side hobby docs, adjacent scenes, and the gap this project fills |
 | `ADR-001-adversarial-review.md`, `-r2.md` | Reviews of the ADR (rounds 1–2) |
-| `Reproduction Plan — Adversarial Review r3.md`, `r4.md` | Reviews of the plan (rounds 3–4, dispositions pending) |
+| `Reproduction Plan — Adversarial Review r3.md`, `r4.md`, `r5.md` | Reviews of the plan (rounds 3–5; r5 is the full-corpus pass with the dedicated Sci-Atlanta section). **All three dispositioned 2026-11-22 — all findings accepted** |
 
 Reviews are part of the process, not an obstacle course: every round so
 far has ended with "the approach survives; here are deltas," and the deltas
 get folded in at the next revision.
 
-## 9. Status snapshot (2026-11-22)
+## 9. Status snapshot (2026-11-22, updated post-dispositions)
 
 - Documentation base: **done** (M0). Two manuals mined in full (DAC 6000
   V3.1, SEM V8 7.1.x), DCT2000 Installation Manual in hand and folded in.
@@ -221,10 +232,19 @@ get folded in at the next revision.
 - SEM V8: **in the estate**, ACP encryption module confirmed by part
   number; bench bring-up (provisioning, license check, first-contact
   archive of its management payload) is on the two-week list.
-- Awaiting: Marshal's dispositions on adversarial reviews r3 (11 findings)
-  and r4 (8 findings); ADR-001 rev 7 approval; the buy list (upstream SDR,
-  RF chain, capture rig, flash tooling, sundries — see the Hardware
+- Reviews: **dispositioned** — r3 (×11), r4 (×8), r5 (×14) all accepted
+  2026-11-22; deltas folded into the plan, gates doc, AGENTS.md, HW list,
+  S-A spec, and Interconnect spec in the disposition commit set. The unit
+  DB is declared derived state (F5-12); release tags are `rel/<carrier>`
+  (F5-13).
+- Awaiting (Marshal's manual actions): ADR-001 rev 7 approval; branch
+  protection (AGENTS.md §6 checklist); Projects board + labels
+  (`.github/agents/README.md` spec); git-crypt init before G1 (F5-11) —
+  needs Marshal's key escrow; the buy list (HackRF One clone primary OOB
+  TX, RF chain, capture rig, flash tooling, sundries — see the Hardware
   Acquisition List).
+- Pre-G0.5-exit task on the board: mdBook scaffold + CI link-check +
+  utoipa drift stub (F5-10).
 - Next physical actions: box census, SEM bench bring-up, PHY bench at a
   high hunt carrier, first connect-message experiment.
 
