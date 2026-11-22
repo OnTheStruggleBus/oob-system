@@ -116,6 +116,23 @@ carry IPPV purchase uploads.
   i-Guide's own PPV ordering flow is app-side and lands with W8 (the guide
   frame analysis already records a **PPV icon in the Quick Menu** — plan
   §4.1).
+- **Period ordering pattern (Marshal-supplied frame, 2026-11-22):** a
+  Cablevision **PAY PER VIEW** instructional screen (YouTube frame, search
+  "cable pay per view menu") documents the pre-guide ordering UX: tune the
+  PPV channel "within 10 minutes of showtime" — the operator-set **Purchase
+  Time** window (§2.1) made visible — then an orderable-state indicator on
+  the box (flashing `E`), a minimal-key confirm (SELECT, then ENTER), and
+  confirmation as indicator state change ("When the *E* stops flashing,
+  your order is confirmed"). **Provenance caveat:** Cablevision branding on
+  an earlier converter generation — the flashing-`E` behavior is *not*
+  documented for the DCT2000 (our fleet's documented purchase surfaces are
+  the d 01 purchases count and Table B-23 `UNSENT − ##`), so this frame is
+  a **UX/barker theming reference, not box-behavior evidence**. Its value:
+  (a) it corroborates that purchase windows are box-observable states, and
+  (b) it is the visual template for our own PPV **ordering-instruction
+  slate**, which belongs in the interstitial window — viewable by
+  definition (§2.1) and therefore the natural home for "how to order"
+  content on every PPV service we define.
 
 ### 2.5 True VOD — the NC 1500 / SEM VOD Control path
 
@@ -277,7 +294,9 @@ status in `oob-msg` is promoted only on capture (AGENTS.md §2).
 2. **Call-ahead auth:** authorize → box viewable post-preview → d-screen +
    OSD captures.
 3. **Impulse purchase:** box purchase flow (screens TBD at census —
-   `hypothesized` until captured) → front-panel **purchases count**
+   `hypothesized` until captured; period pattern to compare against:
+   orderable-state indication → minimal-key confirm → visible confirmation,
+   per the Cablevision frame §2.4) → front-panel **purchases count**
    increments (d 01 LED alternation) → `UNSENT − ##` on the STARVUE II IPPV
    status screen → post-collection `ENABLED` → ledger row + credit delta.
 4. **Denial:** credit exhausted → purchase refused box-side (capture the
