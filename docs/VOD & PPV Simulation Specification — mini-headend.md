@@ -133,6 +133,24 @@ carry IPPV purchase uploads.
   slate**, which belongs in the interstitial window — viewable by
   definition (§2.1) and therefore the natural home for "how to order"
   content on every PPV service we define.
+- **Period PPV-in-the-grid pattern (Marshal-supplied frame, 2026-11-22):**
+  a Passport (Echo-class) guide frame at **Insight Communications** (dated
+  **Sun 6/21** in-frame — June 21 fell on a Sunday in 2009, predating
+  Insight's 2012 absorption into TWC; plan §4.1 reference 8) shows the
+  guide-era ordering surface: **PPV 99 as an ordinary grid row** with the
+  event title in-cell ("Amazing Journeys", 12:30–1:30 pm), a green
+  **`$` purchase badge** and a **REC** badge both in-cell and in the cream
+  info panel, a TV-PG rating badge, the maroon PIP banner "Channel 99 Pay
+  Per View", and the A/B/C command bar (Time/Theme/Search). Read together
+  with the Cablevision instructional frame above: the guide era replaced
+  barker-slate instructions with **in-grid badging**, but the purchase
+  still resolves to the same box-side transaction (§2.3). Consequence for
+  W8: our synthesized listings feed must carry **per-program PPV
+  attributes** (price/`$` badge, rating, epoch times, REC eligibility) for
+  PPV/NVOD rows — not just titles and times. (Second operator instance of
+  the Passport visual language after the Cincinnati Bell frame; hardware
+  platform not proven by this frame alone, though Insight's Motorola
+  footprint is period-documented.)
 
 ### 2.5 True VOD — the NC 1500 / SEM VOD Control path
 
@@ -212,7 +230,9 @@ carry IPPV purchase uploads.
   services).
 - Guide integration (W8): NVOD instances appear as ordinary listings rows
   ("movie starts every 30 min") — period-accurate, since i-Guide listed
-  NVOD/PPV channels in the grid.
+  NVOD/PPV channels in the grid. The Insight Passport frame (§2.4)
+  corroborates the pattern and adds the in-cell `$`/REC badging our
+  listings feed must carry for PPV/NVOD rows.
 
 ### 3.4 Tier V4 — True session VOD — *registered stretch S4, no gate until scoped*
 
