@@ -1,6 +1,6 @@
 # ADR-001 — Emulated GI/Motorola Cable Headend for DCT2000-Series Revival
 
-- **Status:** Proposed (rev 7) — awaiting approval
+- **Status:** Proposed (rev 8) — awaiting approval
 - **Date:** 2026-11-21
 - **Author:** Marshal
 - **Project codename:** mini-headend
@@ -30,6 +30,15 @@
   (S-A/Cisco Explorer ecosystem, identified by Marshal from reference footage)
   is logged as a cross-ecosystem comparison reference; it cannot run on
   Motorola hardware and is not a target.
+- **Rev 8 changelog (text hygiene, pre-approval; no decision content
+  changed):** naming sweep to the settled 2026-11-22 names (rust-dac →
+  Oob / `oob-dac`; Reproduction Plan and Operations Reference titles) in
+  the living text — historical changelog entries above are left as
+  written. §11 kill criteria reconciled with the post-r4 formulation
+  already adopted in the Milestones & Stage Gates doc (rule 5: FPK-tier
+  failure requires *both* no working ACP *and* the O3 routes failing),
+  and the M3 milestone row aligned to the SEM-ACP reality (the SEM
+  scrambles; playout stays clear). Rev 8 is the approval candidate.
 
 ---
 
@@ -115,7 +124,7 @@ bootcode-control messages, and the DLS stream-builder role.
 
 ### Option A — SDR-generated OOB carrier (SELECTED)
 
-rust-dac emits the OOB TS → GNU Radio QPSK (1.024 Msym/s, per SCTE 55-1) → SDR
+oob-dac emits the OOB TS → GNU Radio QPSK (1.024 Msym/s, per SCTE 55-1) → SDR
 TX → BPF + attenuator → combiner. Same SDR later demods STARVUE II upstream
 and sniffs box responses for the discovery loop.
 
@@ -141,8 +150,8 @@ falls in our lap cheaply it becomes a bonus reference instrument, nothing more.
 
 ## 4. Decision
 
-Build **rust-dac**, a Rust software DAC implementing the documented DAC/RADD/
-DLS/NC roles end-to-end: connect/configure/time, virtual channel map,
+Build **Oob** (`oob-dac`), a Rust software DAC implementing the documented
+DAC/RADD/DLS/NC roles end-to-end: connect/configure/time, virtual channel map,
 Fixed-mode authorization, CDL carousel, guide (local-EPG-server equivalent),
 EAS, polling — muxed by tsduck (asynchronous, null-stuffed), QPSK via GNU
 Radio, SDR-transmitted at the fleet's carrier frequency into a closed coax
@@ -162,7 +171,8 @@ structure-guided construction from the §11 semantic payloads, then patents,
 then firmware-assisted parsing, with community captures opportunistic. The
 loop is safe (boxes are already inert; Cold Initialize is the documented
 recovery) and every experiment is logged as a commit so the protocol document
-(O4) grows from reproducible evidence. Detail: "rust-dac Reproduction Plan."
+(O4) grows from reproducible evidence. Detail: "Oob Reproduction Plan —
+mini-headend."
 
 **R1 strategy (unchanged from rev 4):** FPK encrypted tier as the parity
 milestone (M3); residual unknown is the universal FPK constant + scrambling
@@ -204,7 +214,7 @@ surface.
 | M0.5 | Spec + PHY conformance | SCTE 55-1 (2009) acquired; flowgraph parameters from spec; real box shows d 02 data activity on our carrier |
 | M1 | OOB on air | Connect message discovered and emitted; ≥1 box leaves `E 01` → `E 00`; d 02 shows data activity + `PID 1 received`; DCT2500 d 15 logs our connect type |
 | M2 | Configure + tune | VCM + time accepted; `CONFI`/`ACQUI`; ≥1 clear 256-QAM channel with A/V |
-| M3 | Fixed_PK encrypted tier | FPK constant + flavor obtained; playout scrambles; fleet decrypts with zero EMM infrastructure |
+| M3 | Fixed_PK encrypted tier | FPK constant + flavor obtained; SEM ACP scrambles; fleet decrypts with zero EMM infrastructure |
 | M3b | ~~Full Encryption~~ | **Removed (rev 5)** — needs defunct ECC keylist chain; superseded by FPK |
 | M4 | Code download | DLS-equivalent carousel from .obj/.dat; sacrificial box completes a module download (d 10 `DOWNLD → ENABLED`); flash recovery verified first |
 | M5 | STARFONE modem bank (stretch) | Box dials provisioned number → mgetty NAS; poll req/ack advances on-box; purchases ingested |
@@ -271,7 +281,7 @@ M2 = visibly working fleet. M3 + M4 = full parity per the agreed definition.
 ## 9. Infrastructure and operability
 
 - **Host:** Debian 13 VM/CT on Proxmox; Tailscale; Firewalla-restricted lab VLAN.
-- **Config-as-code:** rust-dac config, flowgraphs, `lineup.yaml`, unit DB
+- **Config-as-code:** oob-dac config, flowgraphs, `lineup.yaml`, unit DB
   (DAC §9 schema) in Gitea; secrets per §8; discovery-lab experiment logs are
   commits (message hash → box response → verdict).
 - **CI/observability:** nightly canary reboot → `AUTH` on the clear tier via
@@ -307,12 +317,15 @@ M2 = visibly working fleet. M3 + M4 = full parity per the agreed definition.
 
 ## 11. Kill criteria
 
-If the FPK constant (O3) cannot be obtained after a bounded effort (bound set
-by Marshal at M3 planning), definition of done falls back to **M2 + M4 + M5**:
-a fleet that locks, configures, tunes clear channels, downloads code, and
-phones home — losing only the "encrypted tier" aesthetic. If wire-format
-discovery stalls past the M1 timebox (R11), re-evaluate opportunistic surplus
-before extending the box-as-oracle budget.
+FPK-tier failure is declared only when **both** conditions hold (Milestones &
+Stage Gates doc, rule 5, post-r4 formulation): the estate SEM V8's ACP cannot
+be made to scramble in a mode the fleet decrypts, **and** the FPK constant
+(O3) cannot be obtained after a bounded effort (bound set by Marshal at M3
+planning). If FPK-tier failure is declared, definition of done falls back to
+**M2 + M4 + M5**: a fleet that locks, configures, tunes clear channels,
+downloads code, and phones home — losing only the "encrypted tier" aesthetic.
+If wire-format discovery stalls past the M1 timebox (R11), re-evaluate
+opportunistic surplus before extending the box-as-oracle budget.
 
 ---
 
@@ -323,9 +336,9 @@ before extending the box-as-oracle budget.
   download management, §11 message-operations catalog, OM stream parameters.
 - **Motorola SEM V8 SmartStream Encryptor Modulator, SW 7.1.x** (295 pp, 2015)
   — ACP/MediaCipher (DES+CSA), FPK without EMMS, CTE, EMMG interfaces.
-- **rust-dac Reproduction Plan** (this repo) — workstreams, discovery
-  methodology, repo layout, first-two-weeks plan.
-- **DAC-6000 Operations Reference — rust-dac Design Basis** (this repo).
+- **Oob Reproduction Plan — mini-headend** (this repo) — workstreams,
+  discovery methodology, repo layout, first-two-weeks plan.
+- **DAC-6000 Operations Reference — Oob Design Basis** (this repo).
 - DCT2000 Installation Manual; DCT2500 Installation/User Guide.
 - CableLabs CM-SP-R-OOB-I03-160512; CM-SP-EQAM-VSI-I01-081107.
 - SEC-filed IP License Agreement — MediaCipher IC family (MCSC/MC1.7/MC2.x).
