@@ -64,7 +64,7 @@ business system by **Table 4-1, PPV Configuration Mode/Zero Handle**:
 | Mode | Program download | Call-ahead PPV auth | Purchase upload |
 | --- | --- | --- | --- |
 | Standard | Each BS loads its own handles | Local handle only | Only if local program handle exists |
-| Standard + Zero Handle | Each BS loads its own handles | Local handle only | Local handle if present, else upload with program handle = zero (721/725 only); zero handle unavailable in 600-series commands |
+| Standard + Zero Handle | Each BS loads its own handles | Local handle only | Local handle if present, else upload with program handle = zero (721/725 only); zero handle unavailable in 600-series |
 | Master BS | By each BS or by the Master BS | Local handle if it exists, else the Master-defined program handle | Local/Master handle as resolved; no Master program handle defined → purchase deemed **orphan** |
 | Master BS + Zero Handle | By each BS or by the Master BS | Local, else Master handle | Local/Master handle, else zero handle (721/725); zero handle unavailable in 600-series |
 
@@ -151,6 +151,26 @@ carry IPPV purchase uploads.
   the Passport visual language after the Cincinnati Bell frame; hardware
   platform not proven by this frame alone, though Insight's Motorola
   footprint is period-documented.)
+- **Period purchase-settings surface (Marshal-supplied frame,
+  2026-11-22):** a guide-era **Preferences → Purchasing** menu (YouTube
+  frame, search "cable pay per view menu"; unbranded operator,
+  GuideWorks-family visual language — yellow context-help panel, purple
+  selector, SEL/Exit command bar) showing **Locking Status** (`Enabled`),
+  **Change PIN**, and **PPV Purchases** items, the help panel spelling
+  out: "When locking is on, PIN entry is required to complete purchases."
+  The PIP runs the same maroon "Pay Per View" banner and the same event
+  title ("Amazing Journeys") as the Insight grid frame above — almost
+  certainly the same source recording, which strengthens both frames'
+  provenance chain. **Evidence link:** purchase locking is not mere
+  guide-app chrome — the DAC documents a **box-resident Event PIN** "that
+  control[s] IPPV program purchasing," headend-clearable via Define
+  Terminal → Clear PIN (All / Parental Control / Event; DAC §9-21/9-22).
+  The frame's locking toggle is therefore the settings-UI projection of a
+  documented DAC↔box feature. The **PPV Purchases** review list, by
+  contrast, is not install-manual-documented for non-guide boxes →
+  `hypothesized` app-side surface; our purchases ledger (§4) is its
+  natural backing store either way. Provenance caveat stands: hardware
+  platform not proven by the frame alone.
 
 ### 2.5 True VOD — the NC 1500 / SEM VOD Control path
 
@@ -216,6 +236,14 @@ carry IPPV purchase uploads.
   which collection path each box exercises; one-way boxes accumulate unsent
   transactions forever, exactly like the period — and their purchases count
   stays visible on the front panel for the "CSR close-out" journey.
+- **Purchase locking (Event PIN):** the box-resident Event PIN (DAC
+  §9-21/9-22) gates impulse-purchase completion when locking is enabled —
+  the period settings-UX per the Marshal purchasing frame (§2.4). Fidelity
+  stance: the PIN itself is set and verified **in the box** — the real DAC
+  stored none, it could only *clear* PINs — so `oob-dac` models exactly
+  one PIN operation, **Clear PIN (Event / Parental Control / All)** as a
+  Console per-terminal op (§6). PIN-entry and wrong-PIN denial UX stay
+  box-side behavior to capture (§8), never simulated headend-side.
 
 ### 3.3 Tier P3 — NVOD (near video on demand) — *playout + P1 only*
 
@@ -263,7 +291,8 @@ for Marshal, upload pattern per doctrine; no paywall bypass).
   (source, instances, offset) expanded by playout; VCM unchanged in shape.
 - Console: program schedule editor (the Define Digital Programs window,
   web-native), purchase ledger view (already specced), orphan-purchase
-  queue, per-terminal credit display.
+  queue, per-terminal credit display, **Clear PIN (Event / Parental
+  Control / All)** per-terminal op (DAC §9-21).
 
 ## 5. oob-msg catalog additions
 
@@ -321,9 +350,14 @@ status in `oob-msg` is promoted only on capture (AGENTS.md §2).
    status screen → post-collection `ENABLED` → ledger row + credit delta.
 4. **Denial:** credit exhausted → purchase refused box-side (capture the
    box's own denial UX — period degradation, preserved).
-5. **Orphan drill:** zero-handle upload → ledger orphan → Clear Orphan
+5. **Purchase locking:** with locking enabled, an impulse attempt →
+   PIN-entry prompt (capture); wrong-PIN denial (capture); Console
+   **Clear PIN (Event)** → box purchases complete without the prompt
+   (capture). PIN storage stays box-resident; the headend never holds it
+   (DAC §9-21 fidelity, §3.2).
+6. **Orphan drill:** zero-handle upload → ledger orphan → Clear Orphan
    Purchases → ledger clean.
-6. **Canary extension (proposal):** nightly asserts (a) current-epoch
+7. **Canary extension (proposal):** nightly asserts (a) current-epoch
    window auth emitted, (b) a software-only WireLink transaction (Console
    as BS) lands in the ledger, (c) on hardware, purchases count matches the
    ledger's unsent total for the canary box.
