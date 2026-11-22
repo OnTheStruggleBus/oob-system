@@ -191,6 +191,7 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | S2 | **Interconnect — remote service delivery.** Operate boxes at remote sites over the internet off this headend, via small hub kits that regenerate RF locally. The modern stand-in for a master-headend-plus-hubs plant. | `Remote Service Delivery Specification — Interconnect (Stretch Goal).md` |
 | S3 | **Analog tier** — the platform's period analog descrambling modes (gated sync suppression, video inversion, Hamlin compatibility) | noted in Plan §3.1; out of current scope |
 | S4 | **VOD/PPV simulation** — scheduled PPV + call-ahead (P1), impulse PPV (P2, rides S1's return path), NVOD (P3); true session VOD registered but unscoped | `VOD & PPV Simulation Specification — mini-headend.md` |
+| S5 | **Billing & subscriber management** — accounts, rate cards, immutable ledger, period-styled (fictitious) statements, fictitious payments, non-pay disconnect/reconnect driving DAC entitlements; fully documented Billing API. The theater layer: the subscribers are friends and the monthly bill is half the fun | `Billing & Subscriber Management Specification — mini-headend.md` |
 
 ## 8. Where everything lives (document map)
 
@@ -203,6 +204,7 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | `Sci-Atlanta Ecosystem Specification — Explorer, DNCS, SCTE 55-2.md` | Companion spec for the rival ecosystem (theming source; possible far-future second front) |
 | `Remote Service Delivery Specification — Interconnect (Stretch Goal).md` | The S2 remote-delivery design |
 | `VOD & PPV Simulation Specification — mini-headend.md` | The S4 transactional layer: scheduled PPV + call-ahead, impulse PPV, NVOD, and the registered true-VOD stretch (proposed, awaiting disposition) |
+| `Billing & Subscriber Management Specification — mini-headend.md` | The S5 theater layer: accounts, rate cards, immutable ledger, period-styled fictitious statements, dunning-driven disconnect/reconnect, and the documented Billing API (proposed, awaiting disposition) |
 | `Management Console Specification — Oob Console.md` | The operator front-end — every setting, template, and campaign, API-first over the WireLink verbs |
 | `Project Milestones & Stage Gates — mini-headend.md` | The operating contract: milestone/gate map G0–G6 with entry/exit/evidence rules, enabling tracks, the living gate register, and the full development tool stack |
 | `Hardware Acquisition List — mini-headend.md` | The prioritized buy list: what to acquire, in P0→P3 order, and which gate or track each purchase unblocks |
