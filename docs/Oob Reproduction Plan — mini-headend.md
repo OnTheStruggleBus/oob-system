@@ -308,29 +308,76 @@ first order: the S-A Passport look running on Motorola DCT-class
 hardware**, at a third operator (neither Comcast nor TWC). Proof the
 Passport visual language is period-authentic *on our own platform*, not
 only on Explorer boxes.
-(8) YouTube-sourced frame, **Insight Communications** — Passport
-(Echo-class) grid dated **Sun 6/21** in-frame (June 21 fell on a Sunday in
-2009, predating Insight's 2012 absorption into TWC) — Marshal-supplied
-2026-11-22. Second operator instance of the Passport visual language
-(hardware platform not proven by the frame alone, though Insight's
-Motorola footprint is period-documented), and the first reference showing
-**PPV in the grid**: PPV 99 as an ordinary row, in-cell green **$**
-purchase badge + REC badge, cream info panel with TV-PG rating and epoch
-times, maroon PIP banner "Channel 99 Pay Per View", A/B/C command bar
-(Time/Theme/Search). Doubles as PPV UX evidence — see the VOD & PPV
-Simulation Specification §2.4.
-(9) YouTube-sourced frame, **unbranded operator** — GuideWorks-family
-**Preferences → Purchasing** settings menu (yellow context-help panel,
-purple selector, SEL/Exit command bar) — Marshal-supplied 2026-11-22.
-Shows **Locking Status** (`Enabled`), **Change PIN**, and **PPV
-Purchases** items; help text: "When locking is on, PIN entry is required
-to complete purchases." PIP carries the same maroon "Pay Per View" banner
-and event title ("Amazing Journeys") as reference (8) — almost certainly
-the same source recording. Third GuideWorks-family instance; hardware
-platform not proven by the frame. PPV evidence value: purchase locking is
-the settings-UI projection of the DAC-documented box-resident **Event
-PIN** (DAC §9-21) — see the VOD & PPV Simulation Specification
-§2.4/§3.2.
+(8) Frame from **"PTCI Training – Pay-Per-View"** — operator-produced
+training video on PTCI's own YouTube channel (PTCI = **Panhandle
+Telephone Cooperative, Inc.**, Guymon, Oklahoma Panhandle; its "DITV"
+digital cable launched January 2002 — ptci.net/history), uploaded
+2009-07-31; canonical URL `youtube.com/watch?v=T79N9pSAazw`; chaptered:
+1:09
+Pay-per-View Settings, 1:27 Review Your Pay-per-View Purchases, 2:46
+ordering demo "on the Smaller Digital TV" — Passport (Echo-class) grid
+dated **Sun 6/21** in-frame (June 21 fell on a Sunday in 2009, weeks
+before the upload) — Marshal-supplied 2026-11-22; **operator attribution
+corrected from an earlier "Insight Communications" misread**
+(Marshal-confirmed the frame is from this video, 2026-11-22). Second
+operator instance of the Passport visual language (hardware platform not
+proven by the frame alone), and the first reference showing **PPV in the
+grid**: PPV 99 as an ordinary row, in-cell green **$** purchase badge +
+REC badge, cream info panel with TV-PG rating and epoch times, maroon PIP
+banner "Channel 99 Pay Per View", A/B/C command bar (Time/Theme/Search).
+Doubles as PPV UX evidence — see the VOD & PPV Simulation Specification
+§2.4.
+(9) Frame from the **same PTCI training video as reference (8)** — its
+1:09 chapter ("Pay-per-View Settings"), Marshal-confirmed 2026-11-22:
+GuideWorks-family **Preferences → Purchasing** settings menu (yellow
+context-help panel, purple selector, SEL/Exit command bar) —
+Marshal-supplied 2026-11-22. Shows **Locking Status** (`Enabled`),
+**Change PIN**, and **PPV Purchases** items; help text: "When locking is
+on, PIN entry is required to complete purchases." PIP carries the same
+maroon "Pay Per View" banner and event title ("Amazing Journeys") as
+reference (8) — same source recording, confirmed. Third GuideWorks-family
+instance; hardware platform not proven by the frame. PPV evidence value:
+purchase locking is the settings-UI projection of the DAC-documented
+box-resident **Event PIN** (DAC §9-21) — see the VOD & PPV Simulation
+Specification §2.4/§3.2.
+(10) Six frames from the **same PTCI training video as (8)/(9)** —
+its 1:27 chapter ("Review Your Pay-per-View Purchases") and 2:46
+chapter (ordering demo "on the Smaller Digital TV") — Marshal-supplied
+2026-11-22. Purchases review: the **Events Summary** screen — "up to
+**7 pending, and 8 past**" purchases, "**Cancel pending events, if
+allowed**" (past events cannot be cancelled), a pending row labeled
+tersely "Event 6/21 12:30pm 99", SEL = Cancel Purchase, box clock
+12:17:30pm — thirteen minutes before the pending event (the same
+"Amazing Journeys" 12:30 event as reference (8)'s grid cell; the PIP
+runs that title). Ordering demo, dated **Wed 6/17** in-frame (June 17
+fell on a Wednesday in 2009; box clock 3:08–3:09am): PPV 99 grid row
+("Africa: The Serengeti", **$3.95** in the info panel) → full-screen
+event info screen carrying a "**Buy until 3:17 am**" deadline —
+mid-event purchase window closing 17 minutes after start; TV-PG;
+Program Type: Travel; A Purchase Review / B Buy → red-title
+**Purchase Selection** dialog ("Buy Event" / "Buy Event and Set VCR
+Timer") → post-purchase tuned banner (PPV 99, title, times, $3.95 in
+green), event joined in progress. **No PIN prompt anywhere in the
+demo** — this box had purchase locking off; the frames document the
+no-locking path. A sixth frame shows PTCI's local channel (**PTCI 2**,
+"Wind in Oklahoma", 2:30–4:00am) under the plain non-PPV tune banner —
+local-programming flavor consistent with the co-op identity in (8).
+Same source recording as (8)/(9), so the GuideWorks-family instance
+count is unchanged. PPV evidence value: the full period purchase
+sequence and both purchase modes (advance-pending vs impulse
+mid-event) — see the VOD & PPV Simulation Specification §2.4/§8.
+(11) YouTube "**[VHS] TV Guide Interactive Instructional Video -
+(1999)**" (Magnetic Memory Museum, uploaded 2021-05-24, 15:59, no
+description), canonical URL `youtube.com/watch?v=7IeSbxrEWI8` —
+Marshal-supplied 2026-11-22 **for guide metadata**: a period
+Gemstar-era **TV Guide Interactive** instructional tape — the actual
+TVGI, corporate-ancestor lineage of i-Guide via the Comcast /
+Gemstar-TV Guide GuideWorks venture (background knowledge, not
+frame-verified; note the fidelity-target prose above uses "TV Guide
+Interactive" loosely for the i-Guide grid — this reference is the
+real 1999 artifact, a different UI generation). Content not yet
+mined: the sandbox cannot pull video bytes, so frame captures or a
+transcript are a Marshal acquisition item (screenshot pattern).
 Two technical takeaways from source (1): (a) **the DCT2000-series CPU is a
 Motorola 68K-series** — vector graphics are drawn by the guide app itself,
 slowly enough that the "drawing" effect is visible, so firmware RE on DCT2000
