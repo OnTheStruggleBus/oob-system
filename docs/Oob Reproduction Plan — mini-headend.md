@@ -6,7 +6,8 @@ MVPD of one*), the crates are `oob-*`, and the guide stack is **VueGuide+**.
 Formerly "rust-dac Reproduction Plan".*
 
 - **Date:** 2026-11-21
-- **Status:** Proposed — companion to ADR-001 rev 5
+- **Status:** Proposed — companion to ADR-001 rev 7
+- **Dispositions folded (2026-11-22, Marshal):** adversarial reviews r3 (×11), r4 (×8), r5 (×14) all accepted with the amendments recorded in each review's Disposition section; the deltas below carry their finding refs
 - **Premise (Marshal's call):** the reproduction is the path. Surplus hardware is demoted to pure opportunism — no planning weight, no dependencies. Everything the project needs is built, or discovered with the boxes themselves as the oracle.
 
 ---
@@ -102,13 +103,20 @@ report exactly how far it got:
 Discovery tactics, in order of preference:
 
 1. **SCTE 55-1 spec (O7)** — it's the *transport* spec; may define FDC framing
-directly. Acquire before brute-forcing anything.
+directly. **Timeboxed to 2 weeks (F3-1).** If it lapses, PHY discovery
+proceeds via the box-as-oracle loop one layer down: carrier set, symbol
+rate, and constellation are already documented (§3.1), so the unknowns are
+FEC, interleaving, and framing — a small, enumerable candidate space of
+period DCII-era coding schemes that the d 02 data-activity indicator
+oracles just as well as it oracles messages.
 2. **Structure-guided construction** — GI messages of this era are typically
 header (address/type/length) + body + checksum. The manual gives us the
 semantic fields per message (§2 table); the box's `PID 1 received` and
 data-activity indicators tell us when framing is right even before content
 is. Multicast-40/24/16 addressing hints at the address-field taxonomy.
-3. **Patent pass (O10)** — GI's own patents may document message layouts.
+3. **Patent pass (O10)** — GI's own patents may document message layouts;
+   the Gemstar/StarSight pass targets **decompression tables** specifically
+   (F4-3).
 4. **Firmware-assisted (DCT2500 serial console, bcm2-style dump)** — read the
 receiver's parser if the above stall.
 5. **Community** — period captures, retro-cable forums; opportunistic.
@@ -238,17 +246,28 @@ added" question directly — and rules out a whole class of guesses:
 
 | # | Workstream | Milestone | Key tasks | Depends on |
 | --- | --- | --- | --- | --- |
-| W1 | PHY + carrier | M0.5–M1 | Acquire SCTE 55-1; GNU Radio QPSK flowgraph per spec; loopback BER test; box d 02 data-activity test | O7 |
-| W2 | oob-dac core + mux | M1 | TS writer (188B packets, async/null-stuffed), PID plan, section assemblers (PAT/PMT/CAT/NIT), `lineup.yaml`, unit DB (DAC Define Terminal schema, §3.2), WireLink-verb admin API | — |
-| W3 | Message discovery lab | M1 | Harness: message templates → SDR → box feedback capture; enrollment order per the E-code remedies: **factory-init → unit-creation → connect** (r4 F4-4, now manual-confirmed), then VCM/region/inband-processor/general, then the poll family + disconnect (§2) | W1, W2 |
-| W4 | Clear-tier playout | M2 | ffmpeg/tsp playout → UDP/GigE → **SEM V8** (Annex B QAM, in hand); lineup consistency CI; time service | W3 (connect+VCM) |
+| W1 | PHY + carrier | M0.5–M1 | Acquire SCTE 55-1 (timeboxed 2 weeks, F3-1); GNU Radio QPSK flowgraph per spec; loopback BER test; box d 02 data-activity test | O7 preferred; oracle fallback defined (F3-1) |
+| W2 | oob-dac core + mux | M1 | TS writer (188B packets, async/null-stuffed), PID plan, **DCII-flavored** section assemblers (PAT/PMT/CAT/NIT + CA descriptors, F4-6 — O4 gains a DCII SI conformance row, documented/hypothesized/verified like the message layer; W2 exit: box d 15/d 16 shows our PMT with the expected CA descriptors), `lineup.yaml`, unit DB (DAC Define Terminal schema, §3.2), WireLink-verb admin API | — |
+| W3 | Message discovery lab | M1 | **Capture rig first (E1, F3-2):** camera OCR + capture card + RS-232 scrape, zero human interaction per experiment iteration, *before* connect experiments begin. Harness: message templates → SDR → box feedback capture; enrollment order per the E-code remedies: **factory-init → unit-creation → connect** (r4 F4-4, now manual-confirmed), then VCM/region/inband-processor/general, then the poll family + disconnect (§2). **System time/date is hunted from day one** as a hypothesized oob-msg message class (F5-8, absorbing F3-9); the capture rig notes any box-clock behavior during connect experiments | W1, W2 |
+| W4 | Clear-tier playout | M2 | ffmpeg/tsp playout → UDP/GigE → **SEM V8** (Annex B QAM, in hand); codec pin MPEG-2 MP@ML + MP2/AC-3 per census (F3-6/F5-7, §8); lineup consistency CI; time service | W3 (connect+VCM); SEM fallback = HackRF software QAM (F4-2) |
 | W5 | FPK tier via SEM | M3 | SEM ACP module in **FPK mode** (no EMMS required — manual §2); flavor = DES or CSA per box support; verify d 01 auth reason on encrypted tier; software scrambler demoted to optional | W4 |
-| W6 | CDL / DLS | M4 | .obj/.dat loader, carousel builder, download control in EMM stream; sacrificial-box protocol with verified flash recovery | W3 |
-| W7 | Return + polish | M5–M6 | STARFONE modem-bank bridge (mgetty NAS), STARVUE upstream demod, per-terminal **Configure Transmission Parameters** (RPD channel/freq, interactive IDs, impulse credit limits, **power-leveling** attempt tracking), d 12 sign-on state machine + d 13 MAC table as observables, EAS, NC stubs | W4 |
-| W8 | **Guide — classic i-Guide** | M6 | See §4.1. App residency census → data-feed discovery → listings synthesizer; fidelity target is the TV Guide Interactive grid | W3, W4 |
+| W6 | CDL / DLS | M4 | .obj/.dat loader, carousel builder, download control in EMM stream; sacrificial-box protocol with verified flash recovery. **First download enable is gated on D0 validation** (F3-3) | W3, **D0** |
+| W7 | Return + polish | M5–M6 | STARFONE modem-bank bridge (mgetty NAS), STARVUE upstream demod, per-terminal **Configure Transmission Parameters** (RPD channel/freq, interactive IDs, impulse credit limits, **power-leveling** attempt tracking), d 12 sign-on state machine + d 13 MAC table as observables, EAS (**post-connect message-family work, reuses the W3 harness** — no separate discovery mechanism, F3-11; zero-weight M6 backlog entry: EAS message class + crawl on the guide channel, F5-9), NC stubs | W4 |
+| W8 | **Guide — classic i-Guide** | M6 | See §4.1. App residency census → data-feed discovery → listings synthesizer; fidelity target is the TV Guide Interactive grid | W3, W4; donor path also D0 (F3-3/F4-3) |
 
 Sequencing note: W2/W3 are the critical path; W1 runs in parallel (spec
 acquisition is the only external dependency). Nothing waits on eBay.
+
+**D0 — flash extraction capability (named pre-M1 task, F3-3, strengthened
+F4-3).** Two validated extraction routes — TL866 II Plus + TSOP adapters
+*and* a 68k BDM probe — validated end-to-end on the sacrificial box (full
+flash read, checksum, write-back) before M1. D0 now gates **three
+workstreams**: W6 recovery, the W8 donor path, and O13 parser RE (the
+resident app's parser/decompressor is the fallback oracle if the listings
+format is opaque — the d 14 message-ID enum registry points straight at the
+message handlers). Risk-register entry: if neither route works, mitigation
+is board-level practice on the sacrificial box plus alternate flash packages
+per board rev.
 
 ## 4.1 W8 — Guide, classic i-Guide (Marshal's requirement)
 
@@ -289,6 +308,17 @@ first order: the S-A Passport look running on Motorola DCT-class
 hardware**, at a third operator (neither Comcast nor TWC). Proof the
 Passport visual language is period-authentic *on our own platform*, not
 only on Explorer boxes.
+(8) YouTube-sourced frame, **Insight Communications** — Passport
+(Echo-class) grid dated **Sun 6/21** in-frame (June 21 fell on a Sunday in
+2009, predating Insight's 2012 absorption into TWC) — Marshal-supplied
+2026-11-22. Second operator instance of the Passport visual language
+(hardware platform not proven by the frame alone, though Insight's
+Motorola footprint is period-documented), and the first reference showing
+**PPV in the grid**: PPV 99 as an ordinary row, in-cell green **$**
+purchase badge + REC badge, cream info panel with TV-PG rating and epoch
+times, maroon PIP banner "Channel 99 Pay Per View", A/B/C command bar
+(Time/Theme/Search). Doubles as PPV UX evidence — see the VOD & PPV
+Simulation Specification §2.4.
 Two technical takeaways from source (1): (a) **the DCT2000-series CPU is a
 Motorola 68K-series** — vector graphics are drawn by the guide app itself,
 slowly enough that the "drawing" effect is visible, so firmware RE on DCT2000
@@ -366,7 +396,9 @@ consistent in W8.
 - **Branding:** operator logo is a skin slot — grid frames show generic
 "DIGITAL CABLE"; the setup frame shows **Grande Communications**
 (mixed-operator provenance in this frame set; brand-specific elements are
-not fidelity targets). Our build skins its own brand.
+not fidelity targets). Our build skins from the deployment's brand config
+— a per-deployment config slot, no preset operator identity (naming rev
+2026-11-22).
 
 **Frame analysis — Passport Echo, Cincinnati Bell (Marshal-supplied
 screenshot, 2026-11-22; dated Mon 12/29/2008 in-frame):**
@@ -407,7 +439,11 @@ OOB stream). So W8 = two sub-problems:
 1. **App residency (O12).** At census, read each box's d 10 module list. Any
 box showing the guide application module is both proof-of-look and a
 potential **object donor**: dump the object, serve it back to the rest of
-the fleet via our CDL (W6). Boxes that never received the app get it from
+the fleet via our CDL (W6). **Donor objects don't cross platforms (F4-5):**
+DCT2000 = 68k, DCT2500 = Broadcom/MIPS — census records Platform/Family/
+Model ID (d 01) + module list (d 10) per box, the CDL platform→object
+compatibility table is keyed on those IDs, and donor sourcing (O1)
+specifies the *target platform*, not just "DCT-class. Boxes that never received the app get it from
 us — a legitimate first use of the download infrastructure. Donor supply is
 not a constraint: DCT-class boxes are e-waste feedstock (recyclers grind
 them for plastic), so additional donor units — including sacrificial boxes
@@ -415,23 +451,43 @@ for W6 — are cheap eBay/recycling-channel purchases if the fleet census
 comes up short.
 2. **Listings data feed (O13).** Synthesize the OOB listings stream in the
 format the resident app parses. No public spec or hobbyist RE exists.
-Discovery: box-as-oracle loop (feed candidate records, watch grid cells
-populate — genre color-coding gives per-field feedback), plus the
-Gemstar/StarSight patent trove (~90 IPG patents; their filings document
-guide data structures in vendor detail), plus the DAC manual's Source-ID
-mapping semantics. Source content: self-authored listings from
-`lineup.yaml` + a schedule editor; no real broadcaster data needed.
+Discovery runs in staged order (F3-5, F4-3): **(a) transport
+identification first** — feed candidate records and watch whether d 14's
+OOB-side or INB-side counters increment (§3.1); OOB first, in-band private
+PID second; **(b) format-opacity check** — delta probes of increasing
+granularity; if grid response is non-linear to field mutation (period
+Gemstar feeds were famously compressed), flip discovery immediately to the
+RE path via the D0 flash dump rather than burning box iterations;
+**(c) record-format discovery** — box-as-oracle loop (genre color-coding
+gives per-field feedback), plus the Gemstar/StarSight patent trove (~90 IPG
+patents), plus the DAC manual's Source-ID mapping semantics. Census must
+verify the default genre palette before colors are trusted as an oracle
+(Guide Colors Setup finding, frame 11). Source content: self-authored
+listings from `lineup.yaml` + a schedule editor; no real broadcaster data
+needed.
 
-**Fallback (risk R12):** if the census finds *no* guide application resident
-on any fleet box, the target is decided at that point in order: (a) source a
-donor object (fleet-external DCTs are cheap e-waste feedstock) and re-serve
-via CDL; (b) only if that fails, a substitute grid app — explicitly degraded,
-and per Marshal's stated preference themed after **Navigator/Passport** (the
-interfaces he remembers most) using references (3) and (4) as the visual
-baseline — now strengthened by reference (7): the Passport look is
-period-authentic *on DCT-class hardware itself* (Passport Echo at
-Cincinnati Bell), making it the strongest single theming baseline for a
-substitute grid. Community angle: the technotite channel
+**Fallback (risk R12, re-priced by F3-4):** if the census finds *no* guide
+application resident on any fleet box, the target is decided at that point
+in order: (a) source a donor object (fleet-external DCTs are cheap e-waste
+feedstock; census watches explicitly for **Passport Echo** modules — one
+artifact would satisfy residency *and* R12 theming, F5-3) and re-serve via
+CDL; (b) **headend-rendered video guide channel** — grid rendered from
+`lineup.yaml` server-side and played out as an ordinary MPEG-2 channel
+(Prevue/TV Guide Channel style, period-authentic by definition): zero
+box-side code, zero CDL dependency, works the day clear-tier playout works;
+(c) only if both fail, a **native substitute grid app** — explicitly
+degraded and *optional*: authoring a native 68k app against an undocumented
+platform API over the very CDL we haven't validated is a project comparable
+in risk to all of W6, so it is no longer priced as a "fallback." The theme
+for whichever fallback renders is per Marshal's stated preference
+**Navigator/Passport** (the interfaces he remembers most) using references
+(3) and (4) as the visual baseline — now strengthened by reference (7): the
+Passport look is period-authentic *on DCT-class hardware itself* (Passport
+Echo at Cincinnati Bell), making it the strongest single theming baseline.
+F5-3 adds a pre-G4 task: the research desk commissions a Navigator/Passport
+reference pack (frame captures, grid geometry, palette, typography, banner
+behavior) to i-Guide rigor, since the R12 target is documented thinner than
+the primary. Community angle: the technotite channel
 ran a DCT2244
 with i-Guide rendering in 2017, and the Litestream channel posted an i-Guide
 demo — both are potential contacts for period captures, donor objects, or
@@ -470,17 +526,40 @@ grows from reproducible evidence, not notes.
 
 - M0 gains one artifact: `docs/protocol/` seeded from the manual (message
 catalog + stream parameters) — mostly written already via this plan.
-- M1's exit gains precision: box reaches `E 00` **and** d 02 shows data
-activity + `PID 1 received` **and** (DCT2500) d 15 logs our connect type.
-- M3 unchanged (FPK tier) — now routed through the physical SEM V8's ACP
-  module in FPK mode (see §8) instead of a software scrambler + extracted
-  constant. M4 unchanged. M5 unchanged.
-- M6 exit criteria now include: **i-Guide grid renders on ≥1 box and
-populates from our synthesized listings feed** (color-coded cells, day-skip
-working), per W8.
+- M1's exit is **tiered** (F3-8, softened by the install manual): *core* =
+box reaches `E 00` + d 02 shows data activity + `PID 1 received`;
+*instrumentation tier* = d 14 message-type counters log our connect type —
+d 14 is fleet-wide per the install manual, so this tier is no longer
+DCT2500-gated — plus the RS-232 console *if* the census yields an
+instrumentable unit (census designates the instrument or records its
+absence).
+- M3 routed through the physical SEM V8's ACP module in FPK mode (see §8)
+  instead of a software scrambler + extracted constant. **M3 exit amended
+  (F5-4):** EMM authorship gets an R11-style timebox + escalation ladder —
+  (1) SEM manual re-read for EMM/ACP interfaces, (2) box-as-oracle against
+  SEM-generated streams with the entitlement matrix varied, (3) surplus
+  escalation (OM/RADD — one purchase covers both this and R11). Who authors
+  addressed EMMs (provider ID 0x0000/0x0001), over which interface, and in
+  what format is the discovery question; "the ACP encrypts" alone does not
+  pass the gate.
+- **M4 exit amended (F5-5):** add a **modified-object round trip** — patch
+  one behavior-visible element of a donor object (a string resource), run
+  it through oob-cdl, download to the sacrificial box, capture the changed
+  behavior on the rig. Replay = plumbing; mutation = understanding. A
+  replay-only pass would leave O13 parser RE technically open while the
+  gate reads green. M5 unchanged.
+- M6 exit criteria now include: **the resident guide grid renders on ≥1 box
+per platform family the census found** (F4-5) **and populates from our
+synthesized listings feed** (color-coded cells, day-skip working), per W8;
+plus **cold-box repopulation** (F3-10): a post-init box repopulates the
+grid within N minutes of connect, unassisted — N measured during W8.
 - Kill criteria revised (2026-11-22): FPK failure now requires *both* the
   SEM to lack a working ACP module *and* the O3 extraction routes to fail —
   then done = M2 + M4 + M5.
+- **Guide feed is an always-on service (F3-10):** the listings carousel runs
+  continuously under watchdog with Zabbix alerting (estate pattern); the
+  nightly canary asserts grid population, not just AUTH. An M6 demo that
+  works because the carousel was just restarted is not M6.
 - **Stage gates adopted (2026-11-22):** milestone exits are formally
   governed by the gate criteria in `Project Milestones & Stage Gates —
   mini-headend.md` (entry/exit/evidence/review per gate G0–G6, enabling
@@ -490,33 +569,57 @@ working), per W8.
 ## 7. First two weeks (suggested)
 
 1. O7: acquire SCTE 55-1; record PHY parameters into `docs/protocol/phy.md`.
-2. O2: box census (variants, OOB frequencies, firmware revs, cord dates —
-   d-screen set per install manual Appendix B); pick the instrumented
-   DCT2500; O9 console probe.
+2. O2: box census (variants, OOB frequencies, firmware revs, cord dates,
+   **NVRAM battery state (F4-4)**, Platform/Family/Model ID + d 10 module
+   list per box (F4-5) — d-screen set per install manual Appendix B); pick
+   the instrumented DCT2500; O9 console probe.
 3. SEM bench bring-up: power on; verify ACP on the console (P/N
    507199-001-00 = "Full Edge, ac" — ACP **Yes** per manual Table 2-2, but
-   verify via "Show ACP Unit Addresses"); provision via **SEM-EM** (Java app
+   verify via "Show ACP Unit Addresses"); **first-contact archive (F4-2):
+   download and commit everything the SEM's HTTP server exposes — SEM-EM
+   jar, MIBs, help pages — into git/git-crypt, and record the default-IP /
+   factory-reset procedure in the runbook; verify FPK mode and internal
+   UDP-port routing are *selectable*, not merely present in menus, and log
+   firmware rev + license state**; provision via **SEM-EM** (Java app
    served by the unit itself — JRE 1.2.2–1.5 era, so stage an XP-era VM);
    set Annex B (DCII) QAM mode + HRC/STD plan; loop a tsp-generated MPTS
    in via GigE and verify RF out on the meter.
 4. W2 skeleton: `oob-mux` emits PAT/PMT/CAT + nulls at 1.024 Msym/s; loopback
    verify with tsp on the receive side.
-5. W1 bench: flowgraph on ADALM-Pluto at a high hunt-table carrier
-   (104.2/110.25 class — inside Pluto range, no 70 MHz hack) into a
-   terminated tap; d 02 on a sacrificial box.
+5. W1 bench: flowgraph on the **HackRF One (primary OOB TX, F4-1)** at a
+   high hunt-table carrier (104.2/110.25 class) into a terminated tap;
+   d 02 on a sacrificial box. **F4-1 correction:** the stock Pluto floors
+   at 325 MHz — the *entire* hunt table needs the AD9364-identity hack, and
+   its front end is unmatched down there; the Pluto is spare/second-carrier
+   TX. Whichever radio transmits, **meter actual delivered level at
+   104.2 MHz through the full F3-7 chain** before committing to it; if
+   short, add the small PA the BOM anticipates.
 6. W3 first experiment: connect-message hypothesis #1, logged in the harness.
 ## 8. Tech stack & requirements (decided 2026-11-22, with Marshal)
 
 **Software.** One Rust workspace on the Debian 13 host — crates `oob-dac`
 (unit DB sqlite per the DAC Define Terminal schema §3.2, entitlements,
 scheduler, WireLink-verb admin API on tokio+axum), `oob-mux` (TS writer,
-PSI/SI, PID plan, ~1000 Kbps insertion shaper), `oob-msg` (GI message layer;
+**DCII SI — not DVB SI** (F4-6/F5-6): DCII reserves PID 8187 for the master
+guide table, extends program numbers with virtual channel numbers, and
+permits Huffman-compressed descriptor text — confidence-labeled
+single-source pending box-as-oracle confirmation via d 14; PID plan,
+~1000 Kbps insertion shaper), `oob-msg` (GI message layer;
 the crate *is* the O4 protocol doc — every message carries
 documented/hypothesized/verified status), `oob-cdl` (DLS loader + carousel),
 `oob-playout` (clear tier now), `oob-guide` (**VueGuide+** — listings
 synthesizer, guide feed, R12 fallback grid; W8). tsduck (tsp) as early
 mux/playout scaffolding; ffmpeg for MPEG-2 MP@ML encodes (F3-6). GNU Radio
 3.10 for PHY prototyping; flowgraphs versioned in-repo.
+
+**Playout codec pin (F3-6 + F5-7):** video MPEG-2 MP@ML 480i (4:2:0), CBR
+transport per J.83 Annex B 256-QAM (≈38.8 Mbps) with tsp policing;
+barker/EPG channels may run lower bitrates. Audio: **MPEG-1 Layer II
+(Musicam) primary; AC-3 only where the census confirms decoder support**
+(period GI plants ran Musicam with AC-3 on some services — the fleet's
+supported set comes from census d-screens, not assumption). **M2 exit gains
+a decode smoke test on the oldest fleet box.** Never H.264/AAC — a box
+that can't decode masquerades as a tuning/PSI failure.
 
 **Documentation is a build artifact (adopted 2026-11-22, Marshal's
 directive):** heavy human-readable docs are built *with* the software from
@@ -543,7 +646,12 @@ the SEM is network-attached (GigE data + web/SNMP control), and the Pluto
 presents iiod over its USB-network gadget — containers talk TCP, no USB
 passthrough or device-node juggling. Realtime tolerance: OOB is a
 1.024 Msym/s constant-rate stream; the flowgraph (not the daemons) owns
-timing.
+timing. **Deployment notes (F4-7):** host networking (or macvlan) for the
+playout container so UDP multicast behaves; explicit multicast group/port
+convention in `lineup.yaml`; the managed switch (buy list) sits between
+playout host and SEM to keep multicast clean; a container-restart canary
+re-asserts the Pluto/iiod connection (the USB-net gadget's link-local
+addressing must survive restarts).
 
 **RF architecture (revised by the SEM):**
 
@@ -553,28 +661,49 @@ playout host ──►│ ffmpeg/tsp   │────────────�
 (Docker)        └──────────────┘              │ 8×mod, 4×up │   STD/HRC plan)
                                               │ ACP: FPK    │──┐
                 ┌──────────────┐  104.2-class │ DES or CSA  │  │
-OOB flowgraph ─►│ ADALM-Pluto  │── filter ────┴─────────────┘  ▼
-(gr-iio)        └──────────────┘                    combiner ──► tap ──► plant
-                                                              (dummy load
+OOB flowgraph ─►│ HackRF One   │── filter ────┴─────────────┘  ▼
+                └──────────────┘                    combiner ──► tap ──► plant
+  (Pluto = spare/second-carrier TX, F4-1)                     (dummy load
                                                                first, F3-7)
 ```
 
-- **OOB carrier strategy:** use a high hunt-table carrier (104.2/110.25
-  class) — inside Pluto's range with no 70 MHz hack; boxes hunt to it (§3.1).
-  Level target ≈0 dBmV at box input (manual window −10…+5 dBmV).
+- **OOB carrier strategy (F4-1 corrected):** one **primary** carrier from
+  the high hunt table (104.2/110.25 class), decided at census; the rest are
+  test fixtures (F3-7). **HackRF One is the primary OOB TX** — it covers
+  the whole ten-carrier hunt table (75.25–116.25 MHz) in spec. The stock
+  Pluto (AD9363) floors at 325 MHz: every hunt carrier needs the
+  AD9364-identity hack, and its front end is unmatched below ~150 MHz, so
+  the level budget through the F3-7 chain is metered, not assumed. Level
+  target ≈0 dBmV at box input (manual window −10…+5 dBmV).
 - **In-band:** playout → UDP/GigE → SEM (up to 8 QAMs, Annex B DCII mode).
-  No SDR-QAM or HDMI→QAM appliance needed.
+  No SDR-QAM or HDMI→QAM appliance needed. **W4 fallback re-documented
+  (F4-2):** if the SEM dies or won't provision, M2 fallback = HackRF-based
+  software QAM at reduced channel count (one Annex B 256-QAM carries the
+  whole clear tier at ~38 Mbps). Deep fallback: DAC-as-controller / SNMP
+  provisioning of the SEM if Motorola SEM MIBs are obtainable.
 - **Crypto tier (M3):** SEM ACP module in **FPK mode** — the manual states
   FPK "without the need for any other external devices"; DES vs CSA is a
   config parameter. R10 (constant extraction) demoted to optional knowledge;
   kill criteria revised in §6.
+- **Frequency housekeeping (F4-8):** the SEM tunes to 861 MHz but the box
+  tuner passes 54–860 MHz — keep the lineup ≤860 MHz. STD vs HRC/IRC is our
+  free choice via the VCM; the SEM's plan setting, `lineup.yaml`, and the
+  VCM must agree — **STD is the default**, recorded here deliberately. Three
+  hunt carriers (104.2/107.25/107.40 MHz) sit in the FM broadcast band — a
+  closed, terminated plant radiates nothing of consequence, but this is a
+  third reason the dummy-load-first discipline and shielded passives in the
+  F3-7 chain are policy, not preference.
 - **Upstream (M5 stretch):** STARVUE II RX at 5–42 MHz is out of Pluto
   range → buy-list SDR (HackRF One or SDRplay RSP1A). STARFONE phone return
   unchanged (mgetty modem bank).
 
 **Buy list (estate gap):**
 
-1. Upstream-RX SDR: HackRF One *or* SDRplay RSP1A (also spare OOB TX).
+1. **HackRF One — primary OOB TX** (F4-1 radio-role change, dispositioned
+   2026-11-22): covers the full hunt table in spec; Pluto demoted to
+   spare/second-carrier TX or upstream monitor. A second RX SDR
+   (SDRplay RSP1A class) only if STARVUE upstream work wants a dedicated
+   receiver.
 2. F3-7 RF chain: 2-way combiner, bandpass filter for the chosen OOB
    carrier, variable attenuators, directional tap/coupler, 75 Ω dummy
    loads, RG6 + F-connectors, splitter for census bench.
@@ -583,8 +712,15 @@ OOB flowgraph ─►│ ADALM-Pluto  │── filter ────┴───�
    confirmed to include DCT2500s).
 4. D0 flash work: TL866 II Plus + TSOP-48 adapter set (and/or 68k BDM
    wiggler).
-5. Optional: managed switch for clean GigE multicast between playout host
-   and SEM; GPSDO only if carrier drift shows up in d 02.
+5. NVRAM batteries (F4-4): soldered lithium cells + holders for fleet
+   rehab; per-box battery state logged at census. (A headend that can
+   factory-init makes dead-battery boxes fully functional with zero
+   soldering — batteries are opportunistic maintenance, not a blocker.)
+6. Optional: managed switch for clean GigE multicast between playout host
+   and SEM; GPSDO only if carrier drift shows up in d 02. Spare SEM on the
+   O1 surplus watch (F4-2: the ACP-less 507199-002 suffices for clear tier;
+   another -001 for full redundancy) — pure opportunism, zero planning
+   weight.
 
 **Fleet (Marshal's answers):** DCT2000 + DCT2500 confirmed, DVR models
 present, exact variants TBD at census (O2). Consequences: the RS-232
