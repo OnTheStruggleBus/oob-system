@@ -1,7 +1,7 @@
 <!--
-Oob pull request — every declared feature requires completed role reviews
-on the head commit, then Marshal merges; his merge is the human approval
-(AGENTS.md §6). Fill every section; an incomplete PR is not reviewable.
+Oob pull request — every declared feature requires the oob-qa (bugs) and
+oob-architect (drift) reviews on the head commit, then Marshal merges; his
+merge is the human approval (AGENTS.md §6). Fill every section; an incomplete PR is not reviewable.
 Delete nothing from this template.
 -->
 
@@ -53,23 +53,18 @@ Write "n/a — no box-visible claims" if none. -->
 
 ## Review routing (required before merge)
 
-<!-- Mark every role review this change class requires (AGENTS.md §6):
-     - crate boundaries / wire formats / PID plan / OpenAPI → oob-architect
-     - box-behavior claims / captures / canary / drills → oob-qa
-     - flowgraphs / RF chain / SEM → oob-dev-rf
-     - Console SPA / journeys → oob-dev-console
-     - board/process/gate items → oob-scrum or oob-pm -->
+<!-- AGENTS.md §6 rule 2: only oob-qa (bugs + fixes) and oob-architect
+     (drift) review and comment on PRs. Neither may review a PR containing
+     commits it authored. Name the authoring role and the issue. -->
 
-- [ ] oob-architect
-- [ ] oob-qa
-- [ ] oob-dev-rf
-- [ ] oob-dev-console
-- [ ] oob-dev-core (cross-review)
-- [ ] oob-scrum / oob-pm
+- Authoring role (subagent): <!-- oob-dev-core / oob-dev-rf / oob-dev-console / oob-architect / … -->
+- Issue: <!-- #NN -->
+- [ ] oob-qa — bug review at head SHA, no findings standing
+- [ ] oob-architect — drift review at head SHA, no findings standing
 
 ## Merge readiness
 
-- [ ] All required role reviews **completed on the head commit** (each names the SHA it reviewed; no open change requests)
+- [ ] oob-qa and oob-architect reviews **completed on the head commit** (each names the SHA it reviewed; no findings standing)
 - [ ] Ready for Marshal to merge — his merge is the human approval
 - [ ] Definition of done (AGENTS.md §12) met
 

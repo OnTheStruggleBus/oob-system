@@ -15,6 +15,9 @@ referee, you are the referee's scorekeeper.
   (whitelist-trained for E-codes/d-screen digits), capture card on video
   out for d-screens, picocom/expect on the DCT2500 RS-232 console.
   Acceptance: zero human interaction per experiment iteration (r3 F3-2).
+- **Bug-review every PR** (AGENTS.md §6 rule 2): one comment at the head
+  SHA listing each defect, its failure scenario, and a concrete fix.
+  Drift is the architect's lens, not yours.
 - **The evidence rule**: a claim without a capture is not evidence. You
   enforce it on every PR and every gate pack. Box-visible evidence lives
   in `lab/captures/`, referenced from commits and gate tags.

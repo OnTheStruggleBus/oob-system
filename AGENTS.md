@@ -171,7 +171,7 @@ Every **declared feature** — any board item of Type `feature` or
 satisfies all of the following. **Every change to `main` goes through a
 pull request** — branch protection allows no direct pushes (rule 6).
 Docs-only typo fixes are the light path: a PR with green checks and
-Marshal's merge, no role review required.
+Marshal's merge, no review comments required.
 
 1. **Marshal's merge is the human approval.** Pull requests are opened
    from the owner's account, and GitHub does not let an author approve
@@ -180,23 +180,30 @@ Marshal's merge, no role review required.
    or his own CLI). An agent never runs the merge, never approves, and
    never reviews its own work. `CODEOWNERS` still routes every path to
    the owner for notification.
-2. **Completed role reviews** per change class — all required reviewers
-   have submitted a review and no change request stands open:
-   - crate boundaries / wire formats / PID plan / OpenAPI surface →
-     **oob-architect**
-   - box-behavior claims, captures, canary, drills → **oob-qa**
-   - flowgraphs, RF chain, SEM integration → **oob-dev-rf**
-   - Console SPA and journeys → **oob-dev-console** (plus oob-architect
-     when the API surface moves)
-   - core cross-review for shared crates → **oob-dev-core**
-   - board/process/gate items → **oob-scrum** or **oob-pm**
-   The PR template's Review routing section records which apply; "not
-   applicable" must be justified in the PR body.
-3. **Reviews are completed and current.** A required role review counts
+2. **Two reviewers, two lenses — and only they comment on PRs.** Every
+   PR outside the light path gets exactly two reviews:
+   - **oob-qa — bugs and fixes.** Correctness, tests, evidence rule,
+     safety declarations, regressions. Each finding states the defect,
+     how it fails, and a concrete fix.
+   - **oob-architect — drift.** Divergence from the docs, AGENTS.md,
+     ADRs, crate boundaries, wire-format status, dispositioned findings,
+     and naming. Each finding states what drifted from what, and whether
+     the code or the doc should move.
+   **No other role comments on a PR.** PO, PM, scrum, expert, and the dev
+   roles contribute *upstream* — issues, acceptance criteria, board
+   state, ADRs, research notes — and the authoring dev answers review
+   findings by pushing commits, not by replying. Both reviews post as
+   one PR comment each, headed `Role review: oob-qa` /
+   `Role review: oob-architect`, because all agents act through the
+   owner's GitHub account.
+   **Independence:** a review counts only if the reviewing role authored
+   none of the PR's commits. Roles run as separate subagents (§14), so
+   the dev that built a change is never the role that reviews it.
+3. **Reviews are completed and current.** A QA or architect review counts
    only when it is submitted, names the head commit SHA it reviewed, and
-   leaves no change request standing. Role reviews post as PR reviews or
-   comments, so GitHub does not dismiss them automatically: after any new
-   commit, each affected role re-reviews the new head before Marshal
+   leaves no change request standing. Reviews post as PR comments, so
+   GitHub does not dismiss them automatically: after any new commit,
+   both oob-qa and oob-architect re-review the new head before Marshal
    merges.
 4. **The template is the price of entry.** PRs use
    `.github/pull_request_template.md` in full: gate/workstream served,
@@ -204,8 +211,9 @@ Marshal's merge, no role review required.
    evidence, safety declarations, review routing. An incomplete template
    is not reviewable.
 5. **Agents prepare, Marshal merges.** Agents prepare branches, PRs,
-   evidence, and role reviews; the merge (and with it the approval) is
-   Marshal's alone. Gate tags remain manual and Marshal-only.
+   evidence, and the QA/architect reviews; the merge (and with it the
+   approval) is Marshal's alone. Gate tags remain manual and
+   Marshal-only.
 6. **Branch protection (one-time owner action).** On `main`: require a
    pull request before merging, with **0 required approvals** and
    **CODEOWNERS review not required** (both would block every PR, since
@@ -300,9 +308,10 @@ These are hard rules with legal weight:
   modes) — fidelity targets come from the census and the docs.
 - Do not start work whose gate entry criteria are unmet, and do not give
   surplus-hardware finds any planning weight (opportunism only).
-- Do not approve, merge, or self-review pull requests. Declared features
-  merge only when Marshal merges them, after all required role reviews
-  are completed on the head commit (§6); direct pushes to `main` are out
+- Do not approve, merge, or self-review pull requests, and do not
+  comment on PRs unless you are oob-qa (bugs) or oob-architect (drift).
+  Declared features merge only when Marshal merges them, after both
+  reviews are completed on the head commit (§6); direct pushes to `main` are out
   of bounds — typo fixes included (they take the light PR path).
 - Do not touch live cable plant, licensed services, or anyone else's
   content — ever.
@@ -314,8 +323,9 @@ nextest; schemas and lineup CI are green; OpenAPI drift check is clean;
 docs updated in the same commit (same-commit rule); experiment claims
 have captures; the PR text states which gate/workstream it serves and
 which findings/open items it touches; and — for any declared feature —
-all required role reviews are completed on the head commit and the PR
-is ready for Marshal to merge (his merge is the approval, §6). Work that can't meet this stays a draft and says why.
+the oob-qa and oob-architect reviews are completed on the head commit
+with no findings standing, and the PR is ready for Marshal to merge (his
+merge is the approval, §6). Work that can't meet this stays a draft and says why.
 
 ## 13. Role agents
 
@@ -324,6 +334,45 @@ PM, PO, core dev, RF dev, console dev, QA, scrum master, and research
 expert — plus a README defining the Oob project board (fields, columns,
 labels, standing rules). Every agent in this repo works as exactly one of
 those roles at a time; the role files refine this contract, never replace
-it. Board conventions (gate/workstream fields, `Blocked (entry criteria)`
-state, Done = gate-passed only, feature PRs merged by Marshal after
-completed role reviews) are binding on all roles.
+it. `.claude/agents/` holds a Claude Code subagent for each role — a thin
+launcher that loads this contract and the role file, so there is one
+source of truth per role. Board conventions (gate/workstream fields,
+`Blocked (entry criteria)` state, Done = gate-passed only, feature PRs
+merged by Marshal after the QA and architect reviews) are binding on all
+roles.
+
+## 14. Agent-driven workflow (roles build, not just review)
+
+Work is done by the roles themselves, each running as its own subagent
+task. The main session is the **orchestrator**: it reads the board, hands
+each step to the role that owns it, and relays results to Marshal. It does
+not do a role's work itself when a role exists for it.
+
+| Step | Role (subagent) | Builds |
+| --- | --- | --- |
+| 1. Shape | **oob-po** | Issues from the docs and Marshal's intent: one outcome each, acceptance criteria, gate, workstream, findings/open items cited |
+| 2. Plan | **oob-pm** | Board placement, fields, sequencing against gate entry criteria, dependency links, `Blocked (entry criteria)` with the blocker named |
+| 3. Design | **oob-architect** | Before an issue enters `Ready`: an ADR (new decision) or a design note on the issue (interfaces, crate placement, data ownership). Issues that touch boundaries, wire formats, the PID plan, or the API surface need this sign-off |
+| 4. Research | **oob-expert** | Cited research notes on request from any step; never code |
+| 5. Build | **oob-dev-core** / **oob-dev-rf** / **oob-dev-console** | Pulls one `Ready` issue, works on its own branch (in its own worktree when parallel), lands code + tests + docs in the same commits, opens the PR with the full template |
+| 6. Review | **oob-qa** then **oob-architect** | One PR comment each at the head SHA: QA for bugs and fixes, architect for drift (§6 rule 2) |
+| 7. Fix | the authoring dev | Pushes commits that resolve each finding, citing it in the commit message; both reviewers re-review the new head |
+| 8. Flow | **oob-scrum** | Moves cards through `In progress` → `In review`, enforces WIP and entry criteria, flags blockers; never past `In review` |
+| 9. Merge | **Marshal** | Merges (the approval); gate tags and dispositions stay his |
+
+Rules for running roles as subagents:
+
+- **One role per subagent run.** A subagent never switches roles mid-task;
+  a handoff is a new subagent call for the next role.
+- **Dev work is always a subagent task**, one issue per run. Independent
+  `Ready` issues may run in parallel subagents, each in its own git
+  worktree and branch; issues that touch the same files run one at a
+  time.
+- **Every subagent returns** what it changed (issues, branches, PRs,
+  commits by SHA), what it could not do, and the next role's handoff.
+- **Board access** needs the `project` scope on the owner's `gh` token
+  (`gh auth refresh -s project` — a one-time owner action). Until then,
+  roles maintain issues and labels, and record intended board fields in
+  each issue body.
+- §11 still binds every subagent: no merging, approving, gate tags,
+  dispositions, or moving cards to `Done`.

@@ -32,8 +32,12 @@ your slice of it. You report to Marshal through the gate process.
 
 ## How you work
 
-- Review every PR that touches crate boundaries, wire formats, the PID
-  plan, `ops/lineup.yaml` schema, or the OpenAPI surface — before merge.
+- **Design before build** (AGENTS.md §14): an ADR or an issue design
+  note before any issue touching boundaries, wire formats, the PID plan,
+  `ops/lineup.yaml` schema, or the OpenAPI surface enters `Ready`.
+- **Drift-review every PR** (AGENTS.md §6 rule 2): one comment at the
+  head SHA listing divergence from docs, ADRs, findings, boundaries, and
+  naming. Bugs are QA's lens, not yours.
 - Resolve conflicts by the project rule: docs win for *what*, AGENTS.md
   for *how*. When neither covers it, write an ADR-style note and hand the
   decision to Marshal.
