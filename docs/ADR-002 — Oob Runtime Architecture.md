@@ -1,6 +1,7 @@
 # ADR-002 — Oob Runtime Architecture: Process Topology and the Mux ↔ PHY Seam
 
-- **Status:** Proposed — awaiting Marshal's approval
+- **Status:** Accepted — Marshal, 2026-11-22 ("Accept as recommended",
+  r6 disposition record §5)
 - **Date:** 2026-11-22
 - **Deciders:** Marshal (approval); oob-architect (author role);
   oob-dev-core and oob-dev-rf (consulted, per AGENTS.md §14 step 3 —
@@ -9,7 +10,9 @@
 - **Builds on:** ADR-001 rev 8 (what to build); this ADR decides *how the
   running system is shaped*.
 - **History:** first proposed in PR #6 (merged before review, reverted in
-  PR #8); re-proposed for review.
+  PR #8); re-proposed for review; accepted at the r6 disposition.
+- **Related:** ADR-003 (configuration model) — the per-class budgets in
+  decision 4 are runtime operator settings, not repository config.
 
 ## Context
 
@@ -58,7 +61,9 @@ Forces at play:
    them in-process. S2 moves the pacer to the hub.
 4. **Class-based insertion scheduling** with reserved floors and caps
    (C0 system, C1 addressed, C2 EAS, C3 guide, C4 CDL, C5 lab — see r6
-   F6-3). Budgets come from config.
+   F6-3). Budgets are **runtime operator settings** in oob-dac's store,
+   editable through the API and Console (ADR-003); the server refuses
+   any configuration that starves C0 system.
 5. **`oob-playout` is a separate supervisor process** (ffmpeg/tsp jobs) in
    the host-network container (F4-7). It is controlled by oob-dac through
    the command layer.
@@ -169,7 +174,8 @@ on restarts.
 
 ## Action Items
 
-1. [ ] Marshal: approve, amend, or reject this ADR (gates Slice C/D design).
+1. [x] Marshal: approve, amend, or reject this ADR (gates Slice C/D
+   design) — accepted 2026-11-22.
 2. [ ] oob-architect: redraw Overview §4 and Plan §5 diagrams to the
    topology above; reconcile ADR-001's "muxed by tsduck" and "Gitea"
    phrasing.
