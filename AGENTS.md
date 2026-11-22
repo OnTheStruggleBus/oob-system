@@ -239,8 +239,9 @@ Marshal's merge, no review comments required.
    only when it is submitted, is **current**, and leaves no finding
    standing. A review is current when the SHA it names is the PR's head,
    or is the head from before main-only merges that meet the exception
-   below. Everywhere this contract says a review is completed "on the
-   head commit", it means current in this sense. Reviews post as PR comments, so
+   below. Everywhere this contract, the PR template, the board README,
+   or a role file says a review is completed "on the head commit" or
+   "at the head SHA", it means current in this sense. Reviews post as PR comments, so
    GitHub does not dismiss them automatically: after any new commit,
    the required reviews (rule 2) are re-run on the new head before
    Marshal merges. **Exception — main-only merges:** a merge commit that
