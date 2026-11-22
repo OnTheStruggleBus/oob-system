@@ -168,13 +168,18 @@ new component names; extend this set only via Marshal.
 Every **declared feature** — any board item of Type `feature` or
 `experiment`, and any change touching `crates/`, `flowgraphs/`, `ops/`,
 `lab/`, or `.github/` — merges **only** through a pull request that
-satisfies all of the following. Docs-only typo fixes may still land
-directly on `main`; everything else goes through review.
+satisfies all of the following. **Every change to `main` goes through a
+pull request** — branch protection allows no direct pushes (rule 6).
+Docs-only typo fixes are the light path: a PR with green checks and
+Marshal's merge, no role review required.
 
-1. **Human approval, always.** At least one approving review from
-   Marshal (the repo owner) before merge. `CODEOWNERS` routes every path
-   to the owner so GitHub enforces this. Agents never approve, never
-   merge, never review their own work.
+1. **Marshal's merge is the human approval.** Pull requests are opened
+   from the owner's account, and GitHub does not let an author approve
+   their own PR, so the approval is not recorded as a review: **Marshal
+   merging the PR is the approval.** Marshal merges personally (GitHub UI
+   or his own CLI). An agent never runs the merge, never approves, and
+   never reviews its own work. `CODEOWNERS` still routes every path to
+   the owner for notification.
 2. **Completed role reviews** per change class — all required reviewers
    have submitted a review and no change request stands open:
    - crate boundaries / wire formats / PID plan / OpenAPI surface →
@@ -187,22 +192,32 @@ directly on `main`; everything else goes through review.
    - board/process/gate items → **oob-scrum** or **oob-pm**
    The PR template's Review routing section records which apply; "not
    applicable" must be justified in the PR body.
-3. **Reviews are completed, not merely started.** An approval with open
-   change requests is not mergeable. New commits after an approval
-   dismiss it — re-review is required.
+3. **Reviews are completed and current.** A required role review counts
+   only when it is submitted, names the head commit SHA it reviewed, and
+   leaves no change request standing. Role reviews post as PR reviews or
+   comments, so GitHub does not dismiss them automatically: after any new
+   commit, each affected role re-reviews the new head before Marshal
+   merges.
 4. **The template is the price of entry.** PRs use
    `.github/pull_request_template.md` in full: gate/workstream served,
    findings and open items touched, evidence links, docs checklist, test
    evidence, safety declarations, review routing. An incomplete template
    is not reviewable.
-5. **Marshal merges.** Agents prepare branches, PRs, and evidence;
-   a human merges. Gate tags remain manual and Marshal-only.
+5. **Agents prepare, Marshal merges.** Agents prepare branches, PRs,
+   evidence, and role reviews; the merge (and with it the approval) is
+   Marshal's alone. Gate tags remain manual and Marshal-only.
 6. **Branch protection (one-time owner action).** On `main`: require a
-   pull request before merging; require ≥1 approval and CODEOWNERS
-   review; dismiss stale approvals on new commits; require status checks
-   (fmt/clippy/nextest, schema + lineup CI, mdBook build, OpenAPI drift,
-   gitleaks); require branches up to date; block force pushes and
-   deletion.
+   pull request before merging, with **0 required approvals** and
+   **CODEOWNERS review not required** (both would block every PR, since
+   the author can't approve their own PR — rule 1); require status
+   checks by CI job display name — today exactly `rustfmt`,
+   `clippy (-D warnings)`, `nextest`, `cargo doc (warnings denied)`,
+   `cargo-deny`, `gitleaks`; require branches up to date; do not allow
+   bypassing these settings; block force pushes and deletion.
+   **Required checks grow with CI:** a required check that never reports
+   blocks every merge, so each new CI job (mdBook link check per F5-10,
+   schema + lineup CI, OpenAPI drift) is added to the required list in
+   the same PR that introduces it — never before.
 
 ## 7. Hardware safety and the closed-plant doctrine
 
@@ -286,8 +301,9 @@ These are hard rules with legal weight:
 - Do not start work whose gate entry criteria are unmet, and do not give
   surplus-hardware finds any planning weight (opportunism only).
 - Do not approve, merge, or self-review pull requests. Declared features
-  merge only with Marshal's human approval and completed role reviews
-  (§6); direct pushes to `main` beyond docs-only typos are out of bounds.
+  merge only when Marshal merges them, after all required role reviews
+  are completed on the head commit (§6); direct pushes to `main` are out
+  of bounds — typo fixes included (they take the light PR path).
 - Do not touch live cable plant, licensed services, or anyone else's
   content — ever.
 
@@ -298,8 +314,8 @@ nextest; schemas and lineup CI are green; OpenAPI drift check is clean;
 docs updated in the same commit (same-commit rule); experiment claims
 have captures; the PR text states which gate/workstream it serves and
 which findings/open items it touches; and — for any declared feature —
-the PR carries Marshal's human approval with all required role reviews
-completed. Work that can't meet this stays a draft and says why.
+all required role reviews are completed on the head commit and the PR
+is ready for Marshal to merge (his merge is the approval, §6). Work that can't meet this stays a draft and says why.
 
 ## 13. Role agents
 
@@ -309,5 +325,5 @@ expert — plus a README defining the Oob project board (fields, columns,
 labels, standing rules). Every agent in this repo works as exactly one of
 those roles at a time; the role files refine this contract, never replace
 it. Board conventions (gate/workstream fields, `Blocked (entry criteria)`
-state, Done = gate-passed only, feature PRs human-approved with completed
-role reviews) are binding on all roles.
+state, Done = gate-passed only, feature PRs merged by Marshal after
+completed role reviews) are binding on all roles.

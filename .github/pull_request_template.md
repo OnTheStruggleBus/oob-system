@@ -1,7 +1,8 @@
 <!--
-Oob pull request — every declared feature requires Marshal's human approval
-plus completed role reviews before merge (AGENTS.md §6). Fill every section;
-an incomplete PR is not reviewable. Delete nothing from this template.
+Oob pull request — every declared feature requires completed role reviews
+on the head commit, then Marshal merges; his merge is the human approval
+(AGENTS.md §6). Fill every section; an incomplete PR is not reviewable.
+Delete nothing from this template.
 -->
 
 ## Summary
@@ -68,8 +69,8 @@ Write "n/a — no box-visible claims" if none. -->
 
 ## Merge readiness
 
-- [ ] All required role reviews **completed** (no open change requests)
-- [ ] Marshal's human approval received
+- [ ] All required role reviews **completed on the head commit** (each names the SHA it reviewed; no open change requests)
+- [ ] Ready for Marshal to merge — his merge is the human approval
 - [ ] Definition of done (AGENTS.md §12) met
 
 <!-- Agents do not approve, merge, or self-review. Marshal merges. -->

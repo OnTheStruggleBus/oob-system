@@ -69,9 +69,9 @@ under the owner's account, linked to this repo). Board setup:
    highest affected milestone the same day.
 5. Stretch columns (`post-G6`) hold Interconnect/S3 items with no
    schedule weight; they never enter `Ready` early.
-6. **Every declared feature merges only by pull request with Marshal's
-   human approval and all required role reviews completed** (AGENTS.md
-   §6; template at `.github/pull_request_template.md`; CODEOWNERS
-   enforces the human half). Cards sit in **In review** until both
-   conditions are met — "approved" without completed role reviews is not
-   mergeable, and no agent moves a card past this state itself.
+6. **Every declared feature merges only by pull request, merged by
+   Marshal after all required role reviews are completed on the head
+   commit** — Marshal's merge is the human approval (AGENTS.md §6;
+   template at `.github/pull_request_template.md`). Cards sit in **In
+   review** until the role reviews are complete and Marshal merges; no
+   agent moves a card past this state itself.
