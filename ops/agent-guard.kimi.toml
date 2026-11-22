@@ -1,0 +1,19 @@
+# Kimi Code hook for the Oob agent command guard (AGENTS.md §14).
+#
+# Kimi Code reads hooks only from the user-level ~/.kimi-code/config.toml
+# (no per-repo hook file), so this entry is installed by hand: append it to
+# that file. It runs ops/agent-guard.py from whatever git repo the session
+# is in, and is a no-op in repos without the guard.
+#
+# Kimi rules worth knowing:
+# - [[hooks]] allows exactly event / matcher / command / timeout; any other
+#   field makes the whole config file fail to load.
+# - Exit 2 blocks the Bash call; the guard's stderr becomes the reason.
+# - A hook that crashes, cannot start, or times out is fail-open in Kimi.
+# - Check it is active with /hooks inside a Kimi session.
+
+[[hooks]]
+event = "PreToolUse"
+matcher = "Bash"
+command = 'root=$(git rev-parse --show-toplevel 2>/dev/null) && [ -f "$root/ops/agent-guard.py" ] && exec python3 "$root/ops/agent-guard.py"; exit 0'
+timeout = 10

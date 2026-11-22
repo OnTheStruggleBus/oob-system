@@ -124,6 +124,7 @@ ops/
   units.yaml     # census + unit DB (DAC Define Terminal schema)
   ci/            # nightly canary: reboot box, assert AUTH, scrape d 02/d 15
   agent-guard.py # command guard for agent shells (§14 Credentials)
+  agent-guard.kimi.toml # Kimi Code hook entry for ~/.kimi-code/config.toml
 docs/            # mdBook source; protocol/ and runbook/ live here
 .github/agents/  # role files: one contract slice per role (source of truth)
 .claude/agents/  # Claude Code subagent launchers, one per role (§14)
@@ -449,6 +450,14 @@ Rules for running roles as subagents:
     subagents included (`.claude/settings.json`, which also carries
     matching deny rules and blocks agent edits to the guard and settings
     files). The hook fails closed.
+  - **Kimi Code** runs it as a `PreToolUse` hook on `Bash`. Kimi reads
+    hooks only from the user-level `~/.kimi-code/config.toml`, so the
+    entry in `ops/agent-guard.kimi.toml` is appended there by hand
+    (installed on Marshal's machine 2026-11-22; check with `/hooks` in a
+    Kimi session). Two Kimi differences: a hook that crashes or times
+    out is **fail-open**, and Kimi has no equivalent of the Claude Code
+    edit-deny rules, so only shell edits of the guard and config files
+    are blocked.
   - **Other AI tools** call it from their own pre-command hook as
     `python3 ops/agent-guard.py --check "<command>"` (exit 2 = block).
     A tool with no pre-command hook is covered by this rule only.

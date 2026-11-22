@@ -21,8 +21,13 @@ Usage
   Self-test:
       python3 ops/agent-guard.py --self-test
 
-Changing this file or .claude/settings*.json is Marshal's job: agents are
-blocked from editing them (see the rules below and .claude/settings.json).
+Changing this file, .claude/settings*.json, or the Kimi Code hook in
+~/.kimi-code/config.toml is Marshal's job: agents are blocked from
+editing them (see the rules below and .claude/settings.json).
+
+Kimi Code: hooks are user-level only (~/.kimi-code/config.toml), and a
+hook that crashes or times out is fail-open there. The [[hooks]] entry
+allows exactly event/matcher/command/timeout; see AGENTS.md §14.
 """
 
 from __future__ import annotations
@@ -73,11 +78,11 @@ RULES: list[tuple[str, str]] = [
      r"\bgit\s+push\b[^|;&]*(\s|:)(refs/heads/)?(main|master)(\s|$|;|&|\|)"),
     # --- the guard itself ----------------------------------------------------
     ("disabling or editing the agent guard is Marshal's alone",
-     r"(\.claude/settings(\.local)?\.json|ops/agent-guard\.py|disableAllHooks)"
+     r"(\.claude/settings(\.local)?\.json|ops/agent-guard\.py|\.kimi-code/config\.toml|disableAllHooks)"
      r"[\s\S]*?(>|\btee\b|\bsed\s+-i|\bperl\s+-[pi]|\bmv\b|\bcp\b|\brm\b|\bln\b|\btruncate\b|\bchmod\b)"),
     ("disabling or editing the agent guard is Marshal's alone",
      r"(>|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b|\bln\b|\btruncate\b|\bchmod\b)"
-     r"[^|;&]*(\.claude/settings(\.local)?\.json|ops/agent-guard\.py)"),
+     r"[^|;&]*(\.claude/settings(\.local)?\.json|ops/agent-guard\.py|\.kimi-code/config\.toml)"),
 ]
 
 COMPILED = [(reason, re.compile(rx, re.IGNORECASE)) for reason, rx in RULES]
@@ -139,6 +144,9 @@ SELF_TEST_BLOCK = [
     "bash <<'EOF'\ngh pr merge 10\nEOF",
     "python3 - <<EOF\nimport os; os.system('gh pr merge 10')\nEOF",
     "cat <<'EOF' > x.sh\nok\nEOF\ngh pr merge 10",
+    "sed -i '' '/hooks/d' ~/.kimi-code/config.toml",
+    "echo '' > ~/.kimi-code/config.toml",
+    "cp /tmp/x.json ~/.claude/settings.json",
 ]
 
 SELF_TEST_ALLOW = [
@@ -161,6 +169,7 @@ SELF_TEST_ALLOW = [
     "git log --oneline origin/main",
     "cat .claude/settings.json",
     "jq . .claude/settings.json",
+    "cat ~/.kimi-code/config.toml",
     "python3 ops/agent-guard.py --self-test",
     "cargo test",
     "git commit -q -F - <<'EOF'\ndocs: never run gh pr merge as an agent\nEOF",
