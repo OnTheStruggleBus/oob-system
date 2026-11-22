@@ -1,11 +1,13 @@
 # Project Milestones & Stage Gates — mini-headend
 
-*2026-11-22, rev 1. Companion to the Reproduction Plan (workstreams, risk)
+*2026-11-22, rev 2. Companion to the Reproduction Plan (workstreams, risk)
 and the Project Overview (orientation). This document is the project's
 operating contract: what the milestones are, what it takes to pass each one,
 and what tools we use to get there. Marshal asked for three things on
 2026-11-22 — dev tool stack in the doc scope, project milestones, stage
-gates — and this file is all three.*
+gates — and this file is all three. Rev 2 folds in the 2026-11-22
+dispositions: adversarial reviews r3 (×11), r4 (×8), r5 (×14) all accepted
+by Marshal; amendments noted per finding below.*
 
 ## 1. How stage gates work here (the operating agreement)
 
@@ -85,20 +87,32 @@ gate rules (§5).
   - Chosen hunt-table carrier (104.2/110.25 class) measured through the
     F3-7 chain into a dummy load; level log committed (r4 F4-1 metering).
   - OOB TX committed: HackRF One primary, Pluto spare (r4 F4-1).
+  - **Docs scaffolding exists (r5 F5-10):** mdBook scaffold (`book.toml` +
+    `SUMMARY.md` generated from the doc map) builds `docs/` in CI, the
+    broken-link check fails the build, and the utoipa drift-check job stub
+    is wired. Gate rule 9 is unenforceable until this exists, so it is a
+    pre-G0.5-exit task.
 - **Evidence:** flowgraph commit + BER log; level log; O7 record in
-  `docs/protocol/phy.md`.
+  `docs/protocol/phy.md`; green doc-site CI run.
 
 ### G1 — First connect (M1) — MAJOR GATE
 
 - **Entry:** E1 capture rig operational (§4); G0.5 passed; W2 skeleton
-  emits a valid null-stuffed stream.
+  emits a valid null-stuffed stream; **git-crypt initialized (r5 F5-11)** —
+  `.gitattributes` covers `lab/captures/**` and `ops/secrets/**`, a canary
+  secret file renders as ciphertext on GitHub, and Marshal has escrowed the
+  key offline. The first box captures land at G1 and must be born
+  encrypted.
 - **Exit (tiered, r3 F3-8):**
   - *Core tier:* sacrificial box reaches `E 00`; d 02 shows data activity
     and carrier lock; `PID 1 received`; enrollment sequence executed in
     the documented order — factory-init → unit-creation → connect
     (r4 F4-4, manual-confirmed) — with harness commits for each step.
   - *Full tier (closes G1):* VCM, Region, Inband Processor, and General
-    messages accepted; d 14 logs our connect type; Insert System Time
+    messages accepted; d 14 logs our connect type (fleet-wide per the
+    install manual — not DCT2500-gated; the census designates the
+    instrumented box or records its absence, and the RS-232 console tier
+    applies only if an instrumentable unit exists); Insert System Time
     emitted on schedule; Console C0 live as the experiment workbench.
 - **Evidence:** capture-rig scrapes (front-panel OCR + d-screens) per
   experiment; the harness commit log; C0 screenshots.
@@ -130,6 +144,13 @@ gate rules (§5).
   - DES vs CSA decided and recorded (O11: SEM config + box behavior).
   - V1 bench check done: SEM emits encrypted programs on its GigE/ASI
     output (this is also the Interconnect R3 dependency).
+  - **EMM authorship resolved (r5 F5-4):** who authors addressed EMMs
+    (provider ID 0x0000/0x0001), over which interface (SEM-EM?
+    DAC-driven?), and in what format is answered with evidence, per the
+    escalation ladder: (1) SEM manual re-read for EMM/ACP interfaces,
+    (2) box-as-oracle against SEM-generated streams with the entitlement
+    matrix varied, (3) surplus escalation (OM/RADD — one purchase covers
+    both this and R11). "The ACP encrypts" alone does not pass the gate.
 - **Evidence:** SEM-EM screenshots, d-screen scrapes, tier matrix commit.
 - **Review:** full adversarial review; kill criteria explicitly re-checked
   (this is the gate where they bite).
@@ -142,6 +163,11 @@ gate rules (§5).
 - **Exit:**
   - Download campaign to the sacrificial box succeeds: d 10 shows the new
     module set; box boots and runs post-download.
+  - **Modified-object round trip (r5 F5-5):** patch one behavior-visible
+    element of a donor object (a string resource), run it through oob-cdl,
+    download to the sacrificial box, capture the changed behavior on the
+    rig. Replay = plumbing; mutation = understanding — a replay-only pass
+    leaves O13 parser RE technically open while the gate reads green.
   - Rollback drill: return the box to its pre-campaign object set.
   - Recovery drill: the D0 flash-recovery runbook is exercised once on
     purpose (bricked-on-purpose box recovered).
@@ -165,18 +191,25 @@ gate rules (§5).
 - **Entry:** G3 passed; G4 passed; W8 guide work done or fallback
   dispositioned per R12.
 - **Exit:**
-  - Guide grid renders on ≥1 box and populates from our synthesized
-    listings feed (color-coded cells, day-skip working) — the **VueGuide+**
-    pipeline (`oob-guide`), per the O12 residency census outcome and the
-    O13 transport/opacity results.
-  - EAS demonstrated end-to-end (r3 F3-11).
+  - Guide grid renders on **≥1 box per platform family the census found**
+    (r4 F4-5) and populates from our synthesized listings feed
+    (color-coded cells, day-skip working) — the **VueGuide+** pipeline
+    (`oob-guide`), per the O12 residency census outcome and the O13
+    transport/opacity results.
+  - **Cold-box repopulation (r3 F3-10):** a post-init box repopulates the
+    grid within N minutes of connect, unassisted — N measured during W8;
+    the nightly canary asserts grid population, not just AUTH.
+  - EAS: registered zero-weight backlog (r5 F5-9: message class + crawl on
+    the guide channel, post-connect family work per r3 F3-11) — **not a
+    G6 exit criterion**; demonstrated if discovered in time, carried
+    otherwise.
   - All six Console operator journeys pass without SSH (Console spec §7).
   - Canary green 7 consecutive nights.
   - Document set current: plan, protocol doc, runbook, this register.
 - **Evidence:** captures of the grid, journey walkthrough recordings, CI
   history, the gate tag.
 - **Review:** full adversarial review + project retrospective; stretch
-  register (S1/S2/S3) re-scored for what comes next.
+  register (S1/S2/S3/S4) re-scored for what comes next.
 
 ## 4. Enabling tracks (mini-gates that feed the gates)
 
@@ -197,6 +230,10 @@ gate rules (§5).
   netem) is its own mini-gate with the same evidence rules; R3 requires
   G3's V1 bench check first; R-gates open only after G6.
 - **S3 analog tier:** registered stretch, no gate defined until scoped.
+- **S4 VOD/PPV:** P1–P3 (CAPPV, IPPV, NVOD) proposed as G3/G5/G6 checklist
+  items in `VOD & PPV Simulation Specification — mini-headend.md` §7 —
+  **proposals awaiting Marshal's disposition**; true session VOD = registered
+  stretch, no gate defined until scoped.
 
 ## 6. Development tool stack (in doc scope as of this rev)
 
@@ -273,10 +310,16 @@ carrier drift — F4 escalation path, not a default buy).
 | G5 | — | — | — | — |
 | G6 | — | — | — | — |
 
-*Rows are filled at each gate review. Pending dispositions at adoption of
-this system: adversarial reviews r3 (11 findings) and r4 (8 findings);
-ADR-001 rev 7 approval. The first gate review to convene (G0.5) should
-carry those dispositions as its first agenda item.*
+*Rows are filled at each gate review. Dispositions closed 2026-11-22:
+adversarial reviews r3 (×11), r4 (×8), r5 (×14) — all accepted, deltas
+folded. Still open (Marshal's manual actions): ADR-001 rev 7 approval,
+branch protection (AGENTS.md §6.6), Projects board + labels
+(`.github/agents/README.md` spec).*
+
+**Release tags (r5 F5-13):** tags use the collision-safe format
+`rel/<carrier>` — hunt-table carriers in the box's d 02 scroll order:
+`rel/75.25`, `rel/104.20`, `rel/72.75`, `rel/92.25`, `rel/98.25`,
+`rel/107.25`, `rel/107.40`, `rel/110.25`, `rel/116.25`, `rel/103.75`.
 
 ## 8. Documentation policy (in scope from build, Marshal's directive 2026-11-22)
 
