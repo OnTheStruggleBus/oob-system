@@ -488,10 +488,13 @@ Rules for running roles as subagents:
     | Gemini CLI | `.gemini/settings.json` (BeforeTool/run_shell_command) | command runs |
     | Codex | `.codex/hooks.json` (PreToolUse/Bash, `--format codex`) | command runs |
     | GitHub Copilot CLI / cloud agent | `.github/hooks/agent-guard.json` (preToolUse/bash) | blocked if it can't start; runs on timeout |
-    | Kimi Code | user-level only: run `python3 ops/install-agent-guards.py` (installs or updates the `ops/agent-guard.kimi.toml` entry in `~/.kimi-code/config.toml`) | command runs |
+    | Kimi Code | user-level only: run `uv run --python 3.12 python3 ops/install-agent-guards.py` (installs or updates the `ops/agent-guard.kimi.toml` entry in `~/.kimi-code/config.toml`) | command runs |
 
     The column above covers what the guard can't control: a missing
-    `python3` or a hook timeout. `python3` is part of the pinned
+    `python3` or a hook timeout. **Python versions:** the guard itself
+    runs on any `python3` (3.9+); the installer and
+    `ops/check-agent-hooks.py` need 3.11+ (the §10 pin is 3.12, recorded
+    in `.python-version`). `python3` is part of the pinned
     toolchain (§10), so a working setup has it.
 
     Most tools ask you to trust a folder or review its hooks (`/hooks`)
@@ -502,7 +505,13 @@ Rules for running roles as subagents:
     `python3 ops/agent-guard.py --check "<command>"` (exit 2 = block).
     A tool with no pre-command hook is covered by this rule only.
   - It is best effort: pattern matching can be evaded by deliberate
-    obfuscation. The alternatives Marshal did not choose — (a) a bot
+    obfuscation. **Known, accepted gaps** (recorded at Marshal's merge of
+    PR #10, not pursued further): `cp -t <dir> <file>`; acting on a
+    guarded file by a generic bare name from inside its directory
+    (`cd .claude && rm settings.json`); `git apply` of a patch that edits
+    a guarded file; and the CI workflow `.github/workflows/ci.yml`
+    itself, which QA reviews rather than the guard locking. A guarded
+    file inside any other checkout is protected too, by design. The alternatives Marshal did not choose — (a) a bot
     account or per-role token without merge/admin rights, (c) an
     allowlisted GitHub wrapper — remain the way to make it airtight.
   - Changing the guard or any hook file above is Marshal's job; agents

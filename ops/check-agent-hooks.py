@@ -25,7 +25,8 @@ import sys
 
 if sys.version_info < (3, 11):
     sys.exit(f"{__file__}: needs Python 3.11+ for tomllib (this is "
-             f"{sys.version.split()[0]}); the project pins 3.12 — e.g. `uv run python3 ...`.")
+             f"{sys.version.split()[0]}); the project pins 3.12 (.python-version) — run it as "
+             "`uv run --python 3.12 python3 ops/check-agent-hooks.py`.")
 
 import tomllib  # noqa: E402
 
@@ -149,12 +150,17 @@ def fallback_repo(tmp: pathlib.Path) -> pathlib.Path:
     repo = tmp / "fallback"
     (repo / "ops").mkdir(parents=True)
     shutil.copy2(REPO / "ops" / "agent-guard.py", repo / "ops" / "agent-guard.py")
-    git = ["git", "-C", str(repo), "-c", "user.name=agent-guard-ci", "-c", "user.email=ci@localhost",
-           "-c", "commit.gpgsign=false"]
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
-    subprocess.run(git + ["add", "ops/agent-guard.py"], check=True)
-    subprocess.run(git + ["commit", "-q", "-m", "guard"], check=True)
-    subprocess.run(git + ["update-ref", "refs/remotes/origin/main", "HEAD"], check=True)
+    # Isolated from the user's git config: no global/system config, hooks,
+    # templates, or commit signing can interfere (QA-28).
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1",
+               GIT_AUTHOR_NAME="agent-guard-ci", GIT_AUTHOR_EMAIL="ci@localhost",
+               GIT_COMMITTER_NAME="agent-guard-ci", GIT_COMMITTER_EMAIL="ci@localhost")
+    git = ["git", "-C", str(repo), "-c", "core.hooksPath=" + os.devnull, "-c", "commit.gpgsign=false"]
+    subprocess.run(["git", "init", "-q", "--template=", str(repo)], check=True, env=env)
+    subprocess.run(git + ["add", "ops/agent-guard.py"], check=True, env=env)
+    subprocess.run(git + ["commit", "-q", "--no-verify", "-m", "guard"], check=True, env=env)
+    subprocess.run(git + ["update-ref", "refs/remotes/origin/main", "HEAD"], check=True, env=env)
     (repo / "ops" / "agent-guard.py").unlink()  # checkout without the guard
     return repo
 

@@ -1,9 +1,11 @@
 # Kimi Code hook for the Oob agent command guard (AGENTS.md §14).
 #
 # Kimi Code reads hooks only from the user-level ~/.kimi-code/config.toml
-# (no per-repo hook file), so this entry is installed by hand: append it to
-# that file (or run: python3 ops/install-agent-guards.py). It runs ops/agent-guard.py from whatever git repo the session
-# is in, and is a no-op in repos without the guard.
+# (no per-repo hook file). Install or update this entry with:
+#     uv run --python 3.12 python3 ops/install-agent-guards.py
+# It runs ops/agent-guard.py from the session's git repo; if the checked-out
+# branch lacks it, the copy on origin/main (else the newest commit on a
+# remote-tracking branch that has it); a no-op outside a git repo.
 #
 # Kimi rules worth knowing:
 # - [[hooks]] allows exactly event / matcher / command / timeout; any other

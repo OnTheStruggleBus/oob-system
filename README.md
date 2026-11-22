@@ -307,7 +307,8 @@ docs/        the mdBook source — specs, protocol, runbook, reviews
              settings.json (runs the agent guard on every shell call)
 .cursor/ .gemini/ .codex/ .github/hooks/
              the same agent guard for Cursor, Gemini CLI, Codex, Copilot
-             (Kimi Code users: python3 ops/install-agent-guards.py)
+             (Kimi Code users: uv run --python 3.12 python3
+             ops/install-agent-guards.py)
 ```
 
 ## Documentation
