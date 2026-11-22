@@ -82,7 +82,9 @@ under the owner's account, linked to this repo). Board setup:
    schedule weight; they never enter `Ready` early.
 6. **Every declared feature merges only by pull request, merged by
    Marshal after the required reviews (AGENTS.md §6 rule 2) are
-   completed on the head commit and oob-po has accepted on the issue** —
+   completed on the head commit and oob-po has accepted on the issue
+   (for a PR with no issue — Marshal's direct request — his merge is the
+   acceptance)** —
    Marshal's merge is the human approval (AGENTS.md §6; template at
    `.github/pull_request_template.md`). Cards sit in **In review** until
    the reviews are clean, PO has accepted, and Marshal merges; a PO

@@ -208,9 +208,10 @@ Marshal's merge, no review comments required.
    none of the PR's commits. Every agent commit ends with an
    `Oob-Role: <role>` trailer (`orchestrator` for the main session), and
    the reviewer checks the trailers (`git log --no-merges`) before
-   reviewing. Merge commits and commits Marshal makes himself carry no
-   trailer and are exempt. Any other commit without a trailer is a
-   finding until the PR description maps its SHA to a role. Roles run as
+   reviewing. Only merge commits are exempt. Every other commit without
+   a trailer — including any Marshal made himself, since all commits
+   carry his identity — is a finding until the PR description lists it
+   as `<sha> → <role or Marshal>`. Roles run as
    separate subagents (§14), so the dev that built a change is never the
    role that reviews it.
    **When a reviewer authored the PR** (an ADR from oob-architect, a
@@ -224,7 +225,11 @@ Marshal's merge, no review comments required.
    the reviewer withdraws or holds each disputed finding. Only Marshal
    can waive a held finding, by writing `waived by Marshal` against it in
    the same section **before** merging; a waived finding counts as
-   cleared for rule 3 and §12.
+   cleared for rule 3 and §12. **Agents never write, edit, move, or remove
+   a waiver line** — except the orchestrator recording a waiver Marshal
+   gave in its session, quoted verbatim with the date. Reviewers flag any
+   waiver line that is new since their last review and isn't such a
+   quote.
    **Scope:** these rules govern PRs written by agents. Machine-opened
    PRs from the running system (e.g. r6 F6-4's Console-opened config
    PRs) need their own rule, to be set when F6-4 is dispositioned.
@@ -233,7 +238,12 @@ Marshal's merge, no review comments required.
    leaves no change request standing. Reviews post as PR comments, so
    GitHub does not dismiss them automatically: after any new commit,
    the required reviews (rule 2) are re-run on the new head before
-   Marshal merges.
+   Marshal merges. **Exception — main-only merges:** a merge commit that
+   only brings `main` into the branch (as "require branches up to date"
+   forces) needs no re-review if the PR's diff against `main` is
+   byte-identical to the diff that was reviewed. The orchestrator checks
+   this and notes the result in the PR description; any difference means
+   a full re-review.
 4. **The template is the price of entry.** PRs use
    `.github/pull_request_template.md` in full: gate/workstream served,
    findings and open items touched, evidence links, docs checklist, test
@@ -339,9 +349,13 @@ These are hard rules with legal weight:
   surplus-hardware finds any planning weight (opportunism only).
 - Do not approve, merge, or self-review pull requests, and do not
   comment on PRs unless you are oob-qa (bugs) or oob-architect (drift).
-  Declared features merge only when Marshal merges them, after both
-  reviews are completed on the head commit (§6); direct pushes to `main` are out
-  of bounds — typo fixes included (they take the light PR path).
+  Declared features merge only when Marshal merges them, after the
+  required reviews are completed on the head commit (§6); direct pushes
+  to `main` are out of bounds — typo fixes included (they take the light
+  PR path).
+- Do not write, edit, move, or remove a `waived by Marshal` line in a PR
+  description, except as the orchestrator quoting Marshal verbatim
+  (§6 rule 2).
 - Do not touch live cable plant, licensed services, or anyone else's
   content — ever.
 
@@ -354,8 +368,10 @@ have captures; the PR text states which gate/workstream it serves and
 which findings/open items it touches; and — for any declared feature —
 the required reviews (§6 rule 2) are completed on the head commit with
 no findings standing (or waived by Marshal), oob-po has recorded
-acceptance on the issue (§14 step 8), and the PR is ready for Marshal to
-merge (his merge is the approval, §6). Work that can't meet this stays a draft and says why.
+acceptance on the issue (§14 step 8) — or, for a PR with no issue
+because it is Marshal's direct request, his merge is the acceptance —
+and the PR is ready for Marshal to merge (his merge is the approval,
+§6). Work that can't meet this stays a draft and says why.
 
 ## 13. Role agents
 
@@ -370,8 +386,8 @@ refine this contract, never replace it. `.claude/agents/` holds a Claude Code su
 launcher that loads this contract and the role file, so there is one
 source of truth per role. Board conventions (gate/workstream fields,
 `Blocked (entry criteria)` state, Done = gate-passed only, feature PRs
-merged by Marshal after the QA and architect reviews) are binding on all
-roles.
+merged by Marshal after the required reviews (§6 rule 2) and oob-po
+acceptance (§14 step 8)) are binding on all roles.
 
 ## 14. Agent-driven workflow (roles build, not just review)
 

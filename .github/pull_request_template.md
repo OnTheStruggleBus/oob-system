@@ -61,7 +61,7 @@ Write "n/a — no box-visible claims" if none. -->
 - Issue: <!-- #NN -->
 - [ ] oob-qa — bug review at head SHA, no findings standing (or the architect's combined review, if oob-qa authored this PR)
 - [ ] oob-architect — drift review at head SHA, no findings standing (or QA's combined review, if oob-architect authored this PR)
-- Commits without an `Oob-Role:` trailer (SHA → role), excluding merge commits and Marshal's own: <!-- "none" -->
+- Commits without an `Oob-Role:` trailer, excluding merge commits (`<sha> → <role or Marshal>`): <!-- "none" -->
 
 ## Disputed findings
 
@@ -69,12 +69,13 @@ Write "n/a — no box-visible claims" if none. -->
 here (finding ID + reason), never as a PR comment. The reviewer withdraws
 or holds it at its next review (editing this section triggers that
 re-review). Only Marshal can waive a held finding, by writing
-"waived by Marshal" against it here before merging. Write "none" if none. -->
+"waived by Marshal" against it here before merging; agents never write or
+edit a waiver line (AGENTS.md §11). Write "none" if none. -->
 
 ## Merge readiness
 
 - [ ] Required reviews (AGENTS.md §6 rule 2) **completed on the head commit** (each names the SHA it reviewed; no findings standing, or waived by Marshal)
-- [ ] oob-po acceptance recorded on the linked issue (AGENTS.md §14 step 8) — or n/a when there is no issue
+- [ ] oob-po acceptance recorded on the linked issue (AGENTS.md §14 step 8) — or n/a for Marshal's direct request with no issue (his merge is the acceptance, §12)
 - [ ] Ready for Marshal to merge — his merge is the human approval
 - [ ] Definition of done (AGENTS.md §12) met
 
