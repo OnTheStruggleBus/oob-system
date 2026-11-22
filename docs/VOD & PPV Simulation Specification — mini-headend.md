@@ -64,7 +64,7 @@ business system by **Table 4-1, PPV Configuration Mode/Zero Handle**:
 | Mode | Program download | Call-ahead PPV auth | Purchase upload |
 | --- | --- | --- | --- |
 | Standard | Each BS loads its own handles | Local handle only | Only if local program handle exists |
-| Standard + Zero Handle | Each BS loads its own handles | Local handle only | Local handle if present, else upload with program handle = zero (721/725 only); zero handle unavailable in 600-series |
+| Standard + Zero Handle | Each BS loads its own handles | Local handle only | Local handle if present, else upload with program handle = zero (721/725 only); zero handle unavailable in 600-series commands |
 | Master BS | By each BS or by the Master BS | Local handle if it exists, else the Master-defined program handle | Local/Master handle as resolved; no Master program handle defined → purchase deemed **orphan** |
 | Master BS + Zero Handle | By each BS or by the Master BS | Local, else Master handle | Local/Master handle, else zero handle (721/725); zero handle unavailable in 600-series |
 
