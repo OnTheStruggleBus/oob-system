@@ -376,10 +376,11 @@ Gemstar-TV Guide GuideWorks venture (background knowledge, not
 frame-verified; note the fidelity-target prose above uses "TV Guide
 Interactive" loosely for the i-Guide grid — this reference is the
 real 1999 artifact, a different UI generation). Partially mined
-2026-11-22: three Marshal frames analyzed in the TVGI frame-analysis
-block below (Denver lineup, TVGI palette, ad-slot model); a
-transcript or further frames remain a Marshal acquisition item
-(screenshot pattern).
+2026-11-22: six Marshal frames in two batches analyzed in the TVGI
+frame-analysis blocks below (Denver lineup, TVGI palette, ad-slot
+model; context-dependent action pills, reminder flow, PPV by Title
+menu); a transcript or further frames remain a Marshal acquisition
+item (screenshot pattern).
 Two technical takeaways from source (1): (a) **the DCT2000-series CPU is a
 Motorola 68K-series** — vector graphics are drawn by the guide app itself,
 slowly enough that the "drawing" effect is visible, so firmware RE on DCT2000
@@ -539,6 +540,50 @@ screenshot, 2026-11-22; dated Mon 12/29/2008 in-frame):**
   genre (cell color), cast-parenthesized synopsis with truncation /
   continuation, PPV-promo flag (ad slot), message-envelope indicator,
   cell continuation markers.
+
+**Frame analysis — TVGI batch 2 (three more Marshal-supplied frames,
+2026-11-22; reference (11)):**
+
+- **The action pill row is context-dependent:** the batch-1 info
+  screen for a *currently airing* program (Friends, 7-7:30p, clock
+  ~7pm) offered **Last / Watch / Lock ►**; the batch-2 info screen
+  for a *future* program (Frasier, 8-8:30p, header clock 7:23 PM,
+  TV-PG) offers **Last / Remind / Lock ►** — Watch becomes Remind
+  when the program hasn't started. Same layout otherwise: purple
+  title, time + channel, "NBC affiliate" affiliation line,
+  cast-parenthesized synopsis with down-chevron continuation.
+- **Reminder flow documented:** selecting Remind opens a confirm
+  state — "Would you like to set a reminder?" with **Yes / No**
+  pills (Yes highlighted); the header center slot switches from the
+  clock to the **tuned channel** ("2 KWGN"). Reminders are box-side
+  NVRAM state (like Favorite Lists in the i-Guide analysis) — no
+  headend feed needed, but this is the validation reference for the
+  R12/i-Guide reminder action (bell icon in i-Guide's action bar).
+- **Dedicated "PPV by Title" menu:** a full menu screen listing PPV
+  movies as red pills (movies = red, consistent with the TVGI
+  palette) with **MPAA rating badges right-aligned in-pill** —
+  Enemy of the State (R), Patch Adams (PG-13), Rushmore (R),
+  She's All That (PG-13) — headed by a **"Watch Previews"** row in
+  the magenta/purple accent, with the HBO Family bottom ad banner
+  on the same screen. Third period PPV discovery surface (after
+  grid badging and ad-slot promotion); "Watch Previews" is period
+  evidence for the barker/preview mechanism the VOD/PPV spec's P1
+  preview epoch reproduces — folded into that spec §2.4 same-turn.
+- **Internal dating corroboration:** the four PPV titles are
+  theatrical releases of December 1998 – January 1999; the mid-1999
+  PPV window fits the tape's 1999 label exactly.
+- **Left-rail promos carry graphical key art,** not just text: the
+  rail in these frames shows image panels ("Wasteland — Thursdays"
+  with abc branding, "King of Queens" key art). Our W8 ad slot
+  inherits an image-capable promo primitive, not text-only.
+- **Header center slot alternates:** envelope + clock when idle on
+  info screens (7:23 PM), envelope + tuned channel elsewhere
+  (2 KWGN in the reminder dialog, 3 KTVD in the PPV menu) — the
+  header is a context readout, not a fixed clock.
+- **Additional metadata fields evidenced for O13:** TV parental
+  guideline badge on the info screen (TV-PG), MPAA rating badge in
+  PPV list rows, reminder-set flag (box-side), preview-channel link
+  on the PPV menu.
 
 **Architecture reality:** the look is *box-side software* — the install manual
 describes an "interactive program application resident on the DCT 2000,"
