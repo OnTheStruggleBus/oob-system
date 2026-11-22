@@ -209,7 +209,7 @@ gate rules (§5).
 - **Evidence:** captures of the grid, journey walkthrough recordings, CI
   history, the gate tag.
 - **Review:** full adversarial review + project retrospective; stretch
-  register (S1/S2/S3/S4) re-scored for what comes next.
+  register (S1/S2/S3/S4/S5) re-scored for what comes next.
 
 ## 4. Enabling tracks (mini-gates that feed the gates)
 
@@ -234,6 +234,12 @@ gate rules (§5).
   items in `VOD & PPV Simulation Specification — mini-headend.md` §7 —
   **proposals awaiting Marshal's disposition**; true session VOD = registered
   stretch, no gate defined until scoped.
+- **S5 Billing & subscriber management:** accounts, rate cards, immutable
+  ledger, fictitious statements/payments, dunning-driven disconnect/reconnect,
+  and the documented Billing API proposed as G6 checklist items in
+  `Billing & Subscriber Management Specification — mini-headend.md` §7 —
+  **proposals awaiting Marshal's disposition**; software-only theater layer,
+  no box dependency, registered stretch.
 
 ## 6. Development tool stack (in doc scope as of this rev)
 
