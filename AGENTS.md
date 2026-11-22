@@ -123,6 +123,7 @@ ops/
   lineup.yaml    # single source of truth: RF lineup ↔ VCM ↔ playout
   units.yaml     # census + unit DB (DAC Define Terminal schema)
   ci/            # nightly canary: reboot box, assert AUTH, scrape d 02/d 15
+  agent-guard.py # command guard for agent shells (§14 Credentials)
 docs/            # mdBook source; protocol/ and runbook/ live here
 .github/agents/  # role files: one contract slice per role (source of truth)
 .claude/agents/  # Claude Code subagent launchers, one per role (§14)
@@ -433,16 +434,29 @@ Rules for running roles as subagents:
   (an unnumbered candidate for the next review round; r6 itself ends at
   F6-16). Subagents must never call merge, approve, or
   admin endpoints, and must not be given any other owner-level or
-  merge-capable token. **This is a known gap, not a solved one:** every
-  launcher grants `Bash`, and that shell runs with the owner's `gh`
-  login, so a misbehaving role could still merge, approve, or change
-  repository settings. Closing it needs Marshal's decision on one of:
-  (a) a separate bot account or fine-grained token per role with no
-  merge/admin rights; (b) Claude Code deny rules or a `PreToolUse` hook
-  blocking `gh pr merge`, `gh pr review --approve`, and `gh api` calls to
-  merge/admin endpoints; (c) a narrow allowlisted wrapper for the GitHub
-  operations roles need. Until then, treat agent sessions as able to do
-  anything the owner's login can. Running-system credentials (r6
+  merge-capable token. Every launcher grants `Bash`, and that shell runs
+  with the owner's `gh` login, so the rule alone can't stop a misbehaving
+  role. **Marshal chose option (b), a command guard (2026-11-22):**
+  - `ops/agent-guard.py` blocks shell commands that merge or approve PRs,
+    change repository admin settings (protection, rulesets, secrets,
+    repo settings), read or change the `gh` login, call the GitHub API
+    through curl/wget, force-push, push to `main`, or edit the guard and
+    Claude Code settings. It ignores heredoc text (commit messages, PR
+    bodies) unless that text is fed to an interpreter.
+    `python3 ops/agent-guard.py --self-test` must pass.
+  - **Claude Code** runs it as a `PreToolUse` hook on every Bash call,
+    subagents included (`.claude/settings.json`, which also carries
+    matching deny rules and blocks agent edits to the guard and settings
+    files). The hook fails closed.
+  - **Other AI tools** call it from their own pre-command hook as
+    `python3 ops/agent-guard.py --check "<command>"` (exit 2 = block).
+    A tool with no pre-command hook is covered by this rule only.
+  - It is best effort: pattern matching can be evaded by deliberate
+    obfuscation. The alternatives Marshal did not choose — (a) a bot
+    account or per-role token without merge/admin rights, (c) an
+    allowlisted GitHub wrapper — remain the way to make it airtight.
+  - Changing the guard or `.claude/settings*.json` is Marshal's job;
+    agents are blocked from both. Running-system credentials (r6
   F6-4/F6-10) are set when those findings are dispositioned.
 - §11 still binds every subagent: no merging, approving, gate tags,
   dispositions, or moving cards to `Done`.
