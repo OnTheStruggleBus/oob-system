@@ -18,7 +18,10 @@
       "Edit(.codex/hooks.json)",
       "Edit(.codex/config.toml)",
       "Edit(.github/hooks/**)",
-      "Edit(~/.kimi-code/config.toml)"
+      "Edit(~/.kimi-code/config.toml)",
+      "Edit(ops/agent-guard.kimi.toml)",
+      "Edit(ops/install-agent-guards.py)",
+      "Edit(ops/check-agent-hooks.py)"
     ]
   },
   "hooks": {

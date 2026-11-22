@@ -25,9 +25,12 @@ Usage
   Self-test:
       python3 ops/agent-guard.py --self-test
 
-Changing this file, .claude/settings*.json, or the Kimi Code hook in
-~/.kimi-code/config.toml is Marshal's job: agents are blocked from
-editing them (see the rules below and .claude/settings.json).
+Changing this file or any hook wiring is Marshal's job; agents are blocked
+from editing them (PROTECTED below and the deny rules in
+.claude/settings.json): .claude/settings*.json, .cursor/hooks.json,
+.gemini/settings.json, .codex/hooks.json and config.toml, .github/hooks/,
+ops/agent-guard*, ops/install-agent-guards.py, ops/check-agent-hooks.py,
+and ~/.kimi-code/config.toml.
 
 Kimi Code: hooks are user-level only (~/.kimi-code/config.toml), and a
 hook that crashes or times out is fail-open there. The [[hooks]] entry
@@ -42,13 +45,16 @@ import sys
 
 # (reason, regex). Matched case-insensitively against the whole command,
 # so `bash -c '...'`, pipes, and `&&` chains are covered too.
-PROTECTED = (r"(\.claude/settings(\.local)?\.json|ops/agent-guard\.py|\.kimi-code/config\.toml"
+PROTECTED = (r"(\.claude/settings(\.local)?\.json|ops/(agent-guard[\w.-]*|install-agent-guards\.py"
+             r"|check-agent-hooks\.py)|\.kimi-code/config\.toml"
              r"|\.cursor/hooks\.json|\.gemini/settings\.json|\.codex/(hooks\.json|config\.toml)"
              r"|\.github/hooks/)")
 
 RULES: list[tuple[str, str]] = [
-    # Every rule stays inside one command: [^|;&\n] never crosses a pipe,
-    # a chain, or a new line (QA-19).
+    # Most rules stay inside one command: [^|;&\n] never crosses a pipe, a
+    # chain, or a new line (QA-19). The GraphQL, `gh api --input`, and
+    # disableAllHooks rules deliberately look further, so they only ever
+    # block more.
     # --- merging and approving -------------------------------------------
     ("merging a PR is Marshal's alone (AGENTS.md §6 rule 1)",
      r"\bgh\s+pr\s+merge\b"),
@@ -95,7 +101,11 @@ RULES: list[tuple[str, str]] = [
     ("disabling or editing the agent guard is Marshal's alone",
      r"(^|[^0-9&-])>>?\s*['\"]?[^\s'\";&|]*" + PROTECTED),
     ("disabling or editing the agent guard is Marshal's alone",
-     r"\b(tee|mv|cp|rm|ln|truncate|chmod|install|dd)\b[^|;&\n]*" + PROTECTED),
+     r"(^|(?<!\\)[;&|(]|\bthen\b|\bdo\b|\bsudo\b|\bxargs\b)\s*(tee|rm|unlink|truncate|chmod|chflags|dd)\b"
+     r"[^|;&\n]*" + PROTECTED),
+    ("disabling or editing the agent guard is Marshal's alone",
+     r"(^|(?<!\\)[;&|(]|\bthen\b|\bdo\b|\bsudo\b)\s*(cp|mv|ln|install|rsync)\b[^|;&\n]*\s['\"]?[^\s'\";&|]*"
+     + PROTECTED + r"['\"]?/?\s*($|[;&|\n)])"),
     ("disabling or editing the agent guard is Marshal's alone",
      r"\b(sed\s+(-[a-z]*\s+)*-i|perl\s+-[a-z]*[pi])\b[^|;&\n]*" + PROTECTED),
     ("disabling or editing the agent guard is Marshal's alone",
@@ -106,14 +116,15 @@ COMPILED = [(reason, re.compile(rx, re.IGNORECASE)) for reason, rx in RULES]
 
 # Heredoc bodies are usually text (commit messages, PR bodies) that may
 # merely *mention* a blocked command. A body is dropped before matching
-# only when its opening line is plainly a text sink; it is kept when the
-# opener runs `gh` (QA-17: `gh api --input -`), uses command substitution,
-# or runs an interpreter in command position.
+# only when its opening line is plainly a text sink (including the usual
+# `git commit -m "$(cat <<'EOF' ...)"` form, QA-22); it is kept when the
+# opener runs `gh api` (QA-17: `gh api --input -`, `-f query="$(cat <<EOF`)
+# or runs an interpreter in command position (`bash`, `eval "$(cat <<EOF`).
 HEREDOC = re.compile(r"^(?P<opener>[^\n]*<<-?\s*(?P<q>['\"]?)(?P<tag>\w+)(?P=q)[^\n]*)\n"
                      r"(?P<body>.*?)\n[ \t]*(?P=tag)[ \t]*$",
                      re.DOTALL | re.MULTILINE)
 KEEP_BODY = re.compile(
-    r"\bgh\s+api\b|\$\(|`"
+    r"\bgh\s+api\b"
     r"|(^|[;&|(]|\bthen\b|\bdo\b)\s*(sudo\s+|env\s+(\w+=\S*\s+)*)?"
     r"(bash|sh|zsh|dash|ksh|fish|eval|exec|source|xargs|ssh|python3?|perl|ruby|node|osascript|\.)(\s|$)")
 
@@ -185,6 +196,12 @@ SELF_TEST_BLOCK = [
     "gh api repos/o/r/pulls/3/reviews --input - <<EOF\n{\"event\":\"APPROVE\"}\nEOF",
     "gh api graphql -f query=\"$(cat <<'EOF'\nmutation{mergePullRequest(input:{}){clientMutationId}}\nEOF\n)\"",
     "echo '{\"disableAllHooks\": true}' >> ~/.claude/settings.json",
+    "eval \"$(cat <<EOF\ngh pr merge 1\nEOF\n)\"",
+    "cp /tmp/x ops/agent-guard.py",
+    "mv /tmp/x .claude/settings.json",
+    "cat /tmp/x | tee ops/agent-guard.kimi.toml",
+    "rm ops/install-agent-guards.py",
+    "echo x > ops/check-agent-hooks.py",
 ]
 
 SELF_TEST_ALLOW = [
@@ -221,6 +238,11 @@ SELF_TEST_ALLOW = [
     "git log --format='%h -> %s' -- ops/agent-guard.py",
     "gh pr create --title 'source tree docs' --body-file - <<'EOF'\nAgents must not run gh pr merge.\nEOF",
     "gh auth status",
+    "git commit -m \"$(cat <<'EOF'\nfix: never run gh auth token or gh pr merge\nEOF\n)\"",
+    "gh pr comment 10 --body \"$(cat <<'EOF'\nQA-18: gh auth status -t is blocked\nEOF\n)\"",
+    "cp ops/agent-guard.py /tmp/guard-copy.py",
+    "grep -n 'rm\\|tee' ops/agent-guard.py",
+    "git show HEAD:ops/agent-guard.kimi.toml",
 ]
 
 
@@ -243,6 +265,15 @@ def self_test() -> int:
         {"toolName": "bash", "toolArgs": {"command": "gh pr merge 1"}},          # Copilot (object)
         {"tool_name": "bash", "tool_input": "{\"command\": \"gh pr merge 1\"}"},  # Copilot snake, string
     ]
+    import contextlib
+    import io
+    with contextlib.redirect_stderr(io.StringIO()):
+        # A non-shell tool reaching the hook (matcher ignored) must pass.
+        if main_payload({"toolName": "view", "toolArgs": {"path": "x"}}) != 0:
+            print("FAIL (non-shell tool blocked)"); failures += 1
+        # A shell tool whose command can't be read must be blocked.
+        if main_payload({"tool_name": "Bash", "tool_input": {"cmd": "ls"}}) != 2:
+            print("FAIL (unreadable shell payload allowed)"); failures += 1
     for shape in shapes:
         if check(extract_command(shape)) is None:
             print(f"FAIL (payload shape not read): {shape}")
@@ -250,6 +281,10 @@ def self_test() -> int:
     total = len(SELF_TEST_BLOCK) + len(SELF_TEST_ALLOW) + len(shapes)
     print(f"agent-guard self-test: {total - failures}/{total} passed")
     return 1 if failures else 0
+
+
+SHELL_TOOLS = {"bash", "shell", "run_shell_command", "powershell", "exec_command",
+               "local_shell", "terminal"}
 
 
 def extract_command(payload: object) -> str:
@@ -289,24 +324,36 @@ def main(argv: list[str]) -> int:
     if args[:1] == ["--self-test"]:
         return self_test()
     if args[:1] == ["--check"] and len(args) >= 2:
-        command = " ".join(args[1:])
-    else:
-        raw = sys.stdin.read()
-        try:
-            payload = json.loads(raw) if raw.strip() else {}
-        except json.JSONDecodeError:
-            # Unparseable hook input: fail closed for safety.
-            print("agent-guard: could not parse hook input; blocking.", file=sys.stderr)
-            return 2
-        command = extract_command(payload)
-        if not command.strip():
-            # Every committed hook is scoped to the shell tool, so an empty
-            # command means this tool's payload shape is unknown. Fail closed
-            # loudly rather than run unguarded.
-            print("agent-guard: no shell command found in the hook payload "
-                  "(unknown tool payload shape); blocking. Update "
-                  "extract_command() in ops/agent-guard.py.", file=sys.stderr)
-            return 2
+        return decide(" ".join(args[1:]), fmt)
+    raw = sys.stdin.read()
+    try:
+        payload = json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError:
+        # Unparseable hook input: fail closed for safety.
+        print("agent-guard: could not parse hook input; blocking.", file=sys.stderr)
+        return 2
+    return main_payload(payload, fmt)
+
+
+def main_payload(payload: object, fmt: str = "exit2") -> int:
+    """Decide on one hook payload (any supported tool's shape)."""
+    command = extract_command(payload)
+    tool = ""
+    if isinstance(payload, dict):
+        tool = str(payload.get("tool_name") or payload.get("toolName") or "")
+    if not command.strip():
+        if tool and tool.lower() not in SHELL_TOOLS:
+            return 0  # a non-shell tool reached the hook (matcher ignored)
+        # A shell tool whose command can't be read: this tool's payload
+        # shape is unknown. Fail closed loudly rather than run unguarded.
+        print("agent-guard: no shell command found in the hook payload "
+              "(unknown tool payload shape); blocking. Update "
+              "extract_command() in ops/agent-guard.py.", file=sys.stderr)
+        return 2
+    return decide(command, fmt)
+
+
+def decide(command: str, fmt: str = "exit2") -> int:
     reason = check(command)
     if reason is None:
         return 0

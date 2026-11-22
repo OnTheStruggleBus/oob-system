@@ -126,6 +126,7 @@ ops/
   agent-guard.py # command guard for agent shells (§14 Credentials)
   agent-guard.kimi.toml # Kimi Code hook entry for ~/.kimi-code/config.toml
   install-agent-guards.py # installs the Kimi entry (user-level only)
+  check-agent-hooks.py # CI: every tool's hook is wired, enabled, and blocks
 docs/            # mdBook source; protocol/ and runbook/ live here
 .github/agents/  # role files: one contract slice per role (source of truth)
 .claude/agents/  # Claude Code subagent launchers, one per role (§14)
@@ -447,20 +448,27 @@ Rules for running roles as subagents:
     change repository admin settings (protection, rulesets, secrets,
     repo settings), read, print, or change the `gh` login, call the
     GitHub API through curl/wget, force-push, push to `main`, or edit the
-    guard and hook files. Each rule stays within one command (pipes,
-    chains and new lines split commands). Heredoc text (commit messages,
-    PR bodies) is ignored unless it is fed to `gh api`, an interpreter,
-    or a command substitution. `python3 ops/agent-guard.py --self-test`
-    must pass; the CI job `agent-guard` runs it.
-  - **It cannot be switched off by changing branch.** Every hook file
-    runs the same launcher: the checked-out `ops/agent-guard.py` if
-    present, otherwise the copy on `origin/main`, otherwise the newest
-    commit that has it; outside a git repo it does nothing. Checking out
-    an old branch therefore neither disables the guard nor blocks every
-    command.
-  - **It fails closed on what it can see:** its own errors, and a hook
-    payload with no readable shell command (an unknown payload shape),
-    both block with a message.
+    guard and hook files. Rules match within one command (pipes, chains
+    and new lines split commands); a few deliberately look further and
+    only ever block more. Heredoc text (commit messages, PR bodies, the
+    usual `"$(cat <<'EOF' …)"` form) is ignored unless it is fed to
+    `gh api` or an interpreter such as `bash` or `eval`. The CI job
+    `agent-guard` runs `python3 ops/agent-guard.py --self-test` and
+    `python3 ops/check-agent-hooks.py`, which runs every tool's hook with
+    that tool's payload and fails if any hook is disabled, mis-wired, or
+    no longer blocks.
+  - **Changing branch doesn't disable it or brick a session** — on any
+    branch that carries the hook files (everything cut after this guard
+    landed). Every hook file runs the same launcher: the checked-out
+    `ops/agent-guard.py` if present, otherwise the copy on `origin/main`,
+    otherwise the newest commit that has it; outside a git repo it does
+    nothing. A branch cut before the guard has no hook files of its own;
+    Claude Code keeps the hooks it loaded at session start, but other
+    tools reading that checkout run unguarded.
+  - **It fails closed on what it can see:** its own errors, and a
+    shell-tool payload with no readable command (an unknown payload
+    shape), both block with a message. A non-shell tool that reaches the
+    hook (a tool ignoring the matcher) is let through.
   - **It is wired for everyone who clones the repo.** This is a public
     repository, so each tool's per-repo hook file is committed and points
     at the same guard; CI (`agent-guard` job) runs the self-test and checks
