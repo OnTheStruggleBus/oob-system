@@ -433,7 +433,16 @@ Rules for running roles as subagents:
   (an unnumbered candidate for the next review round; r6 itself ends at
   F6-16). Subagents must never call merge, approve, or
   admin endpoints, and must not be given any other owner-level or
-  merge-capable token. Running-system credentials (r6 F6-4/F6-10) are
-  set when those findings are dispositioned.
+  merge-capable token. **This is a known gap, not a solved one:** every
+  launcher grants `Bash`, and that shell runs with the owner's `gh`
+  login, so a misbehaving role could still merge, approve, or change
+  repository settings. Closing it needs Marshal's decision on one of:
+  (a) a separate bot account or fine-grained token per role with no
+  merge/admin rights; (b) Claude Code deny rules or a `PreToolUse` hook
+  blocking `gh pr merge`, `gh pr review --approve`, and `gh api` calls to
+  merge/admin endpoints; (c) a narrow allowlisted wrapper for the GitHub
+  operations roles need. Until then, treat agent sessions as able to do
+  anything the owner's login can. Running-system credentials (r6
+  F6-4/F6-10) are set when those findings are dispositioned.
 - §11 still binds every subagent: no merging, approving, gate tags,
   dispositions, or moving cards to `Done`.
