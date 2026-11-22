@@ -168,8 +168,10 @@ new component names; extend this set only via Marshal.
 Every **declared feature** — any board item of Type `feature` or
 `experiment`, and any change touching `crates/`, `flowgraphs/`, `ops/`,
 `lab/`, or `.github/` — merges **only** through a pull request that
-satisfies all of the following. Docs-only typo fixes may still land
-directly on `main`; everything else goes through review.
+satisfies all of the following. **Every change to `main` goes through a
+pull request** — branch protection allows no direct pushes (rule 6).
+Docs-only typo fixes are the light path: a PR with green checks and
+Marshal's merge, no role review required.
 
 1. **Marshal's merge is the human approval.** Pull requests are opened
    from the owner's account, and GitHub does not let an author approve
@@ -207,11 +209,15 @@ directly on `main`; everything else goes through review.
 6. **Branch protection (one-time owner action).** On `main`: require a
    pull request before merging, with **0 required approvals** and
    **CODEOWNERS review not required** (both would block every PR, since
-   the author can't approve their own PR — rule 1); require status checks
-   (fmt/clippy/nextest, schema + lineup CI, mdBook build, OpenAPI drift,
-   gitleaks) using the CI job display names; require branches up to
-   date; do not allow bypassing these settings; block force pushes and
-   deletion.
+   the author can't approve their own PR — rule 1); require status
+   checks by CI job display name — today exactly `rustfmt`,
+   `clippy (-D warnings)`, `nextest`, `cargo doc (warnings denied)`,
+   `cargo-deny`, `gitleaks`; require branches up to date; do not allow
+   bypassing these settings; block force pushes and deletion.
+   **Required checks grow with CI:** a required check that never reports
+   blocks every merge, so each new CI job (mdBook link check per F5-10,
+   schema + lineup CI, OpenAPI drift) is added to the required list in
+   the same PR that introduces it — never before.
 
 ## 7. Hardware safety and the closed-plant doctrine
 
@@ -296,8 +302,8 @@ These are hard rules with legal weight:
   surplus-hardware finds any planning weight (opportunism only).
 - Do not approve, merge, or self-review pull requests. Declared features
   merge only when Marshal merges them, after all required role reviews
-  are completed on the head commit (§6); direct pushes to `main` beyond
-  docs-only typos are out of bounds.
+  are completed on the head commit (§6); direct pushes to `main` are out
+  of bounds — typo fixes included (they take the light PR path).
 - Do not touch live cable plant, licensed services, or anyone else's
   content — ever.
 
