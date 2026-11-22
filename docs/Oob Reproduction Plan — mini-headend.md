@@ -650,6 +650,57 @@ with i-Guide rendering in 2017, and the Litestream channel posted an i-Guide
 demo — both are potential contacts for period captures, donor objects, or
 feed knowledge (O1/O13).
 
+## 4.2 Platform compatibility — DCH70 & DCT6000 questions (answered 2026-11-22)
+
+Where do DCH70-class boxes fall in the compatibility matrix? Grounding:
+DCH70 Installation Manual (© 2007 Motorola, Comcast-hosted PDF) + the
+Motorola product brief (Adams Cable Equipment mirror). The DCH70 is the
+DCT700-line successor — an all-digital SD receiver, and a **third platform
+family** alongside DCT2000 (68k) and DCT2500 (Broadcom/MIPS):
+
+| Layer | Verdict | Basis |
+| --- | --- | --- |
+| OOB control channel (G0.5/G1) | **Compatible** | SCTE 55-1 OOB transmitter/receiver, agile 70–130 MHz, 2.048 Mbps QPSK. Hunt mode RR is documented as "searching OOB frequencies trying to find an EMM Provider of 0 or 1" — our 0x0000/0x0001 provider-ID constraint — and the manual frequency menu enumerates the same ten carriers in the same scroll order as our hunt table (75.25, 104.20, 72.75, 92.25, 98.25, 107.25, 107.40, 110.25, 116.25, 103.75). Same OOB stream taxonomy on its Unit Address screen (Multicast-16: Net/EMM/SCC_ECM/DWLD/DATA/POLL). |
+| Clear-tier playout (G2) | **Compatible on spec** | MPEG-2 MP@ML SD-only video processor; ITU 64/256 QAM + Annex B FEC. Caveat: the manual states the M-Card "is required to view cable television programs" — whether a cardless unit tunes clear QAM is a bench question for E3, not an assumption (boxes are the referee). |
+| Encrypted tier (G3) | **Not reachable** | DES/DCII access control runs via inserted M-Card CableCARD (**separable security**), not embedded MediaCipher/FPK. No FPK story on this platform; no card infrastructure in the estate. First separable-security data point if one ever joins. |
+| Code download / donor objects (G4) | **Does not cross** | Own platform family (MIPS RISC, but distinct Platform/Family/Model ID in its d 01-equivalent General Status screen). Donor objects never cross platforms (F4-5). |
+| Diagnostics (E1) | **Same language, different screen set** | OSD-based d 01–d 22; LEDs-only front panel — E-codes moved into the General Status OSD. Same channel-status state vocabulary; the OOB Status screen (SNR / EMM Data / Carrier Lock) is arguably better instrumentation than the DCT2000's. E1 capture card reads OSD fine. |
+| Return path (G5 stretch) | **Present** | On-board real-time RF return; upstream-modem diagnostic (MAC frequency table, RPD power). |
+| Guide residency (W8) | **Open census question** | Which guide app this line ran is undocumented here; E3 settles it if one joins. |
+
+Net: a DCH70 would witness G1 and (cardless-clear-QAM permitting) G2, and
+stop there. **Not** a G0.5/G1 blocker; surplus = opportunism, zero planning
+weight. If one joins the estate it extends the E3 census by one platform
+family. "Compatible with Motorola DCT legacy APIs" per the product brief.
+(Corpus lead: a DCT700-line user-manual PDF is mirrored at
+gditechnology.com — its Appendix B shows the classic d 01–d 21 diagnostic
+taxonomy persisted into that line.)
+
+**The DCT6000 series (same question, same day):** the DCT6200 / 6208 /
+6412 / 6416 line is the **integrated-security HD generation** (DCT6200
+~2002; DCT6412/6416 user guide © 2004 Motorola) — and it lands *better* in
+the matrix than the DCH70:
+
+| Layer | Verdict | Basis |
+| --- | --- | --- |
+| OOB control channel (G0.5/G1) | **Compatible** | Same DCT-platform SCTE 55-1 agile OOB family (2.048 Mbps); ITU 64/256 QAM front end to 860 MHz per the install-manual features list. Provider-ID hunt behavior bench-verified like any box. |
+| Clear-tier playout (G2) | **Compatible** | MPEG-2 decode with HD output — our SD MP@ML tier decodes fine. |
+| Encrypted tier (G3) | **In scope** | **Integrated-security generation:** embedded MediaCipher DCII/DES, no CableCARD slot — the same architecture as DCT2000/2500 (the DCT2500's own spec line: "DES-based encryption/DCII access control"). The DCH card-host line replaced this architecture in 2007 under the separable-security mandate. The SEM-ACP/FPK tier story applies. |
+| HD upside (stretch) | **Noted, zero weight** | MPEG-2 **MP@HL** decode; 1080i/720p/480p/480i output over YPbPr / DVI-D / IEEE 1394. A period-plausible (~2003+) MPEG-2 HD tier is physically reachable with the existing stack (SEM QAM + ffmpeg MPEG-2 HD) — but no H.264 (DCX-era). Not in scope; estate trivia until one joins. |
+| Code download / donor objects (G4) | **Does not cross** | Broadcom/MIPS generation, own Platform/Family/Model IDs — census-keyed (F4-5). |
+| Diagnostics (E1) | **Same family** | Front-panel 4-digit display + the classic d-screen taxonomy (persisted across the generation — see the DCT700-line TOC lead above). DVR variants (6208 single-tuner, 6412/6416 dual-tuner) add Record-action surfaces for W8. |
+| Guide residency (W8) | **Promising** | The 6200/6412 were the canonical Comcast-era i-Guide HD boxes — a census find raises the odds of an i-Guide donor object. |
+
+Net: a DCT6000-family box is a **first-class citizen** of Oob — G1 through
+G3 in scope, HD decode as free upside, period-adjacent (2002–2004) rather
+than period-core but fully DCII/55-1 era. Same census treatment if one
+joins; zero planning weight until then. If fleet-acquisition effort ever
+goes hunting, a DCT6200/6412 is worth more to this project than any DCH.
+
+The platform matrix now has four rows: **DCT2000 (68k) · DCT2500
+(Broadcom/MIPS) · DCH70 (DCT700-line, card security) · DCT6000
+(Broadcom/MIPS HD, integrated security).**
+
 ## 5. Repository and harness design
 
 ```javascript
