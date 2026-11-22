@@ -7,6 +7,8 @@
 - **Addresses:** r6 F6-1, F6-2, F6-3, F6-9, F6-12
 - **Builds on:** ADR-001 rev 8 (what to build); this ADR decides *how the
   running system is shaped*.
+- **History:** first proposed in PR #6 (merged before review, reverted in
+  PR #8); re-proposed for review.
 
 ## Context
 
@@ -20,8 +22,8 @@ They do not decide:
 - who owns the OOB stream's clock
 - how the ~1000 Kbps insertion budget is shared
 
-Slice A (PR #5) creates the workspace. Slices C and D are next, so this
-decision is due before they start.
+Slice A (PR #5, merged) created the workspace. Slices C and D are next,
+so this decision is due before they start.
 
 Forces at play:
 

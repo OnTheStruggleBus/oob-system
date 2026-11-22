@@ -4,9 +4,14 @@
 - **Scope:** the runtime software architecture implied by the full corpus —
   ADR-001 rev 8, the Reproduction Plan, Milestones & Stage Gates rev 2, the
   Console spec, the DAC Operations Reference, the S2/S4/S5 specs — checked
-  against the repository as it stands (`main` @ `ef34be1` plus open PR #5,
-  Slice A).
+  against the repository as it stands (`main` @ `a8103a1`: Slice A merged
+  in PR #5; AGENTS.md §6 "Marshal's merge is the approval" merged in
+  PR #7; `main` protected by rulesets requiring a PR and the six CI checks,
+  with no bypass).
 - **Status:** proposed — findings await Marshal's disposition
+- **History:** first proposed in PR #6, which merged before its role
+  reviews and was reverted in PR #8. Re-proposed unchanged in substance;
+  only the repository-state references are refreshed.
 - **Companion:** `ADR-002 — Oob Runtime Architecture.md` (draft), which
   carries the decision record for F6-1, F6-2, F6-3, and F6-12.
 
@@ -136,14 +141,15 @@ Back it with three tests:
 **Attack.** Two documents disagree on how `ops/` changes:
 
 - **AGENTS.md §5/§6:** `ops/units.yaml` and `ops/lineup.yaml` change only
-  through git, and any change touching `ops/` merges by PR with Marshal's
-  approval.
+  through git, and any change touching `ops/` merges by a PR that Marshal
+  merges after role reviews (his merge is the approval).
 - **Console spec §2/§4.2/§4.5:** "config edits = commits (author =
   operator)". The enrollment wizard commits to `units.yaml`. The lineup
   editor commits behind a hook the owner can override.
 
-A daemon cannot auto-commit to a protected `main`. Committing to a local
-clone instead silently forks the source of truth.
+A daemon cannot auto-commit to `main`: the rulesets now require a PR and
+allow no bypass. Committing to a local clone instead silently forks the
+source of truth.
 
 **Why it matters.** Enrollment *is* the unit DB (plan §3.2), and it is an
 everyday operator action. As specified it is either impossible under branch
