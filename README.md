@@ -145,6 +145,12 @@ here claims working code until the gate evidence says so — see
   requirement, because the discovery gate's evidence pack demands it.
 - Six operator journeys, all passing without SSH by G6; a museum-mode
   reader against the versioned mdBook.
+- **Billing & subscriber management** (S5, proposed): accounts, rate
+  cards, an immutable ledger, period-styled fictitious statements,
+  fictitious payments, and non-pay disconnect/reconnect that drives real
+  DAC entitlements — fronted by a fully documented Billing API (OpenAPI
+  3.1, CI drift-checked). The theater layer: the subscribers are friends
+  and the monthly bill is half the fun.
 
 ### Return path (stretch S1)
 
@@ -187,7 +193,9 @@ Registered stretch goals (no planning weight until scoped): **S1** return
 path (above), **S2** Interconnect — remote service delivery to hub sites
 over the internet (post-G6), **S3** analog tier (unscoped), **S4** VOD/PPV
 simulation — scheduled PPV + call-ahead, impulse PPV, NVOD; true session
-VOD registered but unscoped.
+VOD registered but unscoped, **S5** billing & subscriber management —
+accounts, statements, fictitious payments, and dunning-driven disconnect,
+behind a documented Billing API.
 
 Releases are tagged `rel/<carrier>` after the hunt-table carriers in box
 scroll order: `rel/75.25` → `rel/104.20` → `rel/72.75` → …
@@ -228,6 +236,11 @@ register in `docs/Project Milestones & Stage Gates — mini-headend.md` §7.*
 - **VOD/PPV simulation specified** (S4): scheduled PPV, impulse PPV with
   orphan semantics, NVOD, Console-as-business-system — gate-text
   amendments proposed, awaiting disposition.
+- **Billing & subscriber management specified** (S5): accounts, rate
+  cards, immutable ledger, period-styled fictitious statements,
+  dunning-driven disconnect/reconnect coupled to real DAC entitlements,
+  fully documented Billing API — gate-text amendments proposed, awaiting
+  disposition.
 
 **In flight — gate G0.5 (PHY ready)**
 
@@ -250,8 +263,9 @@ register in `docs/Project Milestones & Stage Gates — mini-headend.md` §7.*
 
 ADR-001 rev 7 approval · branch protection · Projects board + labels ·
 git-crypt init + key escrow (G1 entry requirement) · buy list purchases ·
-O7 / O15 restricted-document acquisitions (upload pattern) · VOD/PPV §7
-gate-proposal disposition · AGENTS.md brand-skin text ruling.
+O7 / O15 / O16 restricted-document acquisitions (upload pattern) · VOD/PPV
+§7 and billing §7 gate-proposal dispositions · AGENTS.md brand-skin text
+ruling.
 
 ## How we work
 
@@ -301,6 +315,7 @@ mdBook site in CI (broken links fail the build). Start here:
 | [`docs/Oob Reproduction Plan — mini-headend.md`](docs/Oob%20Reproduction%20Plan%20—%20mini-headend.md) | Workstreams W1–W8, discovery methodology, tech stack, the guide frame-analysis corpus |
 | [`docs/DAC-6000 Operations Reference — Oob Design Basis.md`](docs/DAC-6000%20Operations%20Reference%20—%20Oob%20Design%20Basis.md) | Everything the DAC manual teaches, as design input |
 | [`docs/VOD & PPV Simulation Specification — mini-headend.md`](docs/VOD%20&%20PPV%20Simulation%20Specification%20—%20mini-headend.md) | The transactional layer (S4): PPV, IPPV, NVOD, VOD stretch |
+| [`docs/Billing & Subscriber Management Specification — mini-headend.md`](docs/Billing%20&%20Subscriber%20Management%20Specification%20—%20mini-headend.md) | The theater layer (S5): accounts, statements, fictitious payments, dunning, and the Billing API |
 | [`docs/Management Console Specification — Oob Console.md`](docs/Management%20Console%20Specification%20—%20Oob%20Console.md) | The operator front-end, API-first, phases C0–C5 |
 | [`docs/Remote Service Delivery Specification — Interconnect (Stretch Goal).md`](docs/Remote%20Service%20Delivery%20Specification%20—%20Interconnect%20(Stretch%20Goal).md) | S2: boxes at remote sites off this headend |
 | [`docs/Sci-Atlanta Ecosystem Specification — Explorer, DNCS, SCTE 55-2.md`](docs/Sci-Atlanta%20Ecosystem%20Specification%20—%20Explorer,%20DNCS,%20SCTE%2055-2.md) | The rival ecosystem (theming source; far-future second front) |
