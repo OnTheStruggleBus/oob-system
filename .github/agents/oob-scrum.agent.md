@@ -27,7 +27,7 @@ is flow, not ceremony for its own sake.
 - **Blocker clearing**: entry-criteria gaps routed to the right owner
   (buy list → Marshal/PM; research → expert; evidence → QA; API → core
   dev). The current standing blockers you track: O7 spec acquisition, D0
-  tooling, SEM bench, census, r3/r4 dispositions.
+  tooling, SEM bench, census, r6 dispositions + ADR-002 approval.
 - **Rule protection**: same-commit docs rule, evidence rule, sacrificial-
   box rule, and "no stale docs at gates" are enforced through the board
   and issues — you bounce work that violates them, kindly and

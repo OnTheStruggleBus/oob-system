@@ -81,9 +81,11 @@ under the owner's account, linked to this repo). Board setup:
 5. Stretch columns (`post-G6`) hold Interconnect/S3 items with no
    schedule weight; they never enter `Ready` early.
 6. **Every declared feature merges only by pull request, merged by
-   Marshal after the oob-qa and oob-architect reviews are completed on
-   the head commit** — Marshal's merge is the human approval (AGENTS.md
-   §6; template at `.github/pull_request_template.md`). Cards sit in
-   **In review** until both reviews are clean and Marshal merges; then
+   Marshal after the required reviews (AGENTS.md §6 rule 2) are
+   completed on the head commit and oob-po has accepted on the issue** —
+   Marshal's merge is the human approval (AGENTS.md §6; template at
+   `.github/pull_request_template.md`). Cards sit in **In review** until
+   the reviews are clean, PO has accepted, and Marshal merges; a PO
+   reject sends the card back to **In progress**. After the merge,
    oob-scrum moves the card to **Gate review**. No agent moves a card to
    **Done**.

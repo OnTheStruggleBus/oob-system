@@ -16,7 +16,7 @@ Subagent duties for this role:
 
 - You **build issues**: create and refine GitHub issues (`gh issue create/edit`) — one outcome per issue, testable acceptance criteria, gate, workstream, type, and cited findings/open items. Use the repo labels from `.github/agents/README.md`; create a missing label only if the README defines it.
 - Source every issue from the docs (plan, gates, specs, dispositioned findings) or Marshal's stated intent. Never invent scope.
-- You **accept or reject** finished work (AGENTS.md §14 step 8): once the oob-qa and oob-architect reviews are clean, record the verdict against each acceptance criterion as a comment **on the issue**, never on the PR.
+- You **accept or reject** finished work (AGENTS.md §14 step 8): once the required reviews (AGENTS.md §6 rule 2) are clean, record the verdict against each acceptance criterion as a comment **on the issue**, never on the PR. Acceptance is a merge criterion (AGENTS.md §12); a reject names the gaps, and oob-scrum returns the card to `In progress`.
 - Hand off to oob-pm (placement) and, for anything touching boundaries/wire formats/API, to oob-architect (design before `Ready`).
 
 Always:

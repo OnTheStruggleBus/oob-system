@@ -185,7 +185,10 @@ Marshal's merge, no review comments required.
    never reviews its own work. `CODEOWNERS` still routes every path to
    the owner for notification.
 2. **Two reviewers, two lenses — and only they comment on PRs.** Every
-   PR outside the light path gets exactly two reviews:
+   PR outside the light path gets **the required reviews**: normally one
+   from each role below; one combined review when a reviewer authored
+   the PR (see below). Everywhere this contract says "both reviews", it
+   means the required reviews:
    - **oob-qa — bugs and fixes.** Correctness, tests, evidence rule,
      safety declarations, regressions. Each finding states the defect,
      how it fails, and a concrete fix.
@@ -195,25 +198,33 @@ Marshal's merge, no review comments required.
      the code or the doc should move.
    **No other role comments on a PR.** PO, PM, scrum, expert, and the dev
    roles contribute *upstream* — issues, acceptance criteria, board
-   state, ADRs, research notes — and the authoring dev answers review
-   findings by pushing commits, not by replying. Both reviews post as
+   state, ADRs, research notes — and the authoring role answers review
+   findings by pushing commits or by disputing them in the PR
+   description, never by PR comment. Both reviews post as
    one PR comment each, headed `Role review: oob-qa` /
    `Role review: oob-architect`, because all agents act through the
    owner's GitHub account.
    **Independence:** a review counts only if the reviewing role authored
    none of the PR's commits. Every agent commit ends with an
    `Oob-Role: <role>` trailer (`orchestrator` for the main session), and
-   the reviewer checks the trailers before reviewing. Roles run as
+   the reviewer checks the trailers (`git log --no-merges`) before
+   reviewing. Merge commits and commits Marshal makes himself carry no
+   trailer and are exempt. Any other commit without a trailer is a
+   finding until the PR description maps its SHA to a role. Roles run as
    separate subagents (§14), so the dev that built a change is never the
    role that reviews it.
    **When a reviewer authored the PR** (an ADR from oob-architect, a
    harness PR from oob-qa), the other reviewer covers both lenses in its
-   one comment.
+   one comment. A PR with commits from **both** reviewer roles is split;
+   if it can't be, Marshal reviews it himself before merging.
    **Disputes:** the authoring role may contest a finding in a
    *Disputed findings* section of the PR description (finding ID +
-   reason) — never as a PR comment. The reviewer then withdraws or
-   holds the finding at its next review; only Marshal can waive a held
-   finding, by saying so when he merges.
+   reason) — never as a PR comment. Editing that section triggers a
+   re-review by the finding's reviewer even when no commit was pushed;
+   the reviewer withdraws or holds each disputed finding. Only Marshal
+   can waive a held finding, by writing `waived by Marshal` against it in
+   the same section **before** merging; a waived finding counts as
+   cleared for rule 3 and §12.
    **Scope:** these rules govern PRs written by agents. Machine-opened
    PRs from the running system (e.g. r6 F6-4's Console-opened config
    PRs) need their own rule, to be set when F6-4 is dispositioned.
@@ -221,8 +232,8 @@ Marshal's merge, no review comments required.
    only when it is submitted, names the head commit SHA it reviewed, and
    leaves no change request standing. Reviews post as PR comments, so
    GitHub does not dismiss them automatically: after any new commit,
-   both oob-qa and oob-architect re-review the new head before Marshal
-   merges.
+   the required reviews (rule 2) are re-run on the new head before
+   Marshal merges.
 4. **The template is the price of entry.** PRs use
    `.github/pull_request_template.md` in full: gate/workstream served,
    findings and open items touched, evidence links, docs checklist, test
@@ -341,9 +352,10 @@ nextest; schemas and lineup CI are green; OpenAPI drift check is clean;
 docs updated in the same commit (same-commit rule); experiment claims
 have captures; the PR text states which gate/workstream it serves and
 which findings/open items it touches; and — for any declared feature —
-the oob-qa and oob-architect reviews are completed on the head commit
-with no findings standing, and the PR is ready for Marshal to merge (his
-merge is the approval, §6). Work that can't meet this stays a draft and says why.
+the required reviews (§6 rule 2) are completed on the head commit with
+no findings standing (or waived by Marshal), oob-po has recorded
+acceptance on the issue (§14 step 8), and the PR is ready for Marshal to
+merge (his merge is the approval, §6). Work that can't meet this stays a draft and says why.
 
 ## 13. Role agents
 
@@ -372,12 +384,12 @@ not do a role's work itself when a role exists for it.
 | --- | --- | --- |
 | 1. Shape | **oob-po** | Issues from the docs and Marshal's intent: one outcome each, acceptance criteria, gate, workstream, findings/open items cited |
 | 2. Plan | **oob-pm** | Board placement, fields, sequencing against gate entry criteria, dependency links, `Blocked (entry criteria)` with the blocker named |
-| 3. Design | **oob-architect** | Before an issue enters `Ready`: an ADR (new decision) or a design note on the issue (interfaces, crate placement, data ownership). Issues that touch boundaries, wire formats, the PID plan, or the API surface need this sign-off |
+| 3. Design | **oob-architect** | Before an issue enters `Ready`: an ADR (new decision) or a design note on the issue (interfaces, crate placement, data ownership). Issues that touch boundaries, wire formats, the PID plan, or the API surface need this sign-off. The architect consults the dev role that will build it; dev roles are consulted on ADRs, not reviewers |
 | 4. Research | **oob-expert** | Cited research notes on request from any step; never code |
 | 5. Build | **oob-dev-core** / **oob-dev-rf** / **oob-dev-console** | Pulls one `Ready` issue, works on its own branch (in its own worktree when parallel), lands code + tests + docs in the same commits, opens the PR with the full template |
-| 6. Review | **oob-qa** then **oob-architect** | One PR comment each at the head SHA: QA for bugs and fixes, architect for drift (§6 rule 2) |
-| 7. Fix | the authoring role | Pushes commits that resolve each finding, citing it in the commit message, or disputes it in the PR description (§6 rule 2); both reviewers re-review the new head |
-| 8. Accept | **oob-po** | Once both reviews are clean, records accept or reject against the acceptance criteria **on the issue** (not the PR) |
+| 6. Review | **oob-qa** then **oob-architect** | The required reviews at the head SHA (§6 rule 2): QA for bugs and fixes, architect for drift; one combined review when a reviewer authored the PR |
+| 7. Fix | the authoring role | Pushes commits that resolve each finding, citing it in the commit message, or disputes it in the PR description (§6 rule 2); the required reviews re-run on the new head |
+| 8. Accept | **oob-po** | Once the required reviews are clean, records accept or reject against the acceptance criteria **on the issue** (not the PR). Acceptance is a merge criterion (§12). On reject, oob-scrum returns the card to `In progress` and the authoring role fixes the gaps the PO names |
 | 9. Flow | **oob-scrum** | Moves cards `Ready` → `In progress` → `In review`; after Marshal merges, moves the card to `Gate review`; enforces WIP and entry criteria, flags blockers |
 | 10. Merge | **Marshal** | Merges (the approval); gate tags, dispositions, and `Done` stay his |
 
@@ -397,7 +409,8 @@ Rules for running roles as subagents:
   each issue body.
 - **Credentials:** until agents have their own identity, subagents act
   through the owner's `gh` login, so "never merge" is a rule-only control
-  (r6 candidate F6-17). Subagents must never call merge, approve, or
+  (an unnumbered candidate for the next review round; r6 itself ends at
+  F6-16). Subagents must never call merge, approve, or
   admin endpoints, and must not be given any other owner-level or
   merge-capable token. Running-system credentials (r6 F6-4/F6-10) are
   set when those findings are dispositioned.

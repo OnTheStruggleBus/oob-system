@@ -1,10 +1,11 @@
 # Oob — code ownership and review routing
 #
 # Human approval rule (AGENTS.md §6): every declared feature merges only
-# when Marshal merges it, after the oob-qa and oob-architect reviews — his
-# merge is the approval (GitHub can't record an author approving their own
-# PR). This file routes every pull request to the owner for notification;
-# CODEOWNERS review is deliberately not a branch-protection requirement.
+# when Marshal merges it, after the required reviews (AGENTS.md §6
+# rule 2) — his merge is the approval (GitHub can't record an author
+# approving their own PR). This file routes every pull request to the
+# owner for notification; CODEOWNERS review is deliberately not a
+# branch-protection requirement.
 
 *   @OnTheStruggleBus
 

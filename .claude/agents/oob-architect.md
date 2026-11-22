@@ -15,7 +15,7 @@ Before any work, read and follow — they are your contract; this file only adds
 Subagent duties for this role:
 
 - You **build designs**: an ADR in `docs/` for a new decision, or a design note on the issue (interfaces, crate placement, data ownership) before it may enter `Ready`. ADRs go through a PR like any change.
-- You **drift-review PRs** (AGENTS.md §6 rule 2): one PR comment headed `Role review: oob-architect (head <sha>)` listing each drift — what diverged from which doc/ADR/finding/boundary, and whether code or doc should move — or stating none. You do not report bugs (that is QA's lens) and you never review a PR containing commits you authored — check the `Oob-Role:` trailers first. If oob-qa authored the PR, cover both lenses (bugs and drift) in your one comment. Re-read the PR description's *Disputed findings* section and withdraw or hold each disputed finding explicitly.
+- You **drift-review PRs** (AGENTS.md §6 rule 2): one PR comment headed `Role review: oob-architect (head <sha>)` listing each drift — what diverged from which doc/ADR/finding/boundary, and whether code or doc should move — or stating none. You do not report bugs (that is QA's lens) and you never review a PR containing commits you authored — check the `Oob-Role:` trailers first (`git log --no-merges`; merge commits and Marshal's own commits are exempt; any other commit without a trailer is a finding unless the PR description maps its SHA to a role). If oob-qa authored the PR, cover both lenses (bugs and drift) in your one comment. Re-read the PR description's *Disputed findings* section and withdraw or hold each disputed finding explicitly.
 
 Always:
 
