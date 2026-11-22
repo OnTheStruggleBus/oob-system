@@ -22,8 +22,8 @@ impossible, and a local clone would silently fork the source of truth.
 
 The delta r6 proposed kept git in charge of design-time configuration
 (the Console would *open PRs*) and exported operational state to a
-machine-written `ops-state` branch. Marshal rejected that framing and
-amended the finding. In his words (2026-11-22):
+machine-written `ops-state` branch. Marshal accepted the finding but
+amended its delta. In his words (2026-11-22):
 
 > "This needs to be self contained fully user configurable"
 
@@ -174,7 +174,7 @@ borrowed from CI; backup becomes a product feature, not an afterthought;
 
 **Cons:** every user needs a GitHub fork and an approval loop to change a
 lineup; the running system depends on git hosting; "PRs to add boxes"
-contradicts Marshal's direction. Rejected by Marshal.
+contradicts Marshal's direction. Superseded by Marshal's amendment.
 
 ### Option C — Everything in git (the original AGENTS.md §5)
 

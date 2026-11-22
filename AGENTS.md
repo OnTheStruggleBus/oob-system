@@ -5,7 +5,8 @@ reproduction of a GI/Motorola cable headend (DAC 6000, OM 1000/2000,
 KLS/DLS code download, STARVUE II/STARFONE return paths) that brings real
 DCT2000-class cable boxes back to life on a closed lab plant. The operator
 is **Marshal**. The guide stack is **VueGuide+**; the operator UI is
-**Oob Console**; the operator brand skin is **ArchaiTel Digital Cable**.
+**Oob Console**; the operator brand skin is a **per-deployment config
+slot** (no preset operator identity ships).
 
 This file is your operating contract. It encodes project process as
 machine-followable rules. When this file and a `docs/` document disagree on
@@ -28,12 +29,15 @@ Then find your role file in `.github/agents/` (roster in that directory's
 README) and follow it — it defines your scope and handoffs within this
 contract.
 
-Review rounds r3 (F3-1…F3-11), r4 (F4-1…F4-8) and r5 (F5-1…F5-14) were
-all accepted on 2026-11-22. Open findings: r6 (F6-1…F6-16), awaiting
-Marshal's disposition.
-Treat undispositioned findings as **constraints you must not silently
-violate**, not as approved work: you may implement a finding's delta, but
-say so explicitly in the commit and PR text.
+Review rounds r3 (F3-1…F3-11), r4 (F4-1…F4-8), r5 (F5-1…F5-14) and
+r6 (F6-1…F6-16) were all accepted on 2026-11-22 — F6-4 with an
+amendment recorded as ADR-003. No findings are open. ADR-002 (runtime
+architecture) and ADR-003 (configuration, extensibility and
+distribution) are accepted.
+When a future round is open, treat its undispositioned findings as
+**constraints you must not silently violate**, not as approved work: you
+may implement a finding's delta, but say so explicitly in the commit and
+PR text.
 
 ## 1. Stage gates are the process (non-negotiable)
 
@@ -62,9 +66,11 @@ From `Project Milestones & Stage Gates` §1 — all nine rules bind agent work:
    consecutive red nights reopens the highest affected milestone.
 9. **No gate passes with stale docs** (see §3).
 
-Current gate state: G0 PASS (retroactive); G0.5 next, first agenda =
-r6 dispositions and ADR-002. Do not schedule work past G1 entry criteria until
-G0.5 closes.
+Current gate state: G0 PASS (retroactive); G0.5 open — the r6
+dispositions and ADR-002 agenda item is closed (2026-11-22); the
+remaining G0.5 work is its exit criteria (PHY bench, O7, F6-2 24 h
+loopback, F5-10 docs scaffolding). Do not schedule work past G1 entry
+criteria until G0.5 closes.
 
 ## 2. Evidence and the box-as-oracle discipline
 
@@ -120,8 +126,8 @@ lab/
   harness/       # message-lab runner: inject → capture box state → log
   captures/      # box evidence (git-crypt tier where identifying)
 ops/
-  lineup.yaml    # single source of truth: RF lineup ↔ VCM ↔ playout
-  units.yaml     # census + unit DB (DAC Define Terminal schema)
+  lineup.yaml    # seed/demo lineup: RF lineup ↔ VCM ↔ playout (ADR-003)
+  units.yaml     # upstream box-type catalog + seed schema; no box instances
   ci/            # nightly canary: reboot box, assert AUTH, scrape d 02/d 15
   agent-guard.py # command guard for agent shells (§14 Credentials)
   agent-guard.kimi.toml # Kimi Code hook entry for ~/.kimi-code/config.toml
@@ -135,18 +141,56 @@ docs/            # mdBook source; protocol/ and runbook/ live here
 ```
 
 Naming is adopted and fixed: software **Oob**, crates `oob-*`, guide stack
-**VueGuide+**, operator UI **Oob Console**, operator brand skin **ArchaiTel
-Digital Cable** ("powered by Oob"). Release tags are hunt-table carriers in
-box scroll order: `75.25`, `104.20`, `72.75`, `92.25`, `98.25`, `107.25`,
-`107.40`, `110.25`, `116.25`, `103.75` — in that sequence. Do not invent
-new component names; extend this set only via Marshal.
+**VueGuide+**, operator UI **Oob Console**. The operator brand skin is a
+**per-deployment config slot** — no preset operator identity ships, and
+each deployment fills it with its own ("powered by Oob"); this supersedes
+the ArchaiTel Digital Cable placeholder. Release tags are `rel/<carrier>`
+(r5 F5-13), named for hunt-table carriers in box scroll order:
+`rel/75.25`, `rel/104.20`, `rel/72.75`, `rel/92.25`, `rel/98.25`,
+`rel/107.25`, `rel/107.40`, `rel/110.25`, `rel/116.25`, `rel/103.75` — in
+that sequence. Do not invent new component names; extend this set only
+via Marshal.
 
-## 5. Config-as-code and secrets
+## 5. Configuration, distribution and secrets (ADR-003)
 
-- `ops/lineup.yaml` and `ops/units.yaml` are the single source of truth for
-  lineup and fleet. Both are pydantic-schema-validated in CI; changes go
-  through git, never through ad-hoc edits on the host. Lineup-consistency
-  CI (lineup ↔ VCM ↔ playout ↔ SEM plan) must stay green.
+- **Oob is an operator system its users configure at runtime.** Operating
+  a headend — boxes, enrollment, lineup, PID plan, class budgets,
+  entitlements, campaigns, listings, the brand skin slot — happens in
+  oob-dac's store through the Console or API. oob-dac validates every
+  save (schema + lineup ↔ VCM ↔ playout ↔ SEM consistency), keeps
+  revisions with rollback, and journals every change. The running system
+  needs no git and opens no PRs. PRs, gates and role reviews govern
+  *developing* Oob, never *operating* it; anything beyond in-system
+  configuration is a fork.
+- **Three layers of change:** (1) operating the headend — runtime, as
+  above; (2) box types and message templates — user-definable data
+  profiles, created or imported in the Console and exportable; adding a
+  box of a known type never needs a PR; (3) Oob code — upstream PR
+  through the gate process, or a fork.
+- **Trust labels:** upstream profiles and templates keep `documented` /
+  `hypothesized` / `verified`, and `verified` still needs a capture in a
+  reviewed upstream PR (F6-6, F6-7). User-made or imported items are
+  `user-defined`.
+- **In the repository**, `ops/lineup.yaml` and `ops/units.yaml` are seed
+  and example install data plus the upstream box-type catalog. They are
+  pydantic-schema-validated in CI with the same validators oob-dac runs on
+  save, and lineup-consistency CI must stay green. **No box instance is
+  committed to git.** Runtime state can be exported to YAML locally for
+  backup and diffing; that export never gates anything.
+- **Distribution:** Oob ships code, docs, self-authored sample content
+  (demo MPEG-2 480i loops, sample listings, a demo lineup, upstream box
+  profiles), the community pack import/export format, and firmware
+  import tooling for the user's own boxes (under §7's safety rules). It
+  never ships firmware, flash dumps, key material (including the FPK),
+  serials or Unit Addresses, or broadcaster content; community packs
+  never contain them.
+- **Guardrails are server-side** for every client: oob-dac refuses a
+  lineup above 860 MHz, an STD/HRC mismatch, a wrong EMM provider ID, or
+  class budgets that starve C0; destructive operations need the F6-10
+  policy layer (owner role, confirmation token, dry-run default, audit).
+- **The database is the installation** (F6-5, amending F5-12): one
+  sqlite file, durability classified per table, continuous whole-file
+  backup, one-click backup/restore and whole-install export.
 - **Secrets tier:** FPK constant, box flash dumps, firmware images, key
   material, and box-identifying captures live in the **git-crypt tier or
   outside git — never in plaintext, never in chat/memory**. gitleaks runs
@@ -237,9 +281,9 @@ Marshal's merge, no review comments required.
    sees a waiver line new since its last review and not in that quoted
    form adds a **note for Marshal to confirm** — not a finding, so it
    never blocks the merge. Marshal confirms by merging.
-   **Scope:** these rules govern PRs written by agents. Machine-opened
-   PRs from the running system (e.g. r6 F6-4's Console-opened config
-   PRs) need their own rule, to be set when F6-4 is dispositioned.
+   **Scope:** these rules govern PRs written by agents. The running
+   system opens no PRs (ADR-003, the amended r6 F6-4), so no rule for
+   machine-opened PRs is needed.
 3. **Reviews are completed and current.** A QA or architect review counts
    only when it is submitted, is **current**, and leaves no finding
    standing. A review is current when the SHA it names is the PR's head,
@@ -310,9 +354,11 @@ These are hard rules with legal weight:
   GI/Motorola CA-system IDs; validated box-side via d 15/d 16 (r4 F4-6).
 - **EMM provider ID 0x0000/0x0001** on the OOB stream from day one — wrong
   values force boxes to re-hunt (install manual).
-- OOB stream: QPSK 1.024 Msym/s (~1.544 Mb/s), asynchronous, null-stuffed;
-  the flowgraph owns timing, not the daemons. Insertion bandwidth budget
-  ~1000 Kbps for DAC traffic.
+- OOB stream: QPSK 1.024 Msym/s (2.048 Mb/s; 1.544 Mb/s is the SCTE 55-2
+  Mode B rate, not ours), asynchronous, null-stuffed; the flowgraph owns
+  timing as the clock master and pulls from oob-mux's pacer (ADR-002,
+  F6-2). Insertion bandwidth budget ~1000 Kbps for DAC traffic, shared by
+  traffic classes C0–C5 (F6-3).
 - **Period-authentic behavior is a feature:** 68k-era guide redraw lag is
   not a bug; degradation modes (carousel freeze on outage, `E 01` on OOB
   loss) are to be reproduced faithfully, not papered over.
@@ -515,7 +561,10 @@ Rules for running roles as subagents:
     account or per-role token without merge/admin rights, (c) an
     allowlisted GitHub wrapper — remain the way to make it airtight.
   - Changing the guard or any hook file above is Marshal's job; agents
-    are blocked from both, and a PR that weakens them is a drift finding. Running-system credentials (r6
-  F6-4/F6-10) are set when those findings are dispositioned.
+    are blocked from both, and a PR that weakens them is a drift finding. Running-system credentials
+  are a product concern, not an agent one: per ADR-003 and r6 F6-10,
+  oob-dac's policy layer requires the owner role and a short-lived
+  confirmation token for destructive operations, and the running system
+  holds no GitHub credentials (it opens no PRs).
 - §11 still binds every subagent: no merging, approving, gate tags,
   dispositions, or moving cards to `Done`.

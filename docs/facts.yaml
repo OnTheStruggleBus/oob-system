@@ -1,0 +1,58 @@
+# docs/facts.yaml — the Oob facts registry (r6 F6-13).
+#
+# One home for numbers and states that the prose repeats across docs.
+# Consumed by the F5-10 mdBook facts check (pending: wired by F5-10's CI
+# work in a separate oob-dev-core PR). Until then this file is the
+# reference a reviewer checks prose against. Change a fact here and in
+# the prose in the same commit (AGENTS.md §3).
+
+oob_stream:
+  modulation: QPSK
+  symbol_rate_msym_s: 1.024        # SCTE 55-1 Mode A, as used by DCT2000-class boxes
+  stream_rate_mb_s: 2.048          # 2 bits/symbol x 1.024 Msym/s (ADR-001)
+  framing: asynchronous, null-stuffed
+  clock_master: flowgraph          # pull seam, ADR-002 / F6-2
+  insertion_budget_kbps: 1000      # approximate; shared by traffic classes C0-C5 (F6-3)
+
+not_our_rate:
+  scte_55_2_mode_b_mb_s: 1.544     # Sci-Atlanta 55-2 Mode B (Grade B); never the Oob OOB stream rate
+
+lineup:
+  ceiling_mhz: 860                 # box tuner ceiling; the SEM itself reaches 861
+  emm_provider_ids: ["0x0000", "0x0001"]
+
+release_tags:
+  format: "rel/<carrier>"          # r5 F5-13
+  carriers_in_box_scroll_order:
+    - "75.25"
+    - "104.20"
+    - "72.75"
+    - "92.25"
+    - "98.25"
+    - "107.25"
+    - "107.40"
+    - "110.25"
+    - "116.25"
+    - "103.75"
+
+naming:
+  software: Oob
+  guide_stack: VueGuide+
+  operator_ui: Oob Console
+  brand_skin: per-deployment config slot   # no preset operator identity ships; ArchaiTel superseded
+
+decisions:
+  ADR-001: proposed (rev 8)
+  ADR-002: accepted 2026-11-22
+  ADR-003: accepted 2026-11-22     # the amended r6 F6-4
+
+review_dispositions:               # all by Marshal
+  r3: {findings: "F3-1..F3-11", state: accepted, date: 2026-11-22}
+  r4: {findings: "F4-1..F4-8", state: accepted, date: 2026-11-22}
+  r5: {findings: "F5-1..F5-14", state: accepted, date: 2026-11-22}
+  r6:
+    findings: "F6-1..F6-16"
+    state: accepted
+    date: 2026-11-22
+    amended:
+      F6-4: "ADR-003"

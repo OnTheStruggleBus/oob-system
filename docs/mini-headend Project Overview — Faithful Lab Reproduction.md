@@ -240,8 +240,17 @@ get folded in at the next revision.
 - Reviews: **dispositioned** — r3 (×11), r4 (×8), r5 (×14) all accepted
   2026-11-22; deltas folded into the plan, gates doc, AGENTS.md, HW list,
   S-A spec, and Interconnect spec in the disposition commit set. The unit
-  DB is declared derived state (F5-12); release tags are `rel/<carrier>`
-  (F5-13).
+  DB is declared derived state (F5-12, since amended by F6-5); release
+  tags are `rel/<carrier>` (F5-13).
+- Software architecture: **decided** — r6 (×16) dispositioned 2026-11-22,
+  all accepted; **ADR-002** (runtime topology, pull-driven mux ↔ PHY
+  seam, traffic classes) accepted; **ADR-003** accepted as the amended
+  F6-4: Oob is an operator system users configure themselves at runtime
+  (no git, no PRs), ships self-authored sample content, a community pack
+  format and firmware import tooling, and never ships firmware, keys or
+  box-identifying data. One sqlite file is the installation, with
+  one-click backup/restore (F6-5, amending F5-12). Contract drift swept
+  and `docs/facts.yaml` added (F6-13).
 - Awaiting (Marshal's manual actions): ADR-001 rev 7 approval; branch
   protection (AGENTS.md §6 checklist); the `gh` `project` scope so oob-pm
   can build the Projects board + labels (`.github/agents/README.md` spec,
@@ -249,8 +258,11 @@ get folded in at the next revision.
   needs Marshal's key escrow; the buy list (HackRF One clone primary OOB
   TX, RF chain, capture rig, flash tooling, sundries — see the Hardware
   Acquisition List).
-- Pre-G0.5-exit task on the board: mdBook scaffold + CI link-check +
-  utoipa drift stub (F5-10).
+- Pre-G0.5-exit tasks on the board: mdBook scaffold + CI link-check +
+  utoipa drift stub (F5-10), which also wires the prose-vs-`facts.yaml`
+  check (F6-13); the 24 h mux ↔ PHY pull loopback (F6-2).
+- Awaiting (owner action from r6): repository setting "require approval
+  for workflows from outside collaborators" (F6-8).
 - Next physical actions: box census, SEM bench bring-up, PHY bench at a
   high hunt carrier, first connect-message experiment.
 
