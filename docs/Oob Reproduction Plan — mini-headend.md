@@ -319,6 +319,18 @@ purchase badge + REC badge, cream info panel with TV-PG rating and epoch
 times, maroon PIP banner "Channel 99 Pay Per View", A/B/C command bar
 (Time/Theme/Search). Doubles as PPV UX evidence — see the VOD & PPV
 Simulation Specification §2.4.
+(9) YouTube-sourced frame, **unbranded operator** — GuideWorks-family
+**Preferences → Purchasing** settings menu (yellow context-help panel,
+purple selector, SEL/Exit command bar) — Marshal-supplied 2026-11-22.
+Shows **Locking Status** (`Enabled`), **Change PIN**, and **PPV
+Purchases** items; help text: "When locking is on, PIN entry is required
+to complete purchases." PIP carries the same maroon "Pay Per View" banner
+and event title ("Amazing Journeys") as reference (8) — almost certainly
+the same source recording. Third GuideWorks-family instance; hardware
+platform not proven by the frame. PPV evidence value: purchase locking is
+the settings-UI projection of the DAC-documented box-resident **Event
+PIN** (DAC §9-21) — see the VOD & PPV Simulation Specification
+§2.4/§3.2.
 Two technical takeaways from source (1): (a) **the DCT2000-series CPU is a
 Motorola 68K-series** — vector graphics are drawn by the guide app itself,
 slowly enough that the "drawing" effect is visible, so firmware RE on DCT2000
