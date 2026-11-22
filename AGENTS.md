@@ -454,14 +454,21 @@ Rules for running roles as subagents:
     usual `"$(cat <<'EOF' …)"` form) is ignored unless it is fed to
     `gh api` or an interpreter such as `bash` or `eval`. The CI job
     `agent-guard` runs `python3 ops/agent-guard.py --self-test` and
-    `python3 ops/check-agent-hooks.py`, which runs every tool's hook with
-    that tool's payload and fails if any hook is disabled, mis-wired, or
-    no longer blocks.
+    `python3 ops/check-agent-hooks.py`. The checker requires each hook's
+    exact keys (an unknown key could disable it), event, matcher, and a
+    minimum timeout in the tool's own unit; rejects `disableAllHooks`;
+    requires one identical launcher; and runs every launcher with its
+    tool's payload both in the checkout and in a throwaway repo whose
+    checkout lacks the guard, expecting a merge blocked and `git status`
+    allowed. It cannot tell whether a tool honours a key it ignores at
+    runtime; QA reviews CI-workflow changes (the checker's own step lives
+    in `.github/workflows/ci.yml`, which the guard does not lock).
   - **Changing branch doesn't disable it or brick a session** — on any
     branch that carries the hook files (everything cut after this guard
     landed). Every hook file runs the same launcher: the checked-out
     `ops/agent-guard.py` if present, otherwise the copy on `origin/main`,
-    otherwise the newest commit that has it; outside a git repo it does
+    otherwise the newest commit on a remote-tracking branch that has it
+    (never an agent's local-only branch); outside a git repo it does
     nothing. A branch cut before the guard has no hook files of its own;
     Claude Code keeps the hooks it loaded at session start, but other
     tools reading that checkout run unguarded.

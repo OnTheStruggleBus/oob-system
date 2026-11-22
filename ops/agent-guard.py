@@ -49,6 +49,10 @@ PROTECTED = (r"(\.claude/settings(\.local)?\.json|ops/(agent-guard[\w.-]*|instal
              r"|check-agent-hooks\.py)|\.kimi-code/config\.toml"
              r"|\.cursor/hooks\.json|\.gemini/settings\.json|\.codex/(hooks\.json|config\.toml)"
              r"|\.github/hooks/)")
+# Bare file names of the guard's own files (for `cd ops && rm agent-guard.py`).
+GUARD_NAMES = r"\b(agent-guard[\w.-]*|install-agent-guards\.py|check-agent-hooks\.py)\b"
+# End of a command's last word: optional redirects, then end of command.
+TAIL = r"(\s+\d*>{1,2}&?\s*\S+)*\s*($|[;&|\n)])"
 
 RULES: list[tuple[str, str]] = [
     # Most rules stay inside one command: [^|;&\n] never crosses a pipe, a
@@ -97,15 +101,25 @@ RULES: list[tuple[str, str]] = [
      r"\bgit\s+push\b[^|;&\n]*(\s--force(-with-lease|-if-includes)?\b|\s-[a-z]*f[a-z]*\b|\s\+\S)"),
     ("pushing to main is blocked; every change goes through a PR",
      r"\bgit\s+push\b[^|;&\n]*(\s|:)(refs/heads/)?(main|master)(\s|$|[;&|])"),
-    # --- the guard itself (QA-20: only real writes to a guarded path) -------
+    # --- the guard itself (QA-20/QA-24: real writes, moves, and removals) ----
     ("disabling or editing the agent guard is Marshal's alone",
      r"(^|[^0-9&-])>>?\s*['\"]?[^\s'\";&|]*" + PROTECTED),
+    # Removers anywhere in their own command, by full path or bare file name
+    # (`cd ops && rm agent-guard.py`), including `git rm` / `git mv`.
     ("disabling or editing the agent guard is Marshal's alone",
-     r"(^|(?<!\\)[;&|(]|\bthen\b|\bdo\b|\bsudo\b|\bxargs\b)\s*(tee|rm|unlink|truncate|chmod|chflags|dd)\b"
-     r"[^|;&\n]*" + PROTECTED),
+     r"(^|(?<!\\)[;&|(]|\bthen\b|\bdo\b|\bsudo\b|\bxargs\b)\s*(git\s+(rm|mv)|tee|rm|unlink|truncate|chmod|chflags|dd)\b"
+     r"[^|;&\n]*(" + PROTECTED + r"|" + GUARD_NAMES + r")"),
+    # Copiers whose destination (last word, before any redirects) is a
+    # guarded file ...
     ("disabling or editing the agent guard is Marshal's alone",
      r"(^|(?<!\\)[;&|(]|\bthen\b|\bdo\b|\bsudo\b)\s*(cp|mv|ln|install|rsync)\b[^|;&\n]*\s['\"]?[^\s'\";&|]*"
-     + PROTECTED + r"['\"]?/?\s*($|[;&|\n)])"),
+     + PROTECTED + r"['\"]?/?" + TAIL),
+    # ... or a guarded directory, when a source has a guarded file's name.
+    ("disabling or editing the agent guard is Marshal's alone",
+     r"(^|(?<!\\)[;&|(]|\bthen\b|\bdo\b|\bsudo\b)\s*(cp|mv|ln|install|rsync)\b"
+     r"(?=[^|;&\n]*(" + GUARD_NAMES + r"|\bsettings(\.local)?\.json\b|\bhooks\.json\b|\bconfig\.toml\b))"
+     r"[^|;&\n]*\s['\"]?(\./)?(~/)?(ops|\.claude|\.cursor|\.gemini|\.codex|\.github/hooks|\.kimi-code)/?['\"]?"
+     + TAIL),
     ("disabling or editing the agent guard is Marshal's alone",
      r"\b(sed\s+(-[a-z]*\s+)*-i|perl\s+-[a-z]*[pi])\b[^|;&\n]*" + PROTECTED),
     ("disabling or editing the agent guard is Marshal's alone",
@@ -202,6 +216,14 @@ SELF_TEST_BLOCK = [
     "cat /tmp/x | tee ops/agent-guard.kimi.toml",
     "rm ops/install-agent-guards.py",
     "echo x > ops/check-agent-hooks.py",
+    "cp /tmp/wt/ops/agent-guard.py ops/",
+    "cp /tmp/x ops/agent-guard.py 2>/dev/null",
+    "git rm .claude/settings.json",
+    "git mv ops/agent-guard.py ops/old.py",
+    "cp /tmp/settings.json .claude/",
+    "git rm ops/agent-guard.kimi.toml",
+    "cd ops && rm agent-guard.py",
+    "cp /tmp/hooks.json .cursor/ 2>&1",
 ]
 
 SELF_TEST_ALLOW = [
@@ -243,6 +265,10 @@ SELF_TEST_ALLOW = [
     "cp ops/agent-guard.py /tmp/guard-copy.py",
     "grep -n 'rm\\|tee' ops/agent-guard.py",
     "git show HEAD:ops/agent-guard.kimi.toml",
+    "cp /tmp/notes.md ops/",
+    "cp /tmp/x.json .claude/",
+    "git rm --cached crates/oob-mux/src/old.rs",
+    "git mv docs/a.md docs/b.md",
 ]
 
 

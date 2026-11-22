@@ -299,7 +299,8 @@ flowgraphs/  GNU Radio OOB TX / STARVUE RX — versioned here
 lab/         harness/ discovery runner + captures/ box evidence
              (git-crypt tier)
 ops/         lineup.yaml, units.yaml (schema-validated), CI
-             (nightly canary), agent-guard.py (agent command guard)
+             (nightly canary), agent-guard.py (agent command guard),
+             check-agent-hooks.py (CI: every agent hook wired and blocking)
 docs/        the mdBook source — specs, protocol, runbook, reviews
 .github/     agent role files, PR template, workflows
 .claude/     Claude Code subagent launchers, one per role, and

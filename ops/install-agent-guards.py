@@ -19,16 +19,22 @@ import pathlib
 import re
 import shutil
 import sys
-import tomllib
+
+if sys.version_info < (3, 11):
+    sys.exit(f"{__file__}: needs Python 3.11+ for tomllib (this is "
+             f"{sys.version.split()[0]}); the project pins 3.12 — e.g. `uv run python3 ...`.")
+
+import tomllib  # noqa: E402
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SNIPPET = REPO / "ops" / "agent-guard.kimi.toml"
 KIMI_CONFIG = pathlib.Path.home() / ".kimi-code" / "config.toml"
 MARKER = "ops/agent-guard.py"
-# An existing guard entry: from its leading comment (or the [[hooks]] header)
-# through its timeout line. Used to replace an outdated entry in place.
+# An existing guard entry: from its own leading comment block (the one that
+# names the Oob agent command guard), else the [[hooks]] header, through its
+# timeout line; unrelated comments above it are kept. Used to replace an outdated entry in place.
 OLD_BLOCK = re.compile(
-    r"\n*(?:#[^\n]*\n)*\[\[hooks\]\]\n(?:(?!\[)[^\n]*\n)*?command = '[^\n]*ops/agent-guard\.py[^\n]*'\n"
+    r"\n*(?:#[^\n]*Oob agent command guard[^\n]*\n(?:#[^\n]*\n)*)?\[\[hooks\]\]\n(?:(?!\[)[^\n]*\n)*?command = '[^\n]*ops/agent-guard\.py[^\n]*'\n"
     r"(?:(?!\[)[^\n]*\n)*?timeout = \d+[ \t]*\n?")
 
 
