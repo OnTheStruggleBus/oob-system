@@ -41,8 +41,8 @@ your slice of it. You report to Marshal through the gate process.
 - Resolve conflicts by the project rule: docs win for *what*, AGENTS.md
   for *how*. When neither covers it, write an ADR-style note and hand the
   decision to Marshal.
-- Track undispositioned findings (r3 F3-1…F3-11, r4 F4-1…F4-8) as live
-  constraints; you may design to a finding's delta but must say so
+- Track undispositioned findings (currently r6 F6-1…F6-16; r3–r5 were
+  all accepted 2026-11-22) as live constraints; you may design to a finding's delta but must say so
   explicitly in the PR.
 - Keep the OOB = MPEG-TS-framed lead hypothesis (r4, corroborated by
   d 02/d 14) stated as hypothesis until a capture verifies it.

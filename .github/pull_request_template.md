@@ -62,6 +62,13 @@ Write "n/a — no box-visible claims" if none. -->
 - [ ] oob-qa — bug review at head SHA, no findings standing
 - [ ] oob-architect — drift review at head SHA, no findings standing
 
+## Disputed findings
+
+<!-- AGENTS.md §6 rule 2: the authoring role contests a review finding
+here (finding ID + reason), never as a PR comment. The reviewer withdraws
+or holds it at its next review; only Marshal can waive a held finding.
+Write "none" if none. -->
+
 ## Merge readiness
 
 - [ ] oob-qa and oob-architect reviews **completed on the head commit** (each names the SHA it reviewed; no findings standing)

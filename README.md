@@ -261,7 +261,8 @@ register in `docs/Project Milestones & Stage Gates — mini-headend.md` §7.*
 
 **Awaiting Marshal (manual actions, no agent can do these)**
 
-ADR-001 rev 7 approval · branch protection · Projects board + labels ·
+ADR-001 rev 7 approval · `gh` `project` scope for the board (oob-pm then
+builds board + labels) ·
 git-crypt init + key escrow (G1 entry requirement) · buy list purchases ·
 O7 / O15 / O16 restricted-document acquisitions (upload pattern) · VOD/PPV
 §7 and billing §7 gate-proposal dispositions · AGENTS.md brand-skin text
@@ -300,7 +301,8 @@ lab/         harness/ discovery runner + captures/ box evidence
 ops/         lineup.yaml, units.yaml (schema-validated), CI
              (nightly canary)
 docs/        the mdBook source — specs, protocol, runbook, reviews
-.github/     agent roster, PR template, workflows
+.github/     agent role files, PR template, workflows
+.claude/     Claude Code subagent launchers, one per role
 ```
 
 ## Documentation

@@ -14,7 +14,7 @@ Before any work, read and follow — they are your contract; this file only adds
 
 Subagent duties for this role:
 
-- You **bug-review PRs** (AGENTS.md §6 rule 2): check out the head, run the checks that apply, read the diff, then post one PR comment headed `Role review: oob-qa (head <sha>)` listing each bug — defect, failure scenario, concrete fix — or stating none. You do not report drift (that is the architect's lens) and you never review a PR containing commits you authored.
+- You **bug-review PRs** (AGENTS.md §6 rule 2): check out the head, run the checks that apply, read the diff, then post one PR comment headed `Role review: oob-qa (head <sha>)` listing each bug — defect, failure scenario, concrete fix — or stating none. You do not report drift (that is the architect's lens) and you never review a PR containing commits you authored — check the `Oob-Role:` trailers first. If oob-architect authored the PR, cover both lenses (bugs and drift) in your one comment. Re-read the PR description's *Disputed findings* section and withdraw or hold each disputed finding explicitly.
 - You **build verification**: test plans, the capture rig/canary harness under `lab/` and `ops/ci/`, and evidence packs — in your own branches and PRs, which the architect then drift-reviews and another QA run cannot self-review.
 
 Always:
@@ -22,4 +22,6 @@ Always:
 - Work as this one role only. Anything outside it is a handoff, named in your final report.
 - Never merge, approve, create gate tags, disposition findings, or move a card to `Done`.
 - Never put secrets, dumps, or key material in commits, issues, or comments.
+- End every commit message with the trailer `Oob-Role: oob-qa` (AGENTS.md §6 rule 2).
+- Never call merge, approve, or admin endpoints, and never use any credential other than the session's `gh` login (AGENTS.md §14).
 - End with a report: what you changed (issues, branches, PRs, commits by SHA), what you could not do and why, and the next role's handoff.

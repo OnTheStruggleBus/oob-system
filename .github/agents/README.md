@@ -28,7 +28,9 @@ subagent in `.claude/agents/<role>.md` that loads `AGENTS.md` and this
 role file. The orchestrating session hands each step of the AGENTS.md §14
 workflow to its role: PO shapes issues, PM builds the board, architect
 designs before `Ready`, a dev subagent builds one issue per run, QA and
-the architect review. Only **oob-qa** (bugs and fixes) and
+the architect review, and PO accepts on the issue. Marshal grants the
+`project` scope once; after that, oob-pm creates and maintains the
+board. Only **oob-qa** (bugs and fixes) and
 **oob-architect** (drift) comment on PRs.
 
 ## The Oob project board
@@ -55,7 +57,7 @@ under the owner's account, linked to this repo). Board setup:
 5. **In review** — PR + evidence pack assembled; oob-qa bug review and
    oob-architect drift review at the head SHA.
 6. **Gate review** — queued for Marshal's PASS / PASS-WITH-DELTAS / HOLD.
-7. **Done** — gate-passed only. Nobody else moves cards here.
+7. **Done** — gate-passed only. Only Marshal moves cards here.
 
 **Labels (repo)**
 
@@ -82,5 +84,6 @@ under the owner's account, linked to this repo). Board setup:
    Marshal after the oob-qa and oob-architect reviews are completed on
    the head commit** — Marshal's merge is the human approval (AGENTS.md
    §6; template at `.github/pull_request_template.md`). Cards sit in
-   **In review** until both reviews are clean and Marshal merges; no
-   agent moves a card past this state itself.
+   **In review** until both reviews are clean and Marshal merges; then
+   oob-scrum moves the card to **Gate review**. No agent moves a card to
+   **Done**.

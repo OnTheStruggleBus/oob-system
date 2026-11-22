@@ -28,7 +28,9 @@ Then find your role file in `.github/agents/` (roster in that directory's
 README) and follow it — it defines your scope and handoffs within this
 contract.
 
-Open findings (r3: F3-1…F3-11, r4: F4-1…F4-8) await Marshal's disposition.
+Review rounds r3 (F3-1…F3-11), r4 (F4-1…F4-8) and r5 (F5-1…F5-14) were
+all accepted on 2026-11-22. Open findings: r6 (F6-1…F6-16), awaiting
+Marshal's disposition.
 Treat undispositioned findings as **constraints you must not silently
 violate**, not as approved work: you may implement a finding's delta, but
 say so explicitly in the commit and PR text.
@@ -61,7 +63,7 @@ From `Project Milestones & Stage Gates` §1 — all nine rules bind agent work:
 9. **No gate passes with stale docs** (see §3).
 
 Current gate state: G0 PASS (retroactive); G0.5 next, first agenda =
-r3/r4 dispositions. Do not schedule work past G1 entry criteria until
+r6 dispositions and ADR-002. Do not schedule work past G1 entry criteria until
 G0.5 closes.
 
 ## 2. Evidence and the box-as-oracle discipline
@@ -122,6 +124,8 @@ ops/
   units.yaml     # census + unit DB (DAC Define Terminal schema)
   ci/            # nightly canary: reboot box, assert AUTH, scrape d 02/d 15
 docs/            # mdBook source; protocol/ and runbook/ live here
+.github/agents/  # role files: one contract slice per role (source of truth)
+.claude/agents/  # Claude Code subagent launchers, one per role (§14)
 ```
 
 Naming is adopted and fixed: software **Oob**, crates `oob-*`, guide stack
@@ -167,7 +171,7 @@ new component names; extend this set only via Marshal.
 
 Every **declared feature** — any board item of Type `feature` or
 `experiment`, and any change touching `crates/`, `flowgraphs/`, `ops/`,
-`lab/`, or `.github/` — merges **only** through a pull request that
+`lab/`, `.github/`, or `.claude/` — merges **only** through a pull request that
 satisfies all of the following. **Every change to `main` goes through a
 pull request** — branch protection allows no direct pushes (rule 6).
 Docs-only typo fixes are the light path: a PR with green checks and
@@ -197,8 +201,22 @@ Marshal's merge, no review comments required.
    `Role review: oob-architect`, because all agents act through the
    owner's GitHub account.
    **Independence:** a review counts only if the reviewing role authored
-   none of the PR's commits. Roles run as separate subagents (§14), so
-   the dev that built a change is never the role that reviews it.
+   none of the PR's commits. Every agent commit ends with an
+   `Oob-Role: <role>` trailer (`orchestrator` for the main session), and
+   the reviewer checks the trailers before reviewing. Roles run as
+   separate subagents (§14), so the dev that built a change is never the
+   role that reviews it.
+   **When a reviewer authored the PR** (an ADR from oob-architect, a
+   harness PR from oob-qa), the other reviewer covers both lenses in its
+   one comment.
+   **Disputes:** the authoring role may contest a finding in a
+   *Disputed findings* section of the PR description (finding ID +
+   reason) — never as a PR comment. The reviewer then withdraws or
+   holds the finding at its next review; only Marshal can waive a held
+   finding, by saying so when he merges.
+   **Scope:** these rules govern PRs written by agents. Machine-opened
+   PRs from the running system (e.g. r6 F6-4's Console-opened config
+   PRs) need their own rule, to be set when F6-4 is dispositioned.
 3. **Reviews are completed and current.** A QA or architect review counts
    only when it is submitted, names the head commit SHA it reviewed, and
    leaves no change request standing. Reviews post as PR comments, so
@@ -333,8 +351,10 @@ This repo carries a nine-agent roster under `.github/agents/` — architect,
 PM, PO, core dev, RF dev, console dev, QA, scrum master, and research
 expert — plus a README defining the Oob project board (fields, columns,
 labels, standing rules). Every agent in this repo works as exactly one of
-those roles at a time; the role files refine this contract, never replace
-it. `.claude/agents/` holds a Claude Code subagent for each role — a thin
+those roles at a time, with one exception: the **orchestrator** (the
+main Claude Code session, §14), which routes work between roles and does
+no role's work itself except to bootstrap the roles. The role files
+refine this contract, never replace it. `.claude/agents/` holds a Claude Code subagent for each role — a thin
 launcher that loads this contract and the role file, so there is one
 source of truth per role. Board conventions (gate/workstream fields,
 `Blocked (entry criteria)` state, Done = gate-passed only, feature PRs
@@ -356,9 +376,10 @@ not do a role's work itself when a role exists for it.
 | 4. Research | **oob-expert** | Cited research notes on request from any step; never code |
 | 5. Build | **oob-dev-core** / **oob-dev-rf** / **oob-dev-console** | Pulls one `Ready` issue, works on its own branch (in its own worktree when parallel), lands code + tests + docs in the same commits, opens the PR with the full template |
 | 6. Review | **oob-qa** then **oob-architect** | One PR comment each at the head SHA: QA for bugs and fixes, architect for drift (§6 rule 2) |
-| 7. Fix | the authoring dev | Pushes commits that resolve each finding, citing it in the commit message; both reviewers re-review the new head |
-| 8. Flow | **oob-scrum** | Moves cards through `In progress` → `In review`, enforces WIP and entry criteria, flags blockers; never past `In review` |
-| 9. Merge | **Marshal** | Merges (the approval); gate tags and dispositions stay his |
+| 7. Fix | the authoring role | Pushes commits that resolve each finding, citing it in the commit message, or disputes it in the PR description (§6 rule 2); both reviewers re-review the new head |
+| 8. Accept | **oob-po** | Once both reviews are clean, records accept or reject against the acceptance criteria **on the issue** (not the PR) |
+| 9. Flow | **oob-scrum** | Moves cards `Ready` → `In progress` → `In review`; after Marshal merges, moves the card to `Gate review`; enforces WIP and entry criteria, flags blockers |
+| 10. Merge | **Marshal** | Merges (the approval); gate tags, dispositions, and `Done` stay his |
 
 Rules for running roles as subagents:
 
@@ -374,5 +395,11 @@ Rules for running roles as subagents:
   (`gh auth refresh -s project` — a one-time owner action). Until then,
   roles maintain issues and labels, and record intended board fields in
   each issue body.
+- **Credentials:** until agents have their own identity, subagents act
+  through the owner's `gh` login, so "never merge" is a rule-only control
+  (r6 candidate F6-17). Subagents must never call merge, approve, or
+  admin endpoints, and must not be given any other owner-level or
+  merge-capable token. Running-system credentials (r6 F6-4/F6-10) are
+  set when those findings are dispositioned.
 - §11 still binds every subagent: no merging, approving, gate tags,
   dispositions, or moving cards to `Done`.

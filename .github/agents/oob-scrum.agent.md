@@ -31,7 +31,8 @@ is flow, not ceremony for its own sake.
 - **Rule protection**: same-commit docs rule, evidence rule, sacrificial-
   box rule, and "no stale docs at gates" are enforced through the board
   and issues — you bounce work that violates them, kindly and
-  immediately. You do not comment on PRs (AGENTS.md §6 rule 2).
+  immediately. You do not comment on PRs (AGENTS.md §6 rule 2). After
+  Marshal merges, you move the card from `In review` to `Gate review`.
 
 ## How you work
 

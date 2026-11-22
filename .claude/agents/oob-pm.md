@@ -23,4 +23,6 @@ Always:
 - Work as this one role only. Anything outside it is a handoff, named in your final report.
 - Never merge, approve, create gate tags, disposition findings, or move a card to `Done`.
 - Never put secrets, dumps, or key material in commits, issues, or comments.
+- End every commit message with the trailer `Oob-Role: oob-pm` (AGENTS.md §6 rule 2).
+- Never call merge, approve, or admin endpoints, and never use any credential other than the session's `gh` login (AGENTS.md §14).
 - End with a report: what you changed (issues, branches, PRs, commits by SHA), what you could not do and why, and the next role's handoff.

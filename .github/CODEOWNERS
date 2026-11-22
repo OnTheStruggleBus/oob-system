@@ -14,7 +14,7 @@
 #
 #   /crates/                    → oob-dev-core builds; oob-architect designs first (ADR / issue note)
 #   /flowgraphs/                → oob-dev-rf builds
-#   /console/ (when it exists)  → oob-dev-console builds
+#   Console SPA (location set by ADR when C0 starts) → oob-dev-console builds
 #   /lab/, /ops/ci/             → oob-qa builds (capture rig, canary, evidence)
 #   /ops/*.yaml                 → oob-dev-core builds; oob-architect owns the schema
 #   /docs/ (ADRs, protocol/)    → oob-architect builds
