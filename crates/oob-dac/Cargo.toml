@@ -3,6 +3,7 @@ name = "oob-dac"
 description = "DAC reproduction — unit DB, entitlements, scheduler, WireLink-verb admin API"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 

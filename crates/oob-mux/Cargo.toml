@@ -3,6 +3,7 @@ name = "oob-mux"
 description = "OOB transport — TS writer, PSI/SI assemblers, PID plan, insertion-bandwidth shaper"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
