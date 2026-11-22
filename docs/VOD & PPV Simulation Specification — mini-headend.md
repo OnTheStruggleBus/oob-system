@@ -134,9 +134,16 @@ carry IPPV purchase uploads.
   definition (§2.1) and therefore the natural home for "how to order"
   content on every PPV service we define.
 - **Period PPV-in-the-grid pattern (Marshal-supplied frame, 2026-11-22):**
-  a Passport (Echo-class) guide frame at **Insight Communications** (dated
-  **Sun 6/21** in-frame — June 21 fell on a Sunday in 2009, predating
-  Insight's 2012 absorption into TWC; plan §4.1 reference 8) shows the
+  a Passport (Echo-class) guide frame from **"PTCI Training –
+  Pay-Per-View"** (an operator-produced training video on PTCI's own
+  channel — PTCI is the **Panhandle Telephone Cooperative**, Guymon,
+  Oklahoma Panhandle, whose "DITV" digital cable launched January 2002
+  per the co-op's own history page — uploaded 2009-07-31; dated
+  **Sun 6/21** in-frame — June 21
+  fell on a Sunday in 2009, weeks before the upload; plan §4.1
+  reference 8 carries the canonical URL; operator attribution corrected
+  from an earlier "Insight Communications" misread, Marshal-confirmed
+  2026-11-22) shows the
   guide-era ordering surface: **PPV 99 as an ordinary grid row** with the
   event title in-cell ("Amazing Journeys", 12:30–1:30 pm), a green
   **`$` purchase badge** and a **REC** badge both in-cell and in the cream
@@ -149,28 +156,68 @@ carry IPPV purchase uploads.
   attributes** (price/`$` badge, rating, epoch times, REC eligibility) for
   PPV/NVOD rows — not just titles and times. (Second operator instance of
   the Passport visual language after the Cincinnati Bell frame; hardware
-  platform not proven by this frame alone, though Insight's Motorola
-  footprint is period-documented.)
+  platform not proven by the frame alone.)
 - **Period purchase-settings surface (Marshal-supplied frame,
-  2026-11-22):** a guide-era **Preferences → Purchasing** menu (YouTube
-  frame, search "cable pay per view menu"; unbranded operator,
+  2026-11-22):** a guide-era **Preferences → Purchasing** menu from the
+  same PTCI training video (its 1:09 chapter, "Pay-per-View Settings";
   GuideWorks-family visual language — yellow context-help panel, purple
   selector, SEL/Exit command bar) showing **Locking Status** (`Enabled`),
   **Change PIN**, and **PPV Purchases** items, the help panel spelling
   out: "When locking is on, PIN entry is required to complete purchases."
   The PIP runs the same maroon "Pay Per View" banner and the same event
-  title ("Amazing Journeys") as the Insight grid frame above — almost
-  certainly the same source recording, which strengthens both frames'
-  provenance chain. **Evidence link:** purchase locking is not mere
-  guide-app chrome — the DAC documents a **box-resident Event PIN** "that
-  control[s] IPPV program purchasing," headend-clearable via Define
-  Terminal → Clear PIN (All / Parental Control / Event; DAC §9-21/9-22).
+  title ("Amazing Journeys") as the grid frame above — Marshal confirms
+  both frames are the same recording, so this settings surface now has a
+  canonical source, an operator, and a date. **Evidence link:** purchase
+  locking is not mere guide-app chrome — the DAC documents a
+  **box-resident Event PIN** "that control[s] IPPV program purchasing,"
+  headend-clearable via Define Terminal → Clear PIN (All / Parental
+  Control / Event; DAC §9-21/9-22).
   The frame's locking toggle is therefore the settings-UI projection of a
-  documented DAC↔box feature. The **PPV Purchases** review list, by
-  contrast, is not install-manual-documented for non-guide boxes →
-  `hypothesized` app-side surface; our purchases ledger (§4) is its
-  natural backing store either way. Provenance caveat stands: hardware
-  platform not proven by the frame alone.
+  documented DAC↔box feature. The **PPV Purchases** review list is now
+  frame-documented for guide-era boxes (next bullet); it remains
+  undocumented for non-guide boxes, and our purchases ledger (§4) is
+  its natural backing store either way. Provenance caveat stands:
+  hardware platform not proven by the frame alone.
+- **Period purchase flow, end to end (six Marshal-supplied frames,
+  2026-11-22):** the same PTCI training video documents the full
+  guide-era purchase sequence across two recording sessions. Its 1:27
+  chapter ("Review Your Pay-per-View Purchases") shows the **Events
+  Summary** screen (Preferences → Purchasing → PPV Purchases): help
+  text "Review a list of your recent Pay-Per-View purchases (up to
+  **7 pending, and 8 past**). Cancel pending events, **if allowed**" —
+  box keeps 15 purchase slots, pending cancelable, past not; the
+  pending row is labeled tersely "**Event 6/21 12:30pm 99**" with
+  scroll arrows; SEL = **Cancel Purchase**; box clock 12:17:30pm,
+  thirteen minutes before the pending event's start; the PIP runs the
+  same "Amazing Journeys" title as the grid frame above — the pending
+  purchase *is* that 12:30 event. Its 2:46 chapter (ordering demo
+  "on the Smaller Digital TV," dated **Wed 6/17** in-frame — June 17
+  fell on a Wednesday in 2009; box clock 3:08–3:09am) shows the
+  sequence: grid row **PPV 99** ("Africa: The Serengeti") with the
+  **$3.95 price in the yellow info panel** → a full-screen **event
+  info screen** (Channel 99 chip, title, 3:00–4:00am, $3.95, TV-PG,
+  "Program Type: Travel"; A **Purchase Review** / B **Buy**) carrying
+  a **"Buy until 3:17 am"** deadline — a mid-event purchase still
+  open, closing 17 minutes after start: the operator-set Purchase
+  Time window (§2.1) box-visible a second way, complementing the
+  Cablevision "within 10 minutes of showtime" slate → a red-title
+  **Purchase Selection** dialog — "**Buy Event**" / "**Buy Event and
+  Set VCR Timer**" (period VCR-timer integration), A Buy / C Cancel →
+  the post-purchase **tuned state**: banner "PPV 99 / Africa: The
+  Serengeti / 3:00–4:00am / $3.95" (price in green), the event joined
+  in progress. **No PIN prompt appears anywhere in the demo** — this
+  box had purchase locking off, so the sequence documents the
+  no-locking path; PIN-prompt capture stays an open §8 item
+  (checkpoint 5). A sixth frame shows PTCI's own local channel
+  (**PTCI 2**, "Wind in Oklahoma," 2:30–4:00am) under the plain
+  non-PPV tune banner — local-programming flavor consistent with the
+  co-op identity above. Consequences: the period guide-era flow is
+  **grid → info screen (price + buy-until deadline) → Buy → confirm
+  dialog (VCR-timer option) → tune**, and the video shows both period
+  purchase modes — advance purchase (pending, cancelable-if-allowed)
+  and impulse mid-event (buy-until window). Our P2 ledger (§4) must
+  therefore support a **cancel-before-epoch** path for pending
+  purchases, mirroring the box's own Cancel Purchase.
 
 ### 2.5 True VOD — the NC 1500 / SEM VOD Control path
 
@@ -258,7 +305,7 @@ carry IPPV purchase uploads.
   services).
 - Guide integration (W8): NVOD instances appear as ordinary listings rows
   ("movie starts every 30 min") — period-accurate, since i-Guide listed
-  NVOD/PPV channels in the grid. The Insight Passport frame (§2.4)
+  NVOD/PPV channels in the grid. The PTCI Passport frame (§2.4)
   corroborates the pattern and adds the in-cell `$`/REC badging our
   listings feed must carry for PPV/NVOD rows.
 
@@ -343,9 +390,11 @@ status in `oob-msg` is promoted only on capture (AGENTS.md §2).
 2. **Call-ahead auth:** authorize → box viewable post-preview → d-screen +
    OSD captures.
 3. **Impulse purchase:** box purchase flow (screens TBD at census —
-   `hypothesized` until captured; period pattern to compare against:
+   `hypothesized` until captured; period patterns to compare against:
    orderable-state indication → minimal-key confirm → visible confirmation,
-   per the Cablevision frame §2.4) → front-panel **purchases count**
+   per the Cablevision frame §2.4; and the guide-era sequence grid →
+   info screen (price + buy-until deadline) → Buy → confirm dialog →
+   tuned, per the PTCI ordering demo §2.4) → front-panel **purchases count**
    increments (d 01 LED alternation) → `UNSENT − ##` on the STARVUE II IPPV
    status screen → post-collection `ENABLED` → ledger row + credit delta.
 4. **Denial:** credit exhausted → purchase refused box-side (capture the
@@ -354,7 +403,9 @@ status in `oob-msg` is promoted only on capture (AGENTS.md §2).
    PIN-entry prompt (capture); wrong-PIN denial (capture); Console
    **Clear PIN (Event)** → box purchases complete without the prompt
    (capture). PIN storage stays box-resident; the headend never holds it
-   (DAC §9-21 fidelity, §3.2).
+   (DAC §9-21 fidelity, §3.2). The complementary no-locking path —
+   locking disabled, no prompt, purchase completes directly — is
+   already frame-documented by the PTCI ordering demo (§2.4).
 6. **Orphan drill:** zero-handle upload → ledger orphan → Clear Orphan
    Purchases → ledger clean.
 7. **Canary extension (proposal):** nightly asserts (a) current-epoch
