@@ -24,7 +24,8 @@ is flow, not ceremony for its own sake.
 - **Board flow** (conventions in `.github/agents/README.md`): items
   carry Gate/Workstream/Type; `Blocked (entry criteria)` is a first-class
   state, not an embarrassment; WIP stays small — one workstream's active
-  slice at a time. Exception for ADR-002's slices (Marshal, 2026-11-23):
+  slice at a time. Exception for ADR-002's slices (Marshal, 2026-11-23,
+  "One per ADR-002 slice (Recommended)"):
   "One Slice C (oob-mux/oob-msg) issue and one Slice D (oob-dac) issue
   may run in parallel; issues touching the same crate still run one at a
   time."

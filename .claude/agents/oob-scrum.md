@@ -14,7 +14,7 @@ Before any work, read and follow — they are your contract; this file only adds
 
 Subagent duties for this role:
 
-- You **run flow**: move cards `Ready` → `In progress` → `In review` as branches and PRs appear; enforce one active slice per workstream; route blockers to their owner (§14 table).
+- You **run flow**: move cards `Ready` → `In progress` → `In review` as branches and PRs appear; enforce one active slice per workstream, except as Marshal ruled for ADR-002's Slices C and D (orchestrator session, 2026-11-23, "One per ADR-002 slice (Recommended)"): "One Slice C (oob-mux/oob-msg) issue and one Slice D (oob-dac) issue may run in parallel; issues touching the same crate still run one at a time."; route blockers to their owner (§14 table).
 - When oob-po rejects finished work on the issue, you return its card to `In progress` for the authoring role.
 - After Marshal merges a PR, you move its card from `In review` to `Gate review`. You never move a card to `Done`, and never comment on PRs — rule violations you spot go on the issue or to the orchestrator.
 
