@@ -1,6 +1,6 @@
 # Hardware Acquisition List — mini-headend
 
-*2026-11-22, rev 4. Consolidates the Reproduction Plan §8 buy list, the
+*2026-11-23, rev 5. Consolidates the Reproduction Plan §8 buy list, the
 r3/r4 review deltas (F3-2 capture rig, F3-3/F4-3 D0 tooling, F4-1 radio
 roles, F4-4 batteries, F4-7 networking), and the Milestones & Stage Gates
 §6 tool stack into one prioritized list. Priority follows the gate plan:
@@ -27,6 +27,14 @@ O1), the DekTec DTA-2115B metrology-grade modulator (benchmark
 reference), commercial QAM alternatives (SEM-spare/hub class), and
 receiver-side verification instruments. All watch-list entries with
 zero planning weight.
+
+**Rev 5 changes (Marshal's direction, 2026-11-23):** the OOB TX is a
+**supported set** — ADALM-Pluto (range-hacked at the hunt carriers),
+HackRF One clone, and LibreSDR (P3-4 is now in the set; its buy status is
+unchanged and no purchase is implied). The **primary is chosen at the
+G0.5 bench** by the F4-1 level log, not pinned here. This note records the
+hardware-option delta; the r4 F4-1 record is unchanged and not
+dispositioned by this revision. Rev 5 adds no buy and no spend.
 
 **Already in the estate (no purchase):** Motorola SEM V8 P/N
 507199-001-00 (ACP confirmed — QAM + FPK encryption), ADALM-Pluto (OOB

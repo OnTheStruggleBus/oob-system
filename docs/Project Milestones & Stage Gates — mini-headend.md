@@ -86,7 +86,12 @@ gate rules (§5).
   - GNU Radio flowgraph passes a loopback BER test at 1.024 Msym/s.
   - Chosen hunt-table carrier (104.2/110.25 class) measured through the
     F3-7 chain into a dummy load; level log committed (r4 F4-1 metering).
-  - OOB TX committed: HackRF One primary, Pluto spare (r4 F4-1).
+  - OOB TX committed as a **supported set** — ADALM-Pluto (range-hacked at
+    the hunt carriers), HackRF One clone, LibreSDR — with the **primary
+    chosen at this bench by the F4-1 level log** (r4 F4-1 metering). This
+    implements Marshal's 2026-11-23 hardware-option delta, which replaces
+    the earlier HackRF-primary pin; the r4 F4-1 record is unchanged and
+    this PR does not disposition it. ADR-002 records the same delta.
   - **Mux ↔ PHY pull seam proven (r6 F6-2, ADR-002):** a 24 h loopback
     run with the flowgraph pulling from the pacer (stub allowed), **zero
     pull underruns**, and the **null ratio logged**.
@@ -269,7 +274,7 @@ Pinned where it matters, FOSS where possible, everything scriptable.
 | Tool | Role | Notes |
 | --- | --- | --- |
 | GNU Radio 3.10 + gr-osmosdr + gr-iio | OOB PHY | Flowgraphs versioned in-repo |
-| hackrf host tools | Primary OOB TX / upstream RX | r4 F4-1: HackRF One is primary; Pluto (gr-iio) is spare |
+| hackrf and libiio host tools | OOB TX supported set / upstream RX | Supported set: ADALM-Pluto (gr-iio, range hack), HackRF One clone, LibreSDR (gr-iio over Ethernet). Primary chosen at the G0.5 bench by the F4-1 level log (Marshal, 2026-11-23) |
 | inspectrum | Capture analysis | Symbol/constellation inspection of recorded baseband |
 | tsduck (`tsp`, `tsdump`, tables plugins) | Mux scaffolding + PSI/SI inspection | Also early playout; dvbsnoop as cross-check |
 | ffmpeg/ffprobe | Playout + encode lint | MPEG-2 MP@ML only (F3-6) — lint runs in CI and in the Console |

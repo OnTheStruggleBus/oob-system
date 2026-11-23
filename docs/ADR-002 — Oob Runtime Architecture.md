@@ -2,6 +2,13 @@
 
 - **Status:** Accepted — Marshal, 2026-11-22 ("Accept as recommended",
   r6 disposition record §5)
+- **Hardware-option delta (Marshal's direction, 2026-11-23):** the OOB TX
+  is a **supported set** — ADALM-Pluto (range-hacked at the hunt
+  carriers), HackRF One clone, and LibreSDR — and the **primary is chosen
+  at the G0.5 bench** by the r4 F4-1 level log, not pinned in advance.
+  This ADR stays accepted. Its decisions are unchanged; the delta changes
+  only the SDR wording in Context and in Decision 6 and action 6 below.
+  The r4 F4-1 record itself is unchanged by this note.
 - **Date:** 2026-11-22
 - **Deciders:** Marshal (approval); oob-architect (author role);
   oob-dev-core and oob-dev-rf (consulted, per AGENTS.md §14 step 3 —
@@ -18,7 +25,9 @@
 
 ADR-001 and the Reproduction Plan fix the crate set (`oob-dac`, `oob-mux`,
 `oob-msg`, `oob-cdl`, `oob-playout`, `oob-guide`, `oob-starfone`), the PHY
-(GNU Radio → HackRF One), and the deployment style (Podman on Debian 13).
+(GNU Radio → an OOB SDR from the supported set: HackRF One, ADALM-Pluto or
+LibreSDR, primary chosen at the G0.5 bench), and the deployment style
+(Podman on Debian 13).
 They do not decide:
 
 - which crates run as processes
@@ -40,8 +49,9 @@ Forces at play:
   fleet is tens of boxes, not millions.
 - **The S2 future.** Interconnect moves 55-1 framing to remote hubs
   (`oob-regen`). The seam should exist before it is needed.
-- **The HackRF is USB.** That makes containerizing the PHY the hard case
-  (F6-9).
+- **The OOB SDR is USB or network-attached.** HackRF One and ADALM-Pluto
+  attach by USB, which makes containerizing the PHY the hard case (F6-9).
+  LibreSDR attaches by Ethernet and needs no USB passthrough.
 
 ## Decision
 
@@ -67,9 +77,12 @@ Forces at play:
 5. **`oob-playout` is a separate supervisor process** (ffmpeg/tsp jobs) in
    the host-network container (F4-7). It is controlled by oob-dac through
    the command layer.
-6. **Deployment split.** The flowgraph runs as a host `systemd` service
-   with a udev rule for the HackRF. The Rust daemons and the Console SPA
-   run in rootless Podman containers.
+6. **Deployment split.** The flowgraph runs as a host `systemd` service.
+   The OOB SDR is the one chosen at the G0.5 bench (HackRF One,
+   ADALM-Pluto or LibreSDR; Marshal's direction 2026-11-23). A USB-attached
+   radio gets a udev rule; a network-attached LibreSDR gets a reachability
+   check in place of one. The Rust daemons and the Console SPA run in
+   rootless Podman containers.
 7. **Lab tooling and the Console are API clients only.** Discovery Lab
    injection is class C5 traffic through the same command layer and pacer.
    It is not a second stream source.
@@ -187,7 +200,10 @@ on restarts.
    bench.
 5. [ ] oob-dev-core: the oob-dac command layer and policy layer as the
    first Slice D module, before any API adapter.
-6. [ ] ops: host systemd unit + udev rule for the HackRF flowgraph; the
-   container-restart canary also checks HackRF enumeration.
+6. [ ] ops: host systemd unit for the flowgraph, plus a udev rule for the
+   chosen SDR when it is USB-attached (HackRF One or ADALM-Pluto) or a
+   reachability check when it is LibreSDR (Ethernet). The container-restart
+   canary checks enumeration or reachability for the chosen SDR. The choice
+   is made at the G0.5 bench (Marshal's direction, 2026-11-23).
 7. [ ] Docs: the same-commit rule applies. This ADR, the redrawn diagrams,
    and the mdBook architecture chapter land together.

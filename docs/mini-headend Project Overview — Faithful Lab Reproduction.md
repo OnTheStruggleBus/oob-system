@@ -96,7 +96,7 @@ systems. (This supersedes the ArchaiTel Digital Cable placeholder skin.)
 | Original system | Role in the original network | mini-headend realization |
 | --- | --- | --- |
 | **DAC 6000** (Digital Addressable Controller) | System brain: unit database, entitlements, message scheduler, operator interface | `oob-dac` — Rust daemon, sqlite unit DB, WireLink-verb admin API |
-| **OM 1000/2000** (OOB Modulator) | Generates the out-of-band control channel (QPSK, 1.024 Msym/s, 70–130 MHz) | GNU Radio flowgraph → SDR (HackRF One primary, ADALM-Pluto spare) |
+| **OM 1000/2000** (OOB Modulator) | Generates the out-of-band control channel (QPSK, 1.024 Msym/s, 70–130 MHz) | GNU Radio flowgraph → SDR from the supported set (ADALM-Pluto, HackRF One clone, LibreSDR; primary chosen at the G0.5 bench, Marshal 2026-11-23) |
 | **KLS/DLS** (Code Download System) | Delivers firmware and applications to boxes as 68k objects over the OOB stream | `oob-cdl` crate — .obj/.dat loader + carousel builder |
 | **SEM V8** (SmartStream Encryptor Modulator) | Edge QAM + MediaCipher encryption | **Period hardware in the estate** — Motorola SEM V8, P/N 507199-001-00, ACP confirmed |
 | **STARVUE II** | Upstream return-path receiver (5–42 MHz) | SDR receive flowgraph (stretch) |
@@ -258,8 +258,8 @@ get folded in at the next revision.
   protection (AGENTS.md §6 checklist); the `gh` `project` scope so oob-pm
   can build the Projects board + labels (`.github/agents/README.md` spec,
   AGENTS.md §14); git-crypt init before G1 (F5-11) —
-  needs Marshal's key escrow; the buy list (HackRF One clone primary OOB
-  TX, RF chain, capture rig, flash tooling, sundries — see the Hardware
+  needs Marshal's key escrow; the buy list (OOB TX from the supported set,
+  primary chosen at the G0.5 bench; RF chain, capture rig, flash tooling, sundries — see the Hardware
   Acquisition List).
 - Pre-G0.5-exit tasks: mdBook scaffold + CI link-check + utoipa drift
   stub (F5-10), with the prose-vs-`facts.yaml` check (F6-13) — built
