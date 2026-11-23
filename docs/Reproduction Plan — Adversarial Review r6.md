@@ -500,7 +500,7 @@ time slots depend on them.
 | F6-10 | medium | Slice D (oob-dac API) | Accepted; Slice D — the server-side guardrail that makes full configurability safe, for every client incl. forks and scripts |
 | F6-11 | medium | Slice D (oob-dac API) | Accepted; Slice D |
 | F6-12 | medium | Slice C (seam only; zero pre-G6 hub work) | Accepted as proposed |
-| F6-13 | medium | Immediate docs sweep (PR #5 wording already reverted) | Accepted; sweep done in the r6 disposition PR, `docs/facts.yaml` added; the mdBook prose-vs-facts check is wired later by F5-10's CI work (separate oob-dev-core PR) |
+| F6-13 | medium | Immediate docs sweep (PR #5 wording already reverted) | Accepted; sweep done in the r6 disposition PR (incl. the ADR-003 follow-up locations), `docs/facts.yaml` added; the mdBook prose-vs-facts check is wired later by F5-10's CI work (separate oob-dev-core PR) |
 | F6-14 | low | With each daemon's first binary | Accepted as proposed |
 | F6-15 | low | Slice C | Accepted as proposed |
 | F6-16 | low | Host build; F5-8 catalog entry | Accepted as proposed |

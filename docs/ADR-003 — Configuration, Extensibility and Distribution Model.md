@@ -208,8 +208,10 @@ the source of truth when run against a local clone (the F6-4 attack).
    this model (landed with this ADR: principle 2, §2 architecture,
    enrollment wizard, Discovery Lab and template editor, §4.5
    validation, §4.10 class budgets, §4.14, the M6 journeys).
-3. [ ] oob-architect: follow-up sweep of the Reproduction Plan §5 repo
-   tree and ADR-001's "config-as-code" wording.
+3. [x] oob-architect: follow-up sweep (r6 disposition PR, QA-3): VOD
+   spec §4 data model, Reproduction Plan §3.2 terminal schema and §5 repo
+   tree, ADR-001 decision summary (lineup source of truth), §2 estate
+   force and §9 configuration bullet.
 4. [ ] oob-dev-core (Slice D): oob-dac configuration store with revision
    history, rollback, append-only journal, and save-path validators
    (schema, lineup ↔ VCM ↔ playout ↔ SEM, §5 guardrails); one-click

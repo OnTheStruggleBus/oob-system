@@ -205,7 +205,8 @@ added" question directly — and rules out a whole class of guesses:
   configuration sequence. oob-dac's unit DB *is* the enrollment
   mechanism; boxes never announce themselves into it.
 - **The terminal record schema (Define Terminal window)** — this is the
-  exact schema `units.yaml` and the Console Fleet registry mirror:
+  exact schema oob-dac's terminal table and the Console Fleet registry
+  mirror (per-box records live in the store, not in git — ADR-003):
   Terminal Type (**One-Way / Fone-Way / Two-Way / Ethernet / DOCSIS**),
   Unit Address (16-char decimal `nnn-nnnnn-nnnnn-nnn`, **burned into
   NVRAM at manufacture**, printed on the unit), Terminal ID
@@ -718,8 +719,8 @@ mini-headend/            # the Oob workspace
 │   ├── harness/         # message-lab runner: inject → capture box state → log
 │   └── captures/        # sniffed upstream, diagnostic scrapes (git-crypt tier)
 ├── ops/
-│   ├── lineup.yaml      # single source of truth: RF lineup ↔ VCM ↔ playout
-│   ├── units.yaml       # census + unit DB (DAC Define Terminal schema, §3.2)
+│   ├── lineup.yaml      # seed/demo lineup: RF lineup ↔ VCM ↔ playout (ADR-003)
+│   ├── units.yaml       # upstream box-type catalog + seed; no box instances (ADR-003)
 │   └── ci/              # nightly canary: reboot box, assert AUTH, scrape d 02/d 15
 └── docs/
     ├── protocol/        # O4: message catalog w/ wire-format status per message

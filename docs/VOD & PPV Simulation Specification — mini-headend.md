@@ -346,9 +346,12 @@ for Marshal, upload pattern per doctrine; no paywall bypass).
   antitaping), `program_handles` (BS × program → handle, zero-handle
   semantics), `purchases` ledger (terminal, program/handle, epoch,
   units, state: unsent/collected/orphan/cleared), terminal `credit_units`
-  + `purchase_limit` fields.
-- `units.yaml`: per-box `terminal_type` (census) + optional credit/limit
-  overrides; schema-validated in CI like today.
+  + `purchase_limit` fields. Per-box `terminal_type` and any per-box
+  credit/limit overrides are fields of oob-dac's terminal table, set at
+  runtime through the API/Console (ADR-003) — never per-box rows in git.
+- `units.yaml`: box-**type** defaults only (e.g. a type's default
+  `terminal_type`, credit units and purchase limit) in the upstream
+  box-type catalog; schema-validated in CI (ADR-003 §6).
 - `lineup.yaml`: `ppv:` service blocks (service name, source, provision =
   externally-supplied, optional explicit BSG handle) and an `nvod:` block
   (source, instances, offset) expanded by playout; VCM unchanged in shape.
