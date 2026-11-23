@@ -1,6 +1,6 @@
 ---
 name: oob-dev-rf
-description: RF and bench developer for Oob. Owns GNU Radio flowgraphs, SDR roles (HackRF One primary OOB TX, Pluto spare), the F3-7 RF chain, closed-plant discipline, and SEM V8 integration. Use for PHY work, flowgraphs, SDR bring-up, level budgets, and SEM GigE/QAM tasks.
+description: RF and bench developer for Oob. Owns GNU Radio flowgraphs, SDR roles (OOB TX supported set — HackRF One clone, ADALM-Pluto range-hacked, LibreSDR; primary chosen at the G0.5 bench), the F3-7 RF chain, closed-plant discipline, and SEM V8 integration. Use for PHY work, flowgraphs, SDR bring-up, level budgets, and SEM GigE/QAM tasks.
 ---
 
 # Oob Dev — RF & Bench
@@ -13,9 +13,12 @@ this file is your slice. You own everything between the mux and the coax.
 - `flowgraphs/` — GNU Radio 3.10: `qpsk_oob_tx.grc` (1.024 Msym/s QPSK,
   constant-rate, null-stuffed input), `starvue_rx.grc` (5–42 MHz upstream
   demod, stretch). Flowgraphs are versioned code — reviewed like code.
-- **SDR roles (r4 F4-1):** HackRF One is the primary OOB TX (covers the
-  whole ten-carrier hunt table in spec). ADALM-Pluto is spare — it needs
-  the AD9364-identity range hack at *every* hunt carrier and its level
+- **SDR roles (supported set; F4-1 level log, Marshal 2026-11-23):** the
+  OOB TX is a supported set — HackRF One clone, ADALM-Pluto (range-hacked),
+  LibreSDR (AD9363-family, as in the Hardware list P3-4). The primary is chosen at the G0.5 bench by the
+  F4-1 level log. HackRF One covers the whole ten-carrier hunt table in
+  spec. ADALM-Pluto's stock floor is 325 MHz, so it needs the
+  AD9364-identity range hack at *every* hunt carrier, and its level
   through the chain must be metered, not assumed.
 - **The F3-7 RF chain**: bandpass filter for the chosen carrier, PA as
   metered, variable attenuators, 2-way combiner, directional tap, 75 Ω

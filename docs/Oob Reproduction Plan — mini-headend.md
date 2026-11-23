@@ -800,12 +800,13 @@ grid within N minutes of connect, unassisted — N measured during W8.
    in via GigE and verify RF out on the meter.
 4. W2 skeleton: `oob-mux` emits PAT/PMT/CAT + nulls at 1.024 Msym/s; loopback
    verify with tsp on the receive side.
-5. W1 bench: flowgraph on the **HackRF One (primary OOB TX, F4-1)** at a
-   high hunt-table carrier (104.2/110.25 class) into a terminated tap;
-   d 02 on a sacrificial box. **F4-1 correction:** the stock Pluto floors
-   at 325 MHz — the *entire* hunt table needs the AD9364-identity hack, and
-   its front end is unmatched down there; the Pluto is spare/second-carrier
-   TX. Whichever radio transmits, **meter actual delivered level at
+5. W1 bench: flowgraph on the **OOB TX supported set** (HackRF One clone,
+   ADALM-Pluto range-hacked, LibreSDR; primary chosen at the G0.5 bench by
+   the F4-1 level log, Marshal 2026-11-23) at a high hunt-table carrier
+   (104.2/110.25 class) into a terminated tap; d 02 on a sacrificial box.
+   **F4-1 correction (rationale kept):** the stock Pluto floors at 325 MHz —
+   the *entire* hunt table needs the AD9364-identity hack, and its front end
+   is unmatched down there. Whichever radio transmits, **meter actual delivered level at
    104.2 MHz through the full F3-7 chain** before committing to it; if
    short, add the small PA the BOM anticipates.
 6. W3 first experiment: connect-message hypothesis #1, logged in the harness.
@@ -883,8 +884,10 @@ OOB flowgraph ─►│ HackRF One   │── filter ────┴───�
 
 - **OOB carrier strategy (F4-1 corrected):** one **primary** carrier from
   the high hunt table (104.2/110.25 class), decided at census; the rest are
-  test fixtures (F3-7). **HackRF One is the primary OOB TX** — it covers
-  the whole ten-carrier hunt table (75.25–116.25 MHz) in spec. The stock
+  test fixtures (F3-7). **The OOB TX is a supported set** (HackRF One
+  clone, ADALM-Pluto range-hacked, LibreSDR); the primary is chosen at the
+  G0.5 bench by the F4-1 level log. HackRF One covers the whole ten-carrier
+  hunt table (75.25–116.25 MHz) in spec. The stock
   Pluto (AD9363) floors at 325 MHz: every hunt carrier needs the
   AD9364-identity hack, and its front end is unmatched below ~150 MHz, so
   the level budget through the F3-7 chain is metered, not assumed. Level
@@ -913,9 +916,11 @@ OOB flowgraph ─►│ HackRF One   │── filter ────┴───�
 
 **Buy list (estate gap):**
 
-1. **HackRF One — primary OOB TX** (F4-1 radio-role change, dispositioned
-   2026-11-22): covers the full hunt table in spec; Pluto demoted to
-   spare/second-carrier TX or upstream monitor. A second RX SDR
+1. **OOB TX from the supported set** (HackRF One clone, ADALM-Pluto
+   range-hacked, LibreSDR); the primary is chosen at the G0.5 bench by the
+   F4-1 level log. The F4-1 radio-role assignment is superseded per
+   AGENTS.md §0 (Marshal, 2026-11-23). HackRF One covers the full hunt
+   table in spec. A second RX SDR
    (SDRplay RSP1A class) only if STARVUE upstream work wants a dedicated
    receiver.
 2. F3-7 RF chain: 2-way combiner, bandpass filter for the chosen OOB

@@ -1,6 +1,6 @@
 # Hardware Acquisition List — mini-headend
 
-*2026-11-22, rev 4. Consolidates the Reproduction Plan §8 buy list, the
+*2026-11-23, rev 5. Consolidates the Reproduction Plan §8 buy list, the
 r3/r4 review deltas (F3-2 capture rig, F3-3/F4-3 D0 tooling, F4-1 radio
 roles, F4-4 batteries, F4-7 networking), and the Milestones & Stage Gates
 §6 tool stack into one prioritized list. Priority follows the gate plan:
@@ -28,6 +28,17 @@ reference), commercial QAM alternatives (SEM-spare/hub class), and
 receiver-side verification instruments. All watch-list entries with
 zero planning weight.
 
+**Rev 5 changes (Marshal's direction, 2026-11-23):** the OOB TX is a
+**supported set** — ADALM-Pluto (range-hacked at the hunt carriers),
+HackRF One clone, and LibreSDR (P3-4 is now in the set; its buy status is
+unchanged and no purchase is implied). The **primary is chosen at the
+G0.5 bench** by the F4-1 level log, not pinned here. This note records the
+hardware-option delta; the r4 F4-1 record is unchanged and not
+dispositioned by this revision. P0-1 now presents the supported set; the
+rev 2 Pluto-first ordering is history. The capture-rig kit (P0-3) is now specified
+in the [Capture Rig Specification](Capture%20Rig%20Specification%20—%20mini-headend.md).
+Rev 5 adds no buy and no spend.
+
 **Already in the estate (no purchase):** Motorola SEM V8 P/N
 507199-001-00 (ACP confirmed — QAM + FPK encryption), ADALM-Pluto (OOB
 TX candidate and upstream monitor), the DCT fleet (DCT2000 + DCT2500 +
@@ -38,18 +49,23 @@ NAS) for STARFONE.
 
 ## P0 — Buy now (unblocks G0.5 and G1)
 
-### P0-1. OOB radio — Pluto first ($0), metered fallbacks
+### P0-1. OOB radio — supported set; primary chosen at the G0.5 bench
 
-**Cost-optimized plan (rev 2, fallback set extended rev 3):**
+**The OOB TX is a supported set** (Marshal, 2026-11-23): HackRF One clone,
+ADALM-Pluto (range-hacked), and LibreSDR. The primary is chosen at the G0.5
+bench by the F4-1 level log. The cost and estate facts below are **bench
+inputs, not a fixed priority order**. The rev 2 Pluto-first ordering is
+history.
 
-1. **ADALM-Pluto (in estate, $0).** Apply the AD9364-identity range
+1. **ADALM-Pluto (in estate, $0; AD9363).** Apply the AD9364-identity range
    hack (required at *every* hunt carrier, r4 F4-1), then meter actual
    delivered level at the chosen carrier through the full F3-7 chain
    into a dummy load. If the budget closes to the −10…+5 dBmV window at
    the box input with the mandatory bandpass filter in-line (the filter
    is already in P0-2 and cleans the Pluto's sub-150 MHz spurs), the
-   Pluto is the OOB TX and no radio purchase happens at all.
-2. **Fallback set (buy one, only if the Pluto meters short):**
+   Pluto is a viable primary, and no radio purchase happens at all.
+2. **Other supported options (buy the chosen primary only if it is not
+   already in estate):**
    - **HackRF One *clone* (~$105–150), not a genuine unit (~$340).**
      rtl-sdr.com's clone-vs-original bench comparison found the price
      gap hard to justify; for a constant-envelope 1.024 Msym/s QPSK
@@ -68,10 +84,11 @@ NAS) for STARFONE.
      narrowband carrier lives — so it goes through the same metered
      dummy-load bench rule; full profile in P3-4. Choose this over the
      HackRF clone if the gr-iio flowgraph stack and Ethernet placement
-     are worth more than the HackRF's wider community support.
-3. **Decision point:** G0.5 exit records which radio committed, with
-   the level log as evidence (unchanged from r4 F4-1's metering
-   requirement — only the preference order changes).
+     are worth more than the HackRF's wider community support (a bench
+     input, not a ranking).
+3. **Decision point:** G0.5 exit records the primary and its level log as
+   evidence (the r4 F4-1 metering requirement, unchanged). Purchase follows
+   that decision.
 
 - **Unblocks:** G0.5 exit (OOB TX committed), G1 entry.
 
@@ -93,6 +110,8 @@ The chain between SDR and plant, bought as one kit:
 - **Unblocks:** G0.5 exit (level log through the chain into a dummy load).
 
 ### P0-3. Capture rig (E1, r3 F3-2 — "highest-leverage purchase in the plan")
+
+*Specified in the [Capture Rig Specification](Capture%20Rig%20Specification%20—%20mini-headend.md) (rev 5 of this list).*
 
 | Item | Spec / notes |
 | --- | --- |
@@ -238,8 +257,8 @@ decide from the first STARVUE capture, not before.)
   support varies by software stack (verify gr-iio-over-network on
   arrival).
 - **Status:** eventual option, not an immediate buy. Enters through
-  one of three doors: (a) the P0-1 fallback set if the Pluto meters
-  short and its gr-iio/Ethernet fit is preferred over a HackRF clone;
+  one of three doors: (a) the P0-1 supported set, if its level log and
+  gr-iio/Ethernet fit make it the bench-chosen primary;
   (b) a second-radio need where full-duplex + Ethernet beats a dongle;
   (c) the Interconnect hub radio (Appendix A), where its Ethernet
   native placement is the best fit of any radio on this list.
@@ -300,9 +319,10 @@ not watched.
 ## Appendix A — Interconnect hub kit (post-G6, no schedule weight)
 
 Per the Interconnect spec §3, per hub: SBC (RPi 5 / x86 mini-PC, 8 GB
-class), OOB radio in preference order — **LibreSDR** (P3-4; Ethernet-
-native placement is ideal for an unattended hub) → the master's retired
-Pluto (hand-me-down) → HackRF clone — QAM source in preference order
+class), OOB radio chosen from the P0-1 supported set by the bench level log
+(**LibreSDR** (P3-4) has the Ethernet-native placement that suits an
+unattended hub; the master's retired Pluto or a HackRF clone are the other
+supported options) — QAM source in preference order
 (surplus SEM 507199-002 → DekTec DTE-3114 or carrier-grade EQAM
 [P3-5 C] → HDMI→QAM gadget → GNU Radio QAM on a second SDR), mini F3-7
 chain (combiner, tap, attenuator, dummy loads, RG6), optional RTL-SDR +
@@ -321,8 +341,8 @@ master bench.
    states logged; instrumented DCT2500 designated (or absence recorded,
    r3 F3-8).
 4. RF bench: chosen primary carrier from census d 02 observations;
-   filter ordered for *that* carrier; Pluto level log decides P0-1's
-   fallback branch.
+   filter ordered for *that* carrier; the G0.5 level log decides P0-1's
+   primary.
 
 *Cross-references: Reproduction Plan §8 (stack + original buy list),
 Milestones & Stage Gates §4 (E-tracks) and §6 (tool stack), reviews r3

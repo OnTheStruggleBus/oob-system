@@ -23,7 +23,7 @@ interconnect them, share configs, and transfer subscribers.
 | Original system | Role in the original network | Oob realization |
 | --- | --- | --- |
 | **DAC 6000** (Digital Addressable Controller) | System brain: unit database, entitlements, message scheduler, operator interface | `oob-dac` — Rust daemon, sqlite unit DB, WireLink-verb admin API |
-| **OM 1000/2000** (OOB Modulator) | Out-of-band control channel (QPSK, 1.024 Msym/s, 70–130 MHz) | GNU Radio flowgraph → SDR (HackRF One primary, ADALM-Pluto spare) |
+| **OM 1000/2000** (OOB Modulator) | Out-of-band control channel (QPSK, 1.024 Msym/s, 70–130 MHz) | GNU Radio flowgraph → SDR from the supported set (HackRF One clone, ADALM-Pluto range-hacked, LibreSDR; primary chosen at the G0.5 bench by the F4-1 level log) |
 | **KLS/DLS** (Code Download System) | Firmware/application delivery to boxes as 68k objects over the OOB stream | `oob-cdl` — .obj/.dat loader + carousel builder |
 | **SEM V8** (SmartStream Encryptor Modulator) | Edge QAM + MediaCipher encryption | **Period hardware in the estate** — Motorola SEM V8, P/N 507199-001-00, ACP encryption module confirmed |
 | **STARVUE II** | Upstream return-path receiver (5–42 MHz) | SDR receive flowgraph (stretch S1) |
@@ -248,7 +248,7 @@ register in `docs/Project Milestones & Stage Gates — mini-headend.md` §7.*
 
 **In flight — gate G0.5 (PHY ready)**
 
-- Buy list items 1–2 (HackRF One OOB TX, F3-7 RF chain) → flowgraph
+- Buy list items 1–2 (OOB TX from the supported set, primary chosen at the G0.5 bench; F3-7 RF chain) → flowgraph
   loopback BER test → metered carrier through the chain into a dummy load.
 - O7: SCTE 55-1 acquisition (two-week timebox; box-as-oracle PHY fallback
   defined).

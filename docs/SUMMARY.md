@@ -16,6 +16,7 @@
 - [Management Console Specification — Oob Console](Management%20Console%20Specification%20—%20Oob%20Console.md)
 - [Project Milestones & Stage Gates — mini-headend](Project%20Milestones%20&%20Stage%20Gates%20—%20mini-headend.md)
 - [Hardware Acquisition List — mini-headend](Hardware%20Acquisition%20List%20—%20mini-headend.md)
+- [Capture Rig Specification — mini-headend](Capture%20Rig%20Specification%20—%20mini-headend.md)
 - [Prior Art & External References — mini-headend](Prior%20Art%20&%20External%20References%20—%20mini-headend.md)
 - [ADR-002 — Oob Runtime Architecture](ADR-002%20—%20Oob%20Runtime%20Architecture.md)
 - [ADR-003 — Configuration, Extensibility and Distribution Model](ADR-003%20—%20Configuration,%20Extensibility%20and%20Distribution%20Model.md)

@@ -96,7 +96,7 @@ systems. (This supersedes the ArchaiTel Digital Cable placeholder skin.)
 | Original system | Role in the original network | mini-headend realization |
 | --- | --- | --- |
 | **DAC 6000** (Digital Addressable Controller) | System brain: unit database, entitlements, message scheduler, operator interface | `oob-dac` — Rust daemon, sqlite unit DB, WireLink-verb admin API |
-| **OM 1000/2000** (OOB Modulator) | Generates the out-of-band control channel (QPSK, 1.024 Msym/s, 70–130 MHz) | GNU Radio flowgraph → SDR (HackRF One primary, ADALM-Pluto spare) |
+| **OM 1000/2000** (OOB Modulator) | Generates the out-of-band control channel (QPSK, 1.024 Msym/s, 70–130 MHz) | GNU Radio flowgraph → SDR from the supported set (ADALM-Pluto, HackRF One clone, LibreSDR; primary chosen at the G0.5 bench, Marshal 2026-11-23) |
 | **KLS/DLS** (Code Download System) | Delivers firmware and applications to boxes as 68k objects over the OOB stream | `oob-cdl` crate — .obj/.dat loader + carousel builder |
 | **SEM V8** (SmartStream Encryptor Modulator) | Edge QAM + MediaCipher encryption | **Period hardware in the estate** — Motorola SEM V8, P/N 507199-001-00, ACP confirmed |
 | **STARVUE II** | Upstream return-path receiver (5–42 MHz) | SDR receive flowgraph (stretch) |
@@ -122,7 +122,7 @@ already in the estate.
 │     │      GNU Radio flowgraph     ┌──────────────┐             │
 │     │            │                 │ SEM V8 (ACP) │             │
 │     │            ▼                 │ FPK: DES/CSA │             │
-│     │      HackRF One (OOB TX)     └──────┬───────┘             │
+│     │      OOB SDR (set)           └──────┬───────┘             │
 │     │            │ QPSK ~104 MHz          │ QAM Annex B         │
 │     └────────────┼────────────────────────┼─────────────────────┘
 │                  ▼                        ▼                     │
@@ -208,6 +208,7 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | `Management Console Specification — Oob Console.md` | The operator front-end — every setting, template, and campaign, API-first over the WireLink verbs |
 | `Project Milestones & Stage Gates — mini-headend.md` | The operating contract: milestone/gate map G0–G6 with entry/exit/evidence rules, enabling tracks, the living gate register, and the full development tool stack |
 | `Hardware Acquisition List — mini-headend.md` | The prioritized buy list: what to acquire, in P0→P3 order, and which gate or track each purchase unblocks |
+| `Capture Rig Specification — mini-headend.md` | The E1 capture rig (G1 entry): the box's three signal sources, the direct-to-PC capture paths (RCA composite, RS-232, front-panel camera), the d-screen payload map, the OCR pipeline, and the harness contract for `lab/captures/` — proposed 2026-11-23 |
 | `Prior Art & External References — mini-headend.md` | The 2026-11-22 prior-art scan: closest relatives (a Mode B OOB decoder; the 33c3 DigiCipher II talk), vendor-side corroboration, box-side hobby docs, adjacent scenes, and the gap this project fills |
 | `ADR-002 — Oob Runtime Architecture.md` | Runtime shape: one control-plane daemon, the pull-driven mux ↔ PHY seam with the flowgraph as clock master, traffic classes for the insertion budget, deployment split — **accepted (Marshal, 2026-11-22)**; gates Slice C/D design |
 | `ADR-003 — Configuration, Extensibility and Distribution Model.md` | How Oob is configured and distributed: an operator system users run and configure themselves at runtime (no git, no PRs), three layers of change, `user-defined` trust label, community packs, firmware import tooling, server-side guardrails — **accepted (Marshal, 2026-11-22)**; the amended r6 F6-4 |
@@ -258,8 +259,8 @@ get folded in at the next revision.
   protection (AGENTS.md §6 checklist); the `gh` `project` scope so oob-pm
   can build the Projects board + labels (`.github/agents/README.md` spec,
   AGENTS.md §14); git-crypt init before G1 (F5-11) —
-  needs Marshal's key escrow; the buy list (HackRF One clone primary OOB
-  TX, RF chain, capture rig, flash tooling, sundries — see the Hardware
+  needs Marshal's key escrow; the buy list (OOB TX from the supported set,
+  primary chosen at the G0.5 bench; RF chain, capture rig, flash tooling, sundries — see the Hardware
   Acquisition List).
 - Pre-G0.5-exit tasks: mdBook scaffold + CI link-check + utoipa drift
   stub (F5-10), with the prose-vs-`facts.yaml` check (F6-13) — built

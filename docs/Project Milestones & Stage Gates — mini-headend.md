@@ -86,7 +86,12 @@ gate rules (§5).
   - GNU Radio flowgraph passes a loopback BER test at 1.024 Msym/s.
   - Chosen hunt-table carrier (104.2/110.25 class) measured through the
     F3-7 chain into a dummy load; level log committed (r4 F4-1 metering).
-  - OOB TX committed: HackRF One primary, Pluto spare (r4 F4-1).
+  - OOB TX committed as a **supported set** — ADALM-Pluto (range-hacked at
+    the hunt carriers), HackRF One clone, LibreSDR — with the **primary
+    chosen at this bench by the F4-1 level log** (r4 F4-1 metering). This
+    implements Marshal's 2026-11-23 hardware-option delta, which replaces
+    the earlier HackRF-primary pin; the r4 F4-1 record is unchanged and
+    this PR does not disposition it. ADR-002 records the same delta.
   - **Mux ↔ PHY pull seam proven (r6 F6-2, ADR-002):** a 24 h loopback
     run with the flowgraph pulling from the pacer (stub allowed), **zero
     pull underruns**, and the **null ratio logged**.
@@ -120,9 +125,14 @@ gate rules (§5).
     install manual — not DCT2500-gated; the census designates the
     instrumented box or records its absence, and the RS-232 console tier
     applies only if an instrumentable unit exists); Insert System Time
-    emitted on schedule; Console C0 live as the experiment workbench.
+    emitted on schedule; Console C0 live in its **stub-to-live** scope: a
+    minimal live workbench against the oob-dac REST adapter (issue #27).
+    The full experiment workbench (Console spec §4.3) is deferred until the
+    E1 capture rig exists and is not a G1 exit criterion (Marshal's
+    direction, 2026-11-23).
 - **Evidence:** capture-rig scrapes (front-panel OCR + d-screens) per
-  experiment; the harness commit log; C0 screenshots.
+  experiment; the harness commit log; C0 screenshots of the live workbench
+  against #27.
 - **Review:** full adversarial review (r-series format) before PASS.
 
 ### G2 — Clear tier (M2)
@@ -222,7 +232,7 @@ gate rules (§5).
 
 | Track | Feeds | Done when |
 | --- | --- | --- |
-| **E1 — Capture rig** (r3 F3-2) | G1 entry | Camera OCR of the front panel, capture-card d-screen grabs, and DCT2500 RS-232 scrape all producing files into `lab/captures/`; OCR accuracy spot-checked against manual d-screen readings |
+| **E1 — Capture rig** (r3 F3-2) | G1 entry | Camera OCR of the front panel, capture-card d-screen grabs, and DCT2500 RS-232 scrape all producing files into `lab/captures/`; OCR accuracy spot-checked against manual d-screen readings. Specified in the [Capture Rig Specification](Capture%20Rig%20Specification%20—%20mini-headend.md) (zero human interaction per experiment) |
 | **E2 — D0 flash RE** (r3 F3-3, r4 F4-3) | G4 entry; W8/O13 support | Clean dump via *both* validated routes (TL866 + 68k BDM), verified restore, message-ID enum registry extracted; dumps in git-crypt |
 | **E3 — F0 census** (O2/O12) | G2 exit; G6 fidelity call | Every fleet box's d-screen set recorded; platform table built; guide residency known per platform; CPSC 02-227 cord check logged |
 | **E4 — SEM bench** (r4 F4-2) | G2 entry; G3 entry (license) | ACP presence + **license state** verified (FPK selectable, not greyed); SEM-EM jar + MIBs archived to git; tsp loop via GigE → RF out confirmed on the meter; W4 fallback re-documented |
@@ -231,8 +241,11 @@ gate rules (§5).
 
 - **Console C0–C5** (Console spec §5): each phase closes with its section
   live and its operator journeys demonstrable; C0 is a **G1 exit
-  requirement**, not a side project — the Console is born as the
-  experiment workbench because G1's evidence pack demands it.
+  requirement** in its stub-to-live scope (live against the oob-dac REST
+  adapter, #27), not a side project. The full experiment workbench follows
+  the E1 capture rig and is outside the G1 exit (Marshal, 2026-11-23). The
+  Console is still born with a live workbench because G1's evidence pack
+  demands one.
 - **Interconnect R0–R5** (Interconnect spec §8): R1 (loopback hub with
   netem) is its own mini-gate with the same evidence rules; R3 requires
   G3's V1 bench check first; R-gates open only after G6.
@@ -269,7 +282,7 @@ Pinned where it matters, FOSS where possible, everything scriptable.
 | Tool | Role | Notes |
 | --- | --- | --- |
 | GNU Radio 3.10 + gr-osmosdr + gr-iio | OOB PHY | Flowgraphs versioned in-repo |
-| hackrf host tools | Primary OOB TX / upstream RX | r4 F4-1: HackRF One is primary; Pluto (gr-iio) is spare |
+| hackrf and libiio host tools | OOB TX supported set / upstream RX | Supported set: ADALM-Pluto (gr-iio, range hack), HackRF One clone, LibreSDR (gr-iio over Ethernet). Primary chosen at the G0.5 bench by the F4-1 level log (Marshal, 2026-11-23) |
 | inspectrum | Capture analysis | Symbol/constellation inspection of recorded baseband |
 | tsduck (`tsp`, `tsdump`, tables plugins) | Mux scaffolding + PSI/SI inspection | Also early playout; dvbsnoop as cross-check |
 | ffmpeg/ffprobe | Playout + encode lint | MPEG-2 MP@ML only (F3-6) — lint runs in CI and in the Console |

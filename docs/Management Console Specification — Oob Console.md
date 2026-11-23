@@ -185,7 +185,7 @@ architecture — period-faithful *and* proven. Top-level sections:
   by default, shown here and on every campaign screen; turning it off
   needs only the confirmation token (Marshal, QA-7, ADR-003 §5).
 
-### 4.3 Discovery Lab (the W3 workbench — born first, §5)
+### 4.3 Discovery Lab (the W3 workbench; minimal live for G1, full scope after E1)
 
 - **Experiment runner:** pick template → fill fields (typed editors per
   field: hex, enum, address, checksum-auto) → inject now / schedule →
@@ -364,11 +364,11 @@ the substitute grid. This section is its control room.*
 - **API explorer:** the WireLink verb reference (OpenAPI), try-it
   console — the same API the SPA uses, documented for scripting.
 
-## 5. Phasing (the Console is born as the discovery workbench)
+## 5. Phasing (C0 is a stub to live for G1; the full workbench follows E1)
 
 | Phase | With milestone | Sections delivered |
 | --- | --- | --- |
-| **C0** | M0.5–M1 | Discovery Lab + Protocol + Fleet (read + unit ops) + Logs — the console exists *because* M1 needs an experiment workbench; this is also the forcing function that makes the capture rig (F3-2) a first-class adapter |
+| **C0** | M0.5–M1 (G1) | **Stub to live:** a minimal live workbench against the oob-dac REST adapter (#27), with Protocol + Fleet (read + unit ops) + Logs. The full Discovery Lab / experiment workbench (§4.3) follows the E1 capture rig and is not a G1 exit criterion |
 | **C1** | M2 | Lineup & Plant, Playout, PHY/OOB, Dashboard v1 |
 | **C2** | M3 | Encryption panel (SEM monitoring, tier matrix) |
 | **C3** | M4 | Code Download |
@@ -378,6 +378,23 @@ the substitute grid. This section is its control room.*
 C0 is deliberately thin everywhere except the Lab: the worst outcome
 would be building a beautiful fleet manager before the first box
 connects. The Console earns sections as the headend earns milestones.
+
+**C0 scope: stub to live (Marshal's direction, 2026-11-23).** C0 ships in
+two steps.
+
+1. **For G1 (stub-to-live):** C0 is a minimal **live** workbench against the
+   oob-dac REST adapter (issue #27). It calls the real adapter and shows
+   real results; it is not mock data. This is the scope the G1 exit
+   requires (Milestones, G1 full tier).
+2. **Post-E1 (full workbench):** the experiment-workbench functionality in
+   §4.3 (typed runner with live camera-OCR and d-screen feedback, the
+   hypothesis backlog board, A/B injection) is deferred until the E1 capture
+   rig exists. Its scope follows the [Capture Rig Specification](Capture%20Rig%20Specification%20—%20mini-headend.md).
+   Because E1 is a G1 entry criterion, this full scope lands after G1 entry
+   and is not a G1 exit criterion.
+
+Every C0 operation still goes through the WireLink-verb admin API (§2). The
+stub does not add logic that the API does not expose.
 
 ## 6. Non-goals
 
