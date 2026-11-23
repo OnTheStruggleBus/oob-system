@@ -186,7 +186,7 @@ via Marshal.
   profiles), the community pack import/export format (templates,
   lineups, guide themes, brand skins; box-type profiles only as
   upstream-sourced data, never new types), and firmware
-  import tooling for the user's own boxes (under §7's safety rules). It
+  import tooling for the user's own boxes (under ADR-003 §4's write-back preconditions). It
   never ships firmware, flash dumps, key material (including the FPK),
   serials or Unit Addresses, or broadcaster content; community packs
   never contain them.

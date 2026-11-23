@@ -126,7 +126,9 @@ Layer 2 rule: user-defined message templates load at runtime, labelled
 - **firmware import tooling** to dump, verify and import firmware from the
   user's *own* boxes into a local encrypted store, under the existing
   safety rules: sacrificial box first, and a two-route verified restore
-  (D0, r3 F3-3 / r4 F4-3) before any write-back.
+  (D0, r3 F3-3 / r4 F4-3) before any write-back. This write-back
+  precondition is unchanged by the QA-7 ruling, which covers only the
+  CDL campaign lock.
 
 **Oob never ships:** firmware images, flash dumps, key material
 (including the FPK constant), serials or Unit Addresses, or broadcaster
