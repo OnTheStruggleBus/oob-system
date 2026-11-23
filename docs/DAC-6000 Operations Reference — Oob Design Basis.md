@@ -88,10 +88,12 @@ Name, Upstream Plant Name (if two-way), on-plant flag.
 page not yet cited): the field gives the model number and one of five
 communication types: **One-Way, Fone-Way, Two-Way, Ethernet or DOCSIS**.
 A **Fone-Way** terminal reaches the headend through the **Modem Bank**
-named on its record. A **One-Way** terminal has no return path, so polls
-and purchase collection do not apply to it. The Purchase History report
-lists archived purchases for Fone-Way and Two-Way terminals only (terminal
-ID, service index, purchase time, poll date).
+named on its record. The Purchase History report lists archived collected
+purchase information for Fone-Way and Two-Way terminals (terminal ID,
+service index, purchase time, poll date). *Inference:* a **One-Way**
+terminal has no return path, so purchase collection does not apply to it
+(it is outside the Purchase History scope), and neither do polls (Plan
+§3.2: Last Response Date is "poll-based; inactive for one-way units").
 
 **Terminal operations (all documented DAC commands):**
 
@@ -196,6 +198,7 @@ format + segment framing to confirm against a live box."
 | DLS download stream (§12) | `cdl` carousel builder (.obj/.dat loader) |
 | EMM stream incl. download control (§12) | `emm` (Fixed-mode now; Full later) |
 | Polling / terminal monitor (§1) | `poller` |
+| Operation status (§11, p. 11-4; this doc §10) | `command::lifecycle` (#22): status names are code (Layer 3), transition table `hypothesized` |
 | Time zone auto (§14) | `clock` |
 | Local EPG server option (§7) | `guide` |
 | bsilog (§4) | `audit` log |
@@ -217,21 +220,23 @@ marked.
 | **Request Sent Failed** | The operation manager could not send the event to its destination task. |
 | **Timeout** | Initiated, but "did not get an acknowledgement". The manual doesn't name the acknowledger; the RADD is the likely reading (inference). |
 | **Downloaded** | Initiated and "accepted by the RADD 6000". |
-| **Retrieving Status** | The DAC is fetching the event's status from the RADD 6000, via the Retrieve Operation Status control. |
+| **Retrieving Status** | The DAC is fetching the event's status from the RADD 6000. (The Retrieve Operation Status control that triggers it is named elsewhere in the manual; seen only in search-index excerpts, page not yet cited.) |
 | **Unknown** | The RADD 6000 has no record of the event. |
 | **Device Offline** | The RADD 6000 is offline or has lost communication. |
 | **Active** | The event is executing. |
 | **Completed** | The event completed successfully. |
 | **Marked Completed** | The event was active but passed its end time, so the system closed it out as completed. |
 | **Failed** | "The operation failed." |
-| **Delayed** | A Category Epoch operation is active, so this event waits. |
+| **Delayed** | A Category Epoch operation is currently active. (Inference: the event is held until that operation ends.) |
 
 **Takeaway for oob-dac (#22):** the lifecycle follows the DAC → RADD
 handoff (hypothesis H1 on #22), not terminal replies. Terminal results
 (Last Response Date, Failures, Chronic Non-Responding) live on the
 terminal record. Neither the manual nor this table gives transition order
-or a final status for One-Way operations. Oob's transition table and its
-choice of Completed for One-Way operations are a reconstruction, status
-`hypothesized`. The reconstruction follows from the table above: the
-status depends only on the RADD finishing the event. Research note:
-issue #22 (oob-expert).
+or a final status for One-Way operations. Oob's transition table
+([#22](https://github.com/OnTheStruggleBus/oob-system/issues/22#issuecomment-7106763407))
+is a `hypothesized` reconstruction. It ends a One-Way operation at
+**Completed**, or **Marked Completed** if its end time passes while Active.
+The reasoning: per the table above, the status depends on the event on the
+DAC/RADD, not on a terminal reply. Oob's daemon plays the DAC and RADD
+together (§1 takeaway). Research notes: issue #22 (oob-expert).
