@@ -262,10 +262,13 @@ get folded in at the next revision.
   Acquisition List).
 - Pre-G0.5-exit tasks: mdBook scaffold + CI link-check + utoipa drift
   stub (F5-10), with the prose-vs-`facts.yaml` check (F6-13) — built
-  (CI jobs `mdbook (link check)`, `docs facts`, `openapi drift (stub)`);
-  the 24 h mux ↔ PHY pull loopback (F6-2) remains.
+  (CI jobs `mdbook (link check)`, `docs facts`, `openapi drift`, the last
+  a stub until Slice D); the 24 h mux ↔ PHY pull loopback (F6-2) remains.
 - Awaiting (owner action from r6): repository setting "require approval
   for workflows from outside collaborators" (F6-8).
+- Awaiting (owner action from F5-10): add `mdbook (link check)`,
+  `docs facts` and `openapi drift` to the `main` ruleset's required
+  checks once they have reported green (AGENTS.md §6 rule 6).
 - Next physical actions: box census, SEM bench bring-up, PHY bench at a
   high hunt carrier, first connect-message experiment.
 

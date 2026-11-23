@@ -2,9 +2,16 @@
 #
 # One home for numbers and states that the prose repeats across docs.
 # Checked against the prose on every commit by ops/docs-facts.py (CI job
-# `docs facts`, r5 F5-10); the rules it applies are configured in
-# `facts_check` at the end of this file. Change a fact here and in the
-# prose in the same commit (AGENTS.md §3).
+# `docs facts`, r5 F5-10); where it looks and which contexts it allows are
+# configured in ops/docs-facts.toml. Change a fact here and in the prose in
+# the same commit (AGENTS.md §3).
+#
+# YAML subset (ARCH-6): the check reads this file with a small stdlib loader
+# that supports block maps and lists, flow [a, b] and {k: v} on one line,
+# quoted and plain one-line scalars, and # comments. Block scalars (| >),
+# anchors/aliases, tags, multi-line plain scalars and multiple documents
+# fail the check loudly. Dates stay strings. To be replaced by the
+# uv/pydantic reader once schema CI exists (follow-up).
 
 oob_stream:
   modulation: QPSK
@@ -39,7 +46,8 @@ naming:
   software: Oob
   guide_stack: VueGuide+
   operator_ui: Oob Console
-  brand_skin: per-deployment config slot   # no preset operator identity ships; ArchaiTel superseded
+  brand_skin: per-deployment config slot   # no preset operator identity ships
+  superseded_brand: ArchaiTel              # former placeholder skin; never the current brand
 
 decisions:
   ADR-001: proposed (rev 8)
@@ -57,28 +65,3 @@ review_dispositions:               # all by Marshal
     amended:
       F6-4: "ADR-003"
 
-# Rules for ops/docs-facts.py. Prose is read per paragraph, list item or
-# table row ("unit"); see the script's docstring for each rule.
-facts_check:
-  scan:
-    - "docs/**/*.md"
-    - "AGENTS.md"
-    - "README.md"
-    - ".github/agents/*.md"
-  # Review records quote the superseded prose they found; they are history,
-  # not current claims, so they are not scanned.
-  historical:
-    - "docs/ADR-001-adversarial-review*.md"
-    - "docs/Reproduction Plan — Adversarial Review r*.md"
-  oob_rate:                        # not_our_rate is fine where the unit is about 55-2
-    context_ok: ["55-2", "Mode B", "Grade B", "Host-POD"]
-  brand_skin:
-    term: ArchaiTel
-    context_ok: ["supersed", "appears nowhere"]
-  # A true false positive is allowlisted here: rule + file + a substring of
-  # the unit + why. An entry that matches nothing fails the check.
-  allow:
-    - rule: oob-rate
-      file: "docs/Sci-Atlanta Ecosystem Specification — Explorer, DNCS, SCTE 55-2.md"
-      contains: "772 ksym/s"
-      why: "the 55-2 PHY table row (Mode B symbol rate); the whole doc is the 55-2 spec"

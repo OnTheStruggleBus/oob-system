@@ -21,7 +21,9 @@ Rules, in full:
 4. Every `.md` file under docs/ must end up in the book: an unmapped
    document is an error, so the map cannot silently fall behind the corpus.
 5. Chapter titles are file stems; links encode spaces as %20 (the only
-   escape mdBook 0.4 decodes in SUMMARY.md).
+   escape mdBook 0.4 decodes in SUMMARY.md). A file name containing
+   `#`, `[`, `]`, `<`, `>`, a backtick, or unbalanced parentheses cannot be
+   linked that way and is an error naming the file.
 
 Usage:
     python3 ops/docs-summary.py           # rewrite docs/SUMMARY.md
@@ -120,7 +122,21 @@ def mapped_documents(overview_text: str) -> list[str]:
 def link(rel: str) -> str:
     # mdBook 0.4 resolves SUMMARY links by decoding only %20 (it does not
     # percent-decode UTF-8 sequences), so encode exactly the spaces and
-    # keep em-dashes, '&', ',' and balanced '()' literal.
+    # keep em-dashes, '&', ',' and balanced '()' literal. Characters that
+    # cannot survive that (QA-4) are rejected with the file named.
+    bad = sorted(set(rel) & set("#[]<>`"))
+    depth = 0
+    for c in rel:
+        depth += {"(": 1, ")": -1}.get(c, 0)
+        if depth < 0:
+            break
+    if bad or depth != 0:
+        why = f"characters {' '.join(bad)}" if bad else "unbalanced parentheses"
+        raise MapError(
+            f"docs/{rel}: file name has {why}, which break SUMMARY.md links "
+            "in mdBook 0.4; rename the file (runbook entries: "
+            "YYYY-MM-DD-<slug>.md)"
+        )
     return rel.replace(" ", "%20")
 
 

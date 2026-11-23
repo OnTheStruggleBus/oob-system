@@ -1,33 +1,42 @@
 #!/usr/bin/env python3
 """Check the prose against docs/facts.yaml (r6 F6-13, wired by r5 F5-10).
 
-The prose is read one *unit* at a time: a paragraph, a list item, or a
-table row. A unit fails a rule when it contradicts a fact; every rule has a
-context escape and every finding can be allowlisted in facts.yaml
-(`facts_check.allow`: rule + file + a substring of the unit + why).
+Facts live in docs/facts.yaml; where to look, which contexts are
+legitimate, and the allowlist live in ops/docs-facts.toml (ARCH-5).
+
+The prose is read one *unit* at a time: a Markdown paragraph, list item or
+table row, or a run of Rust `//!` / `///` doc-comment lines (ARCH-2). A unit
+fails a rule when it contradicts a fact; every rule has a context escape and
+every finding can be allowlisted (`[[allow]]`: rule + file + a substring of
+the unit + why, all required).
 
 Rules, in full:
 
   oob-rate        A unit mentions the not-our-rate figure
                   (`not_our_rate.scte_55_2_mode_b_mb_s`, 1.544) without a
-                  55-2 context marker (`facts_check.oob_rate.context_ok`,
-                  e.g. "55-2", "Mode B", "Host-POD"). Oob's OOB stream is
+                  55-2 context marker (`[oob_rate] context_ok`, e.g. "55-2",
+                  "Mode B", "Host-POD"). Oob's OOB stream is
                   `oob_stream.stream_rate_mb_s`.
   bare-tag        A unit about releases/tags quotes a hunt carrier as a
                   bare tag (`75.25` in backticks) instead of `rel/75.25`.
   tag-order       A unit listing two or more `rel/<carrier>` tags lists
                   them out of box scroll order (`release_tags`).
-  brand-skin      A unit names the superseded brand (`facts_check.
-                  brand_skin.term`) without a supersession marker
-                  (`facts_check.brand_skin.context_ok`).
+  brand-skin      A unit names `naming.superseded_brand` without a
+                  supersession marker (`[brand_skin] context_ok`).
+  disposition     A unit says a finding is pending/awaiting disposition
+                  (`[disposition] phrases`) and names an F-ID or round
+                  (F4-1, r4) that `review_dispositions` records as accepted,
+                  without saying so (`[disposition] context_ok`).
 
-Files matching `facts_check.historical` (the review records, which quote
-the superseded prose they found) are not scanned.
+Files matching `historical` (the review records, which quote the
+superseded prose they found) are not scanned. A `scan` or `historical`
+pattern that matches no file is an error (a typo must not silently stop
+the scan), and so is a malformed or stale allowlist entry.
 
 facts.yaml is read with a small YAML-subset loader (block maps and lists,
 flow [..]/{..}, quoted and plain scalars, comments) because the check is
-stdlib-only (AGENTS.md §10). Anything outside that subset is a loud error,
-never a silent misread.
+stdlib-only (AGENTS.md §10); the subset is documented in the facts.yaml
+header. Anything outside it is a loud error, never a silent misread.
 
 Usage: python3 ops/docs-facts.py
 """
@@ -38,10 +47,13 @@ import fnmatch
 import json
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FACTS = ROOT / "docs" / "facts.yaml"
+CONFIG = ROOT / "ops" / "docs-facts.toml"
+RULES = ("oob-rate", "bare-tag", "tag-order", "brand-skin", "disposition")
 
 
 # --------------------------------------------------------------------------
@@ -199,7 +211,7 @@ def load_yaml(text: str):
 _ITEM = re.compile(r"^\s*([-*+]|\d+[.)])\s")
 
 
-def units(text: str):
+def units(text: str, offset: int = 0):
     """Yield (first_line_number, unit_text): paragraphs, list items, table rows.
 
     Fenced code blocks are skipped: they are code, not claims.
@@ -211,7 +223,7 @@ def units(text: str):
     def flush():
         nonlocal buf
         if buf:
-            yield start, " ".join(s.strip() for s in buf)
+            yield start + offset, " ".join(s.strip() for s in buf)
         buf = []
 
     for n, line in enumerate(text.splitlines(), 1):
@@ -224,12 +236,12 @@ def units(text: str):
         if not line.strip() or line.lstrip().startswith("#"):
             yield from flush()
             if line.strip():
-                yield n, line.strip()
+                yield n + offset, line.strip()
             continue
         if line.lstrip().startswith("|") or _ITEM.match(line):
             yield from flush()
             if line.lstrip().startswith("|"):
-                yield n, line.strip()
+                yield n + offset, line.strip()
                 continue
         if not buf:
             start = n
@@ -237,12 +249,80 @@ def units(text: str):
     yield from flush()
 
 
+_RS_DOC = re.compile(r"^\s*//[/!](?!/)\s?(.*)$")
+
+
+def rust_units(text: str):
+    """Yield (line, unit) for each run of consecutive `//!` / `///` lines."""
+    buf: list[str] = []
+    start = 0
+    for n, line in enumerate(text.splitlines(), 1):
+        m = _RS_DOC.match(line)
+        if m:
+            if not buf:
+                start = n
+            buf.append(m.group(1))
+            continue
+        if buf:
+            yield from units("\n".join(buf), offset=start - 1)
+            buf = []
+    if buf:
+        yield from units("\n".join(buf), offset=start - 1)
+
+
+# --------------------------------------------------------------------------
+# Config validation
+# --------------------------------------------------------------------------
+
+class ConfigError(Exception):
+    pass
+
+
+def _expand(patterns: list[str], what: str) -> list[Path]:
+    out: list[Path] = []
+    for pat in patterns:
+        hits = [p for p in ROOT.glob(pat) if p.is_file()]
+        if not hits:
+            raise ConfigError(f"docs-facts.toml: {what} pattern {pat!r} matches no files")
+        out.extend(hits)
+    return out
+
+
+def _validate_allow(allow: list) -> None:
+    for i, a in enumerate(allow, 1):
+        if not isinstance(a, dict):
+            raise ConfigError(f"docs-facts.toml: [[allow]] #{i} is not a table")
+        for key in ("rule", "file", "contains", "why"):
+            v = a.get(key)
+            if not isinstance(v, str) or not v.strip():
+                raise ConfigError(f"docs-facts.toml: [[allow]] #{i} needs a non-empty `{key}`")
+        if a["rule"] not in RULES:
+            raise ConfigError(f"docs-facts.toml: [[allow]] #{i} has unknown rule "
+                              f"{a['rule']!r} (one of {', '.join(RULES)})")
+        if not (ROOT / a["file"]).is_file():
+            raise ConfigError(f"docs-facts.toml: [[allow]] #{i} names missing file {a['file']!r}")
+        extra = set(a) - {"rule", "file", "contains", "why"}
+        if extra:
+            raise ConfigError(f"docs-facts.toml: [[allow]] #{i} has unknown keys {sorted(extra)}")
+
+
+def _accepted_rounds(facts: dict) -> dict[str, str]:
+    """Map accepted round ('r4') -> its F-ID prefix ('F4-')."""
+    out = {}
+    for rnd, d in (facts.get("review_dispositions") or {}).items():
+        if isinstance(d, dict) and d.get("state") == "accepted":
+            m = re.match(r"(F\d+-)", str(d.get("findings", "")))
+            if not m:
+                raise ConfigError(f"facts.yaml: review_dispositions.{rnd}.findings unreadable")
+            out[str(rnd)] = m.group(1)
+    return out
+
+
 # --------------------------------------------------------------------------
 # Rules
 # --------------------------------------------------------------------------
 
-def check(facts: dict) -> list[str]:
-    cfg = facts["facts_check"]
+def check(facts: dict, cfg: dict) -> list[str]:
     bad_rate = facts["not_our_rate"]["scte_55_2_mode_b_mb_s"]
     our_rate = facts["oob_stream"]["stream_rate_mb_s"]
     problems: list[str] = []
@@ -253,20 +333,29 @@ def check(facts: dict) -> list[str]:
     bare_re = re.compile(r"`(" + "|".join(re.escape(c) for c in carriers) + r")`")
     rel_re = re.compile(r"rel/(" + "|".join(re.escape(c) for c in carriers) + r")(?![\d])")
     tagish = re.compile(r"\b(releases?|tag(s|ged|ging)?)\b", re.I)
-    brand = cfg["brand_skin"]["term"]
+    brand = str(facts["naming"]["superseded_brand"])
     rate_ok = [s.lower() for s in cfg["oob_rate"]["context_ok"]]
     brand_ok = [s.lower() for s in cfg["brand_skin"]["context_ok"]]
+    disp_phrases = [s.lower() for s in cfg["disposition"]["phrases"]]
+    disp_ok = [s.lower() for s in cfg["disposition"]["context_ok"]]
+    accepted = _accepted_rounds(facts)
+    ref_re = re.compile(
+        r"\b(?:(" + "|".join(re.escape(p) for p in accepted.values()) + r")\d+"
+        r"|(" + "|".join(re.escape(r) for r in accepted) + r"))\b"
+    ) if accepted else None
     allow = cfg.get("allow") or []
+    _validate_allow(allow)
     used_allow: set[int] = set()
 
-    files: list[Path] = []
-    for pat in cfg["scan"]:
-        files.extend(p for p in ROOT.glob(pat) if p.is_file())
+    files = _expand(cfg["scan"], "scan")
+    historical = cfg.get("historical") or []
+    _expand(historical, "historical")
     for path in sorted(set(files)):
         rel = path.relative_to(ROOT).as_posix()
-        if any(fnmatch.fnmatch(rel, h) for h in cfg.get("historical") or []):
+        if any(fnmatch.fnmatch(rel, h) for h in historical):
             continue
-        for line, unit in units(path.read_text(encoding="utf-8")):
+        text = path.read_text(encoding="utf-8")
+        for line, unit in (rust_units(text) if path.suffix == ".rs" else units(text)):
             low = unit.lower()
             hits: list[tuple[str, str]] = []
             if rate_re.search(unit) and not any(k in low for k in rate_ok):
@@ -282,27 +371,35 @@ def check(facts: dict) -> list[str]:
             if brand.lower() in low and not any(k in low for k in brand_ok):
                 hits.append(("brand-skin", f"names {brand} as if it were the brand skin "
                              "(superseded by the per-deployment config slot)"))
+            if (ref_re and any(p in low for p in disp_phrases)
+                    and not any(k in low for k in disp_ok)):
+                ref = ref_re.search(unit)
+                if ref:
+                    hits.append(("disposition", f"calls {ref.group(0)} undispositioned, but "
+                                 "facts.yaml review_dispositions records its round as accepted"))
             for rule, msg in hits:
                 allowed = False
                 for i, a in enumerate(allow):
-                    if a.get("rule") == rule and a.get("file") == rel and a.get("contains", "") in unit:
+                    if a["rule"] == rule and a["file"] == rel and a["contains"] in unit:
                         used_allow.add(i)
                         allowed = True
                 if not allowed:
                     problems.append(f"{rel}:{line}: [{rule}] {msg}\n    > {unit[:160]}")
     for i, a in enumerate(allow):
         if i not in used_allow:
-            problems.append(f"facts.yaml: stale allowlist entry #{i + 1} "
-                            f"({a.get('rule')} in {a.get('file')}): matches nothing; remove it")
+            problems.append(f"docs-facts.toml: stale [[allow]] entry #{i + 1} "
+                            f"({a['rule']} in {a['file']}): matches nothing; remove it")
     return problems
 
 
 def main() -> int:
     try:
         facts = load_yaml(FACTS.read_text(encoding="utf-8"))
-        problems = check(facts)
-    except (YamlError, KeyError, TypeError, ValueError) as e:
-        print(f"docs-facts: cannot read docs/facts.yaml: {type(e).__name__}: {e}",
+        cfg = tomllib.loads(CONFIG.read_text(encoding="utf-8"))
+        problems = check(facts, cfg)
+    except (YamlError, ConfigError, tomllib.TOMLDecodeError,
+            KeyError, TypeError, ValueError) as e:
+        print(f"docs-facts: bad facts.yaml or docs-facts.toml: {type(e).__name__}: {e}",
               file=sys.stderr)
         return 1
     for p in problems:
@@ -310,10 +407,10 @@ def main() -> int:
     if problems:
         print(f"docs-facts: {len(problems)} contradiction(s) with docs/facts.yaml. "
               "Fix the prose (or the fact, in the same commit), or allowlist a "
-              "true false positive under facts_check.allow with a `why`.",
+              "true false positive in ops/docs-facts.toml [[allow]] with a `why`.",
               file=sys.stderr)
         return 1
-    print("docs-facts: prose agrees with docs/facts.yaml")
+    print(f"docs-facts: prose agrees with docs/facts.yaml ({len(cfg['scan'])} scan patterns)")
     return 0
 
 

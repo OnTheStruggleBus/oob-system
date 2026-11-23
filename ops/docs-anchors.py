@@ -13,6 +13,14 @@ deliberately skipped: no network in a required check. `print.html`
 (mdBook's all-in-one page, which rewrites anchors) and `404.html` are
 skipped as sources; they are generated from the same chapters.
 
+Second pass (QA-3): Markdown that lives outside the book -- the root
+README.md and AGENTS.md, and the role files in .github/agents/ and
+.claude/agents/ -- is checked at the source. Every relative link must name
+an existing file (percent-decoded, resolved against the linking file), and
+a `#fragment` into a Markdown file must match one of that file's headings
+under GitHub's slug rule (lowercase; drop everything but letters, digits,
+`_`, `-` and spaces; spaces become `-`; repeats get `-1`, `-2`, ...).
+
 Python 3.12, stdlib only (AGENTS.md §10).
 
 Usage: python3 ops/docs-anchors.py [target/book/html]
@@ -20,12 +28,74 @@ Usage: python3 ops/docs-anchors.py [target/book/html]
 
 from __future__ import annotations
 
+import re
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 SKIP_SOURCES = {"print.html", "404.html", "toc.html"}
+ROOT = Path(__file__).resolve().parent.parent
+# Markdown outside the book, checked at the source. Each pattern must match.
+SOURCE_GLOBS = ["README.md", "AGENTS.md", ".github/agents/*.md", ".claude/agents/*.md"]
+_LINK = re.compile(r"\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+\"[^\"]*\")?\)")
+_CODE_SPAN = re.compile(r"`[^`]*`")
+
+
+def github_slugs(md: str) -> set[str]:
+    slugs: set[str] = set()
+    seen: dict[str, int] = {}
+    fenced = False
+    for line in md.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        m = None if fenced else re.match(r"^#{1,6}\s+(.*?)\s*#*\s*$", line)
+        if not m:
+            continue
+        text = re.sub(r"[`*_]|\[([^\]]*)\]\([^)]*\)", lambda x: x.group(1) or "", m.group(1))
+        slug = re.sub(r"[^\w\- ]", "", text.lower()).replace(" ", "-")
+        n = seen.get(slug, 0)
+        seen[slug] = n + 1
+        slugs.add(slug if n == 0 else f"{slug}-{n}")
+    return slugs
+
+
+def check_sources() -> tuple[int, list[str]]:
+    errors: list[str] = []
+    checked = 0
+    files: list[Path] = []
+    for pat in SOURCE_GLOBS:
+        hits = sorted(p for p in ROOT.glob(pat) if p.is_file())
+        if not hits:
+            errors.append(f"source pattern {pat!r} matches no files")
+        files.extend(hits)
+    for src in files:
+        text = src.read_text(encoding="utf-8")
+        fenced = False
+        for n, line in enumerate(text.splitlines(), 1):
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            if fenced:
+                continue
+            for m in _LINK.finditer(_CODE_SPAN.sub("", line)):
+                href = m.group(1).strip("<>")
+                parts = urlsplit(href)
+                if parts.scheme or href.startswith("//"):
+                    continue
+                checked += 1
+                where = f"{src.relative_to(ROOT)}:{n}"
+                target = src if not parts.path else (src.parent / unquote(parts.path)).resolve()
+                if not target.exists():
+                    errors.append(f"{where}: link to missing file {href!r}")
+                    continue
+                frag = unquote(parts.fragment)
+                if frag and target.suffix == ".md":
+                    if frag not in github_slugs(target.read_text(encoding="utf-8")):
+                        errors.append(f"{where}: anchor #{frag} matches no heading in "
+                                      f"{target.relative_to(ROOT)}")
+    return checked, errors
 
 
 class Page(HTMLParser):
@@ -80,6 +150,8 @@ def main(argv: list[str]) -> int:
                 if tpage is None or frag not in tpage.ids:
                     errors.append(f"{where}: anchor #{frag} not found in "
                                   f"{target.relative_to(root)} ({href!r})")
+    src_checked, src_errors = check_sources()
+    errors.extend(src_errors)
     for e in errors:
         print(f"docs-anchors: {e}", file=sys.stderr)
     if errors:
@@ -87,7 +159,8 @@ def main(argv: list[str]) -> int:
               file=sys.stderr)
         return 1
     print(f"docs-anchors: {checked} internal links and anchors OK "
-          f"across {len(pages)} pages")
+          f"across {len(pages)} book pages; {src_checked} relative links OK "
+          f"in root and role Markdown")
     return 0
 
 

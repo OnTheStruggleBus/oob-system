@@ -105,15 +105,21 @@ Marshal's directive (2026-11-22): heavy human-readable docs are built
   by adding a map row (runbook/protocol files under a mapped
   `README.md` are picked up automatically), then regenerate. CI job
   `mdbook (link check)` fails on a stale SUMMARY, a missing link target
-  (mdbook-linkcheck), or a missing `#anchor` (`ops/docs-anchors.py`);
-  external links are not checked. Run locally:
+  (mdbook-linkcheck), or a missing `#anchor` (`ops/docs-anchors.py`,
+  which also checks relative links and anchors in the root `README.md`
+  and `AGENTS.md` and the role files under `.github/agents/` and
+  `.claude/agents/`), and keeps the built site as the run's
+  `doc-site-<sha>` artifact; external links are not checked. Run locally:
   `python3 ops/docs-summary.py --check && mdbook build &&
   python3 ops/docs-anchors.py`.
 - Prose must agree with `docs/facts.yaml` (r6 F6-13): CI job `docs facts`
-  (`ops/docs-facts.py`) flags 1.544 Mb/s outside a 55-2 context, bare
-  release tags, out-of-order `rel/` tags, and the superseded brand named
-  as current. Fix the prose (or the fact, same commit); allowlist a true
-  false positive in `facts_check.allow` with a `why`.
+  (`ops/docs-facts.py`, configured by `ops/docs-facts.toml`) flags
+  1.544 Mb/s outside a 55-2 context, bare release tags, out-of-order
+  `rel/` tags, the superseded brand named as current, and "pending
+  disposition" wording about an accepted review round — in the docs, the
+  root and role Markdown, and crate doc comments. Fix the prose (or the
+  fact, same commit); allowlist a true false positive as an `[[allow]]`
+  entry in `ops/docs-facts.toml` with a `why`.
 - Every crate builds `cargo doc` with **warnings denied**.
 - The admin API is **utoipa → `openapi.json`**; spec drift fails CI. The
   Console SPA consumes generated types — API-first is enforced by the
@@ -150,6 +156,7 @@ ops/
   docs-summary.py # generates docs/SUMMARY.md from the doc map (F5-10)
   docs-anchors.py # CI: internal links + anchors resolve in the built book
   docs-facts.py  # CI: prose vs docs/facts.yaml (r6 F6-13)
+  docs-facts.toml # its scan set, context markers and allowlist
 book.toml        # mdBook config: builds docs/ (F5-10)
 docs/            # mdBook source; protocol/ and runbook/ live here
 .github/agents/  # role files: one contract slice per role (source of truth)
@@ -334,16 +341,12 @@ Marshal's merge, no review comments required.
    checks by CI job display name — today exactly `rustfmt`,
    `clippy (-D warnings)`, `nextest`, `cargo doc (warnings denied)`,
    `cargo-deny`, `gitleaks`, `agent-guard`, `mdbook (link check)`,
-   `docs facts`, `openapi drift (stub)`; require branches up to date; do
+   `docs facts`, `openapi drift`; require branches up to date; do
    not allow bypassing these settings; block force pushes and deletion.
    **Required checks grow with CI:** a required check that never reports
-   blocks every merge, so each new CI job (schema + lineup CI next; the
-   F5-10 docs jobs above were added this way) is added to the required
-   list in the same PR that introduces it — never before — and Marshal
-   adds it to the branch ruleset after it has reported green once.
-   When Slice D wires the real OpenAPI drift check, the job's display
-   name changes from `openapi drift (stub)` and the ruleset entry changes
-   with it, in that PR.
+   blocks every merge, so each new CI job (schema + lineup CI next) is
+   added to the required list in the same PR that introduces it — never
+   before.
 
 ## 7. Hardware safety and the closed-plant doctrine
 

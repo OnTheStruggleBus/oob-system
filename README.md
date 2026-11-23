@@ -272,7 +272,10 @@ builds board + labels) ·
 git-crypt init + key escrow (G1 entry requirement) · buy list purchases ·
 O7 / O15 / O16 restricted-document acquisitions (upload pattern) · VOD/PPV
 §7 and billing §7 gate-proposal dispositions · repository setting
-"require approval for workflows from outside collaborators" (r6 F6-8).
+"require approval for workflows from outside collaborators" (r6 F6-8) ·
+add the F5-10 CI jobs `mdbook (link check)`, `docs facts` and
+`openapi drift` to the `main` ruleset's required checks once they have
+reported green (AGENTS.md §6 rule 6).
 
 ## How we work
 
