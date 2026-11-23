@@ -258,7 +258,7 @@ decide from the first STARVUE capture, not before.)
   arrival).
 - **Status:** eventual option, not an immediate buy. Enters through
   one of three doors: (a) the P0-1 supported set, if its level log and
-  gr-iio/Ethernet fit make it the preferred primary over a HackRF clone;
+  gr-iio/Ethernet fit make it the bench-chosen primary;
   (b) a second-radio need where full-duplex + Ethernet beats a dongle;
   (c) the Interconnect hub radio (Appendix A), where its Ethernet
   native placement is the best fit of any radio on this list.

@@ -919,7 +919,7 @@ OOB flowgraph ─►│ HackRF One   │── filter ────┴───�
 1. **OOB TX from the supported set** (HackRF One clone, ADALM-Pluto
    range-hacked, LibreSDR); the primary is chosen at the G0.5 bench by the
    F4-1 level log. The F4-1 radio-role assignment is superseded per
-   AGENTS.md §1 (Marshal, 2026-11-23). HackRF One covers the full hunt
+   AGENTS.md §0 (Marshal, 2026-11-23). HackRF One covers the full hunt
    table in spec. A second RX SDR
    (SDRplay RSP1A class) only if STARVUE upstream work wants a dedicated
    receiver.
