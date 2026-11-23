@@ -18,8 +18,10 @@ README.md and AGENTS.md, and the role files in .github/agents/ and
 .claude/agents/ -- is checked at the source. Every relative link must name
 an existing file (percent-decoded, resolved against the linking file), and
 a `#fragment` into a Markdown file must match one of that file's headings
-under GitHub's slug rule (lowercase; drop everything but letters, digits,
-`_`, `-` and spaces; spaces become `-`; repeats get `-1`, `-2`, ...).
+under GitHub's slug rule (strip code/emphasis markers -- underscores only
+at word edges, since GitHub keeps intra-word ones like `oob_msg` (QA-6);
+lowercase; drop everything but letters, digits, `_`, `-` and spaces;
+spaces become `-`; repeats get `-1`, `-2`, ...).
 
 Python 3.12, stdlib only (AGENTS.md §10).
 
@@ -53,7 +55,11 @@ def github_slugs(md: str) -> set[str]:
         m = None if fenced else re.match(r"^#{1,6}\s+(.*?)\s*#*\s*$", line)
         if not m:
             continue
-        text = re.sub(r"[`*_]|\[([^\]]*)\]\([^)]*\)", lambda x: x.group(1) or "", m.group(1))
+        # Drop code/emphasis markers and keep link text. Underscores go only
+        # when they are emphasis (at a word edge); GitHub keeps intra-word
+        # ones, e.g. "The oob_msg crate" -> #the-oob_msg-crate (QA-6).
+        text = re.sub(r"[`*]|\[([^\]]*)\]\([^)]*\)", lambda x: x.group(1) or "", m.group(1))
+        text = re.sub(r"(?<!\w)_+|_+(?!\w)", "", text)
         slug = re.sub(r"[^\w\- ]", "", text.lower()).replace(" ", "-")
         n = seen.get(slug, 0)
         seen[slug] = n + 1

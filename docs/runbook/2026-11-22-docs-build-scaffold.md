@@ -60,7 +60,9 @@ cut missed:
 - "Broken links fail the build" has to cover every file the claim covers.
   The root `README.md`, `AGENTS.md` and the role files are outside the
   book, so `ops/docs-anchors.py` now checks them at the source, using
-  GitHub's heading-slug rule for anchors.
+  GitHub's heading-slug rule for anchors. The first cut stripped every
+  underscore and so rejected valid anchors like `#the-oob_msg-crate`;
+  only emphasis underscores at word edges are stripped now (QA-6).
 - F6-13 was raised over stale "pending disposition" text in crate doc
   comments, so the facts check now scans `crates/**/*.rs` doc comments and
   has a `disposition` rule. Its first run found one: the Hardware List's
