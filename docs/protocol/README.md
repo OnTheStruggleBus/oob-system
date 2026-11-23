@@ -8,5 +8,7 @@ with its status — `documented` (manual-sourced), `hypothesized`
 built from those annotations plus the PHY record (`phy.md`, the O7 record
 required at G0.5). Nothing lands here from notes or memory: a wire-format
 claim enters only with the experiment commit and capture behind it, and
-the box is the referee (AGENTS.md §2). No chapters exist yet; the first
-arrive with the G0.5 PHY work and the G1 connect experiments.
+the box is the referee (AGENTS.md §2). The first chapter, the oob-mux
+pipeline, describes how the stream is produced and labels its framing
+`hypothesized`; wire-format chapters arrive with the G0.5 PHY work and
+the G1 connect experiments.
