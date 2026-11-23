@@ -53,7 +53,11 @@ under the owner's account, linked to this repo). Board setup:
 2. **Blocked (entry criteria)** — first-class state; the blocker is named
    in the issue (e.g., "needs D0 verified restore", "needs O7").
 3. **Ready** — gate entry criteria met; devs pull only from here.
-4. **In progress** — small WIP; one active slice per workstream.
+4. **In progress** — small WIP; one active slice per workstream. For
+   ADR-002's Slices C and D, Marshal ruled (orchestrator session,
+   2026-11-23, "One per ADR-002 slice (Recommended)"): "One Slice C (oob-mux/oob-msg)
+   issue and one Slice D (oob-dac) issue may run in parallel; issues
+   touching the same crate still run one at a time."
 5. **In review** — PR + evidence pack assembled; oob-qa bug review and
    oob-architect drift review at the head SHA.
 6. **Gate review** — queued for Marshal's PASS / PASS-WITH-DELTAS / HOLD.
