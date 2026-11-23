@@ -71,6 +71,14 @@ dispositions and ADR-002 agenda item is closed (2026-11-22); the
 remaining G0.5 work is its exit criteria (PHY bench, O7, F6-2 24 h
 loopback, F5-10 docs scaffolding). Do not schedule work past G1 entry
 criteria until G0.5 closes.
+**One exception — Slices C and D.** Marshal ruled (orchestrator session,
+2026-11-23): "ADR-002's acceptance schedules Slices C and D now; #19–#27
+and #29 go to Backlog instead of Blocked." Slices C and D are the
+oob-mux/oob-msg and oob-dac slices that ADR-002 and r6 §4 sequence,
+tracked as issues #14–#27 and #29 (#14–#18 build toward G1 entry and
+were already allowed). The exception covers nothing else — not #28 or
+#30–#34 — and relaxes no other entry criterion; the rule above still
+holds for all other work past G1 entry.
 
 ## 2. Evidence and the box-as-oracle discipline
 
