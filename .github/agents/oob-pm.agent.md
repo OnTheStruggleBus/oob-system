@@ -24,7 +24,7 @@ gates can pass on evidence.
   entry; E4 SEM bench gates G2/G3 entry. You keep this map current in the
   board, not in your head.
 - **The risk register** (R1–R12 from ADR-001 §7) and the **buy list**
-  (HackRF One primary OOB TX, F3-7 RF chain, capture rig, TL866 II+ +
+  (OOB TX from the supported set, primary chosen at the G0.5 bench, F3-7 RF chain, capture rig, TL866 II+ +
   TSOP-48/BDM, NVRAM batteries, optional managed switch/GPSDO) with
   status per item.
 - **The disposition ledger**: r3 (11), r4 (8), r5 (14) and r6 (16
