@@ -99,7 +99,21 @@ Marshal's directive (2026-11-22): heavy human-readable docs are built
 - **Same-commit rule:** a change and its documentation land in the same
   commit. "Docs later" is debt this project does not carry.
 - `docs/` builds into an mdBook site in CI on every commit; broken internal
-  links fail the build. Keep links valid.
+  links fail the build. Keep links valid. The book is `book.toml` at the
+  root (src = `docs/`); `docs/SUMMARY.md` is **generated** from the
+  Overview's document map (§8) by `ops/docs-summary.py` — add a document
+  by adding a map row (runbook/protocol files under a mapped
+  `README.md` are picked up automatically), then regenerate. CI job
+  `mdbook (link check)` fails on a stale SUMMARY, a missing link target
+  (mdbook-linkcheck), or a missing `#anchor` (`ops/docs-anchors.py`);
+  external links are not checked. Run locally:
+  `python3 ops/docs-summary.py --check && mdbook build &&
+  python3 ops/docs-anchors.py`.
+- Prose must agree with `docs/facts.yaml` (r6 F6-13): CI job `docs facts`
+  (`ops/docs-facts.py`) flags 1.544 Mb/s outside a 55-2 context, bare
+  release tags, out-of-order `rel/` tags, and the superseded brand named
+  as current. Fix the prose (or the fact, same commit); allowlist a true
+  false positive in `facts_check.allow` with a `why`.
 - Every crate builds `cargo doc` with **warnings denied**.
 - The admin API is **utoipa → `openapi.json`**; spec drift fails CI. The
   Console SPA consumes generated types — API-first is enforced by the
@@ -133,6 +147,10 @@ ops/
   agent-guard.kimi.toml # Kimi Code hook entry for ~/.kimi-code/config.toml
   install-agent-guards.py # installs the Kimi entry (user-level only)
   check-agent-hooks.py # CI: every tool's hook is wired, enabled, and blocks
+  docs-summary.py # generates docs/SUMMARY.md from the doc map (F5-10)
+  docs-anchors.py # CI: internal links + anchors resolve in the built book
+  docs-facts.py  # CI: prose vs docs/facts.yaml (r6 F6-13)
+book.toml        # mdBook config: builds docs/ (F5-10)
 docs/            # mdBook source; protocol/ and runbook/ live here
 .github/agents/  # role files: one contract slice per role (source of truth)
 .claude/agents/  # Claude Code subagent launchers, one per role (§14)
@@ -315,12 +333,17 @@ Marshal's merge, no review comments required.
    the author can't approve their own PR — rule 1); require status
    checks by CI job display name — today exactly `rustfmt`,
    `clippy (-D warnings)`, `nextest`, `cargo doc (warnings denied)`,
-   `cargo-deny`, `gitleaks`, `agent-guard`; require branches up to date; do not allow
-   bypassing these settings; block force pushes and deletion.
+   `cargo-deny`, `gitleaks`, `agent-guard`, `mdbook (link check)`,
+   `docs facts`, `openapi drift (stub)`; require branches up to date; do
+   not allow bypassing these settings; block force pushes and deletion.
    **Required checks grow with CI:** a required check that never reports
-   blocks every merge, so each new CI job (mdBook link check per F5-10,
-   schema + lineup CI, OpenAPI drift) is added to the required list in
-   the same PR that introduces it — never before.
+   blocks every merge, so each new CI job (schema + lineup CI next; the
+   F5-10 docs jobs above were added this way) is added to the required
+   list in the same PR that introduces it — never before — and Marshal
+   adds it to the branch ruleset after it has reported green once.
+   When Slice D wires the real OpenAPI drift check, the job's display
+   name changes from `openapi drift (stub)` and the ruleset entry changes
+   with it, in that PR.
 
 ## 7. Hardware safety and the closed-plant doctrine
 
@@ -387,6 +410,9 @@ These are hard rules with legal weight:
 - Console: Node LTS + pnpm + Vite + TypeScript; vitest; types generated
   from `openapi.json`.
 - Lab glue: Python 3.12 + uv; pydantic schemas mirror CI validation.
+- Docs: mdBook 0.4.52 + mdbook-linkcheck 0.7.7 (pinned in CI; locally
+  `cargo install --locked mdbook --version 0.4.52` and likewise
+  `mdbook-linkcheck --version 0.7.7`); docs scripts are stdlib-only Python.
 - Deploy: Podman + podman-compose, rootless, images pinned by digest;
   host-net/macvlan for playout multicast (r4 F4-7).
 - PHY: GNU Radio 3.10 flowgraphs in-repo; HackRF One is primary OOB TX

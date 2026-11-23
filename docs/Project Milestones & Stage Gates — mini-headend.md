@@ -97,7 +97,9 @@ gate rules (§5).
     pre-G0.5-exit task.
 - **Evidence:** flowgraph commit + BER log; level log; O7 record in
   `docs/protocol/phy.md`; 24 h loopback log (underrun count, null ratio);
-  green doc-site CI run.
+  green doc-site CI run (jobs `mdbook (link check)`, `docs facts`,
+  `openapi drift (stub)`; scaffold: `book.toml`, generated
+  `docs/SUMMARY.md`, `ops/docs-*.py`).
 
 ### G1 — First connect (M1) — MAJOR GATE
 

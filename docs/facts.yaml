@@ -1,10 +1,10 @@
 # docs/facts.yaml — the Oob facts registry (r6 F6-13).
 #
 # One home for numbers and states that the prose repeats across docs.
-# Consumed by the F5-10 mdBook facts check (pending: wired by F5-10's CI
-# work in a separate oob-dev-core PR). Until then this file is the
-# reference a reviewer checks prose against. Change a fact here and in
-# the prose in the same commit (AGENTS.md §3).
+# Checked against the prose on every commit by ops/docs-facts.py (CI job
+# `docs facts`, r5 F5-10); the rules it applies are configured in
+# `facts_check` at the end of this file. Change a fact here and in the
+# prose in the same commit (AGENTS.md §3).
 
 oob_stream:
   modulation: QPSK
@@ -56,3 +56,29 @@ review_dispositions:               # all by Marshal
     date: 2026-11-22
     amended:
       F6-4: "ADR-003"
+
+# Rules for ops/docs-facts.py. Prose is read per paragraph, list item or
+# table row ("unit"); see the script's docstring for each rule.
+facts_check:
+  scan:
+    - "docs/**/*.md"
+    - "AGENTS.md"
+    - "README.md"
+    - ".github/agents/*.md"
+  # Review records quote the superseded prose they found; they are history,
+  # not current claims, so they are not scanned.
+  historical:
+    - "docs/ADR-001-adversarial-review*.md"
+    - "docs/Reproduction Plan — Adversarial Review r*.md"
+  oob_rate:                        # not_our_rate is fine where the unit is about 55-2
+    context_ok: ["55-2", "Mode B", "Grade B", "Host-POD"]
+  brand_skin:
+    term: ArchaiTel
+    context_ok: ["supersed", "appears nowhere"]
+  # A true false positive is allowlisted here: rule + file + a substring of
+  # the unit + why. An entry that matches nothing fails the check.
+  allow:
+    - rule: oob-rate
+      file: "docs/Sci-Atlanta Ecosystem Specification — Explorer, DNCS, SCTE 55-2.md"
+      contains: "772 ksym/s"
+      why: "the 55-2 PHY table row (Mode B symbol rate); the whole doc is the 55-2 spec"

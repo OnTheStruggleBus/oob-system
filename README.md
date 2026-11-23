@@ -253,7 +253,9 @@ register in `docs/Project Milestones & Stage Gates — mini-headend.md` §7.*
 - O7: SCTE 55-1 acquisition (two-week timebox; box-as-oracle PHY fallback
   defined).
 - Pre-exit engineering task: mdBook scaffold + CI link-check + OpenAPI
-  drift stub (F5-10).
+  drift stub (F5-10), plus the prose-vs-`facts.yaml` check (F6-13) —
+  built (`book.toml`, generated `docs/SUMMARY.md`, `ops/docs-*.py`, three
+  CI jobs); the G0.5 evidence is their green doc-site CI run.
 
 **Next after G0.5**
 
@@ -319,7 +321,11 @@ docs/        the mdBook source — specs, protocol, runbook, reviews
 ## Documentation
 
 Everything human-readable lives in [`docs/`](docs/) and builds into an
-mdBook site in CI (broken links fail the build). Start here:
+mdBook site in CI (broken links and anchors fail the build; prose is
+checked against `docs/facts.yaml`). Build it locally with
+`mdbook build` (output in `target/book/html`); the table of contents is
+generated from the Overview's document map by `ops/docs-summary.py`, so
+add a document there, not in `docs/SUMMARY.md`. Start here:
 
 | Start with | What it is |
 | --- | --- |
