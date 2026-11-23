@@ -20,6 +20,8 @@
 - [ADR-002 — Oob Runtime Architecture](ADR-002%20—%20Oob%20Runtime%20Architecture.md)
 - [ADR-003 — Configuration, Extensibility and Distribution Model](ADR-003%20—%20Configuration,%20Extensibility%20and%20Distribution%20Model.md)
 - [Protocol](protocol/README.md)
+- [Architecture](architecture/README.md)
+  - [oob-dac-store](architecture/oob-dac-store.md)
 - [Runbook](runbook/README.md)
   - [2026-11-22-docs-build-scaffold](runbook/2026-11-22-docs-build-scaffold.md)
 - [ADR-001-adversarial-review](ADR-001-adversarial-review.md)
