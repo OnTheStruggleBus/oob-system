@@ -28,12 +28,15 @@ Three rules shape it:
    is the product; the Console is its best showcase.
 2. **Fully configurable in-system (ADR-003).** Every setting an operator
    needs — boxes, lineup, PID plan, class budgets, entitlements,
-   campaigns, listings, box types, message templates, the brand skin
-   slot — lives in oob-dac's store and changes at runtime through the
+   campaigns, listings, message templates, the brand skin slot — lives
+   in oob-dac's store and changes at runtime through the
    API. oob-dac validates every save, keeps a revision history with
    rollback, and journals every change (who, when, before/after). The
    running system needs no git and opens no PRs; git governs *developing*
-   Oob, not operating it.
+   Oob, not operating it. Box-type profiles are the exception: they come
+   from the upstream catalog, and a new box type is added only by
+   upstream PR or a fork (Marshal, QA-6); the Console selects and shows
+   them but cannot create them.
 3. **The box is still the referee.** Wherever the Console shows a
    setting, it also shows — or links to — the box-visible evidence that
    the setting took: the d-screen scrape, the OCR'd front panel, the
@@ -69,12 +72,14 @@ that slow the work.
     ▼                      ▼
  sqlite (one file,      msg/oob-mux/cdl/
  F6-5): unit DB,        playout engines
- config, box types,     + capture rig adapters
- templates, journal
+ config, templates,     + capture rig adapters
+ journal (box types:
+ upstream catalog)
 ```
 
 - **No Console-side database.** State lives in oob-dac's sqlite file
-  (unit DB, configuration, box types, templates, journal — ADR-003) and
+  (unit DB, configuration, templates, journal — ADR-003; box-type
+  profiles are read from the upstream catalog) and
   the engines. Restarting the Console loses nothing.
 - **AuthN/Z:** lab-scale. Owner account (full) + read-only "museum mode"
   guest (for demos and visitors). Token-based; the whole thing binds to
@@ -138,7 +143,8 @@ architecture — period-faithful *and* proven. Top-level sections:
   operator-side. The wizard walks it: enter UA + serial from the unit
   label (or read them off d 01/d 05 via the capture rig) → assign
   Terminal ID, type, plants, account; pick the box type from the
-  upstream or `user-defined` profiles → save to oob-dac's store
+  upstream catalog (a type not in it needs an upstream PR or a fork —
+  ADR-003) → save to oob-dac's store
   (validated, journaled; no git, no PR — ADR-003) → guided
   recovery sequence with live box evidence: factory init if `E 09`,
   unit creation if `E 11`, then connect → watch `E 00` + d 02 data
@@ -170,8 +176,10 @@ architecture — period-faithful *and* proven. Top-level sections:
   the sacrificial box is clearly badged so experiments default to it.
   The Console only *presents* these rules: oob-dac enforces them for
   every client (F6-10 — owner role, a short-lived confirmation token
-  bound to operation + target serial, dry-run default, sacrificial-only
-  CDL until G4, audit log).
+  bound to operation + target serial, dry-run default, audit log). The
+  **sacrificial-only CDL lock** is a per-install owner-role setting, ON
+  by default, shown here and on every campaign screen; turning it off
+  needs only the confirmation token (Marshal, QA-7, ADR-003 §5).
 
 ### 4.3 Discovery Lab (the W3 workbench — born first, §5)
 
@@ -335,7 +343,7 @@ the substitute grid. This section is its control room.*
 - **Users:** owner + read-only museum-mode guest; API tokens for
   automation (canary, capture rig, hub agents).
 - **Config versioning:** revision history for every configuration object
-  (units, lineup, box types, templates, carousel configs, class budgets)
+  (units, lineup, templates, carousel configs, class budgets)
   and the append-only change journal; diff + rollback in UI (ADR-003).
 - **Backup/restore:** the database is the installation (F6-5, ADR-003):
   one-click full backup and restore of the single sqlite file
@@ -343,9 +351,10 @@ the substitute grid. This section is its control room.*
   restore drill button (does a dry-run restore to a scratch dir and
   reports). Optional YAML export of runtime state for diffing — local
   only, never a gate.
-- **Community packs:** import/export of box profiles, templates,
-  lineups, guide themes and brand skins; imported items are
-  `user-defined`; the exporter strips or refuses firmware, keys and
+- **Community packs:** import/export of templates, lineups, guide themes
+  and brand skins; box-type profiles only as references to upstream
+  catalog entries — an import that would add a new box type is refused;
+  imported items are `user-defined`; the exporter strips or refuses firmware, keys and
   box-identifying data (ADR-003 §4).
 - **Containers:** status, restart, image versions; update workflow note.
 - **API explorer:** the WireLink verb reference (OpenAPI), try-it

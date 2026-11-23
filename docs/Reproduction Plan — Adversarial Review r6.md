@@ -333,6 +333,11 @@ stack, and it sits on the G0.5 critical path.
 
 ### F6-10 — Destructive-operation safety is enforced in the UI, not the server (medium, safety / API)
 
+> **Accepted 2026-11-22; sacrificial-only mode amended (Marshal, QA-7).**
+> For installs, the lock is a per-install owner-role setting, ON by
+> default, unlocked with the confirmation token alone — not "a config
+> flag Marshal flips". See §5 and ADR-003 §5.
+
 **Attack.** Typed confirmation (`FACTORY INIT <serial>`), sacrificial-box
 defaults and dry-run-first are specified in Console §4.2/§4.8. AGENTS.md §7
 makes typed confirmation a hard rule. But the Console is only one client.
@@ -504,7 +509,7 @@ time slots depend on them.
 | F6-7 | medium | Before G1 entry (with F5-11) | Accepted as recommended | — |
 | F6-8 | medium | Before the canary exists (post-M1); repo setting now | Accepted as recommended | — |
 | F6-9 | medium | ADR-002 deployment section; G0.5 bench | Accepted as recommended | — |
-| F6-10 | medium | Slice D (oob-dac API) | Accepted as recommended | The server-side guardrail that makes full configurability safe, for every client incl. forks and scripts |
+| F6-10 | medium | Slice D (oob-dac API) | Accepted as recommended | The server-side guardrail that makes full configurability safe, for every client incl. forks and scripts; sacrificial-only CDL lock per Marshal's QA-7 ruling (§5) |
 | F6-11 | medium | Slice D (oob-dac API) | Accepted as recommended | — |
 | F6-12 | medium | Slice C (seam only; zero pre-G6 hub work) | Accepted as recommended | — |
 | F6-13 | medium | Immediate docs sweep (PR #5 wording already reverted) | Accepted as recommended | Sweep done in the r6 disposition PR; `docs/facts.yaml` added; the mdBook prose-vs-facts check is wired by F5-10's CI work (separate oob-dev-core PR) |
@@ -547,6 +552,23 @@ tooling"**. He did **not** choose "Allow user content", so the
 no-broadcaster-content rule stands: playout loops and listings remain
 self-authored (AGENTS.md §5, ADR-003 §4).
 
+**Follow-up rulings (Marshal, 2026-11-22, on PR #11 review findings).**
+Two questions the review of the disposition PR raised were put to
+Marshal as choices; he picked:
+
+- **QA-6 — "New types need a PR":** "Boxes of known types are runtime; a
+  new box type is added only through an upstream PR or a fork." Box-type
+  profiles are upstream/code-level; operators cannot create new box
+  types at runtime; community packs carry box-type profiles only as
+  upstream-sourced data. Recorded in ADR-003 §2–§4.
+- **QA-7 — "Owner toggle only":** "Per-install owner setting, default on,
+  unlock needs only the confirmation token." The F6-10 sacrificial-only
+  CDL lock is a per-install owner-role setting, ON by default; turning it
+  off needs only the F6-10 confirmation token, with no D0 evidence
+  requirement in the product. AGENTS.md §7's flash-recovery-before-
+  download rule still binds the upstream project's own lab and agents.
+  Recorded in ADR-003 §5.
+
 **Consequences recorded elsewhere in the same PR** (follow from the
 dispositions above and ADR-003; not additional rulings):
 
@@ -554,7 +576,8 @@ dispositions above and ADR-003; not additional rulings):
   decision 4, ADR-003 §5).
 - F6-6: lab templates and records are `user-defined` store items; only
   upstream contribution is a PR (ADR-003 §3; F6-6 note above).
-- F6-10: the server-side policy layer guards every client (ADR-003 §5).
+- F6-10: the server-side policy layer guards every client (ADR-003 §5);
+  the sacrificial-only CDL lock is per-install per QA-7 above.
 - F6-5 amends F5-12: the unit DB is no longer "derived, excluded from
   backup"; durability is per table in one file, and the whole file is
   backed up (ADR-003 §6).
