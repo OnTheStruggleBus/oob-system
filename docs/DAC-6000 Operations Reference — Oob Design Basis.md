@@ -84,6 +84,15 @@ Address** (unique 16-character decimal), **Serial Number** (12-char
 alphanumeric), optional Account Number, Business System Name, Downstream Plant
 Name, Upstream Plant Name (if two-way), on-plant flag.
 
+**Terminal communication types** (Define Terminal, Terminal Type field;
+page not yet cited): the field gives the model number and one of five
+communication types: **One-Way, Fone-Way, Two-Way, Ethernet or DOCSIS**.
+A **Fone-Way** terminal reaches the headend through the **Modem Bank**
+named on its record. A **One-Way** terminal has no return path, so polls
+and purchase collection do not apply to it. The Purchase History report
+lists archived purchases for Fone-Way and Two-Way terminals only (terminal
+ID, service index, purchase time, poll date).
+
 **Terminal operations (all documented DAC commands):**
 
 | Operation | Semantics |
@@ -193,3 +202,36 @@ format + segment framing to confirm against a live box."
 | STARFONE modem banks (§1) | `starfone` (mgetty NAS bridge) — stretch |
 | RPD channel/frequency config (§9) | `starvue` upstream config — M6 |
 | SEM V8 scrambling (DES/CSA, FPK) | **SEM ACP** (FPK mode, DES or CSA) — no `playout` scrambler stage; oob-dac only records the tier matrix (SEM-ACP decision, Plan W5) |
+
+## 10. Operation status (Define Operations, §11, p. 11-4)
+
+The manual introduces these as "Status indications are as follows" (p.
+11-4). Every status describes the **event on the DAC and RADD 6000**. None
+describes a terminal reply. Definitions are paraphrased, with short quotes
+marked.
+
+| Status | Meaning (p. 11-4) |
+|---|---|
+| **New** | Not yet processed, because its start time hasn't arrived. |
+| **Request Sent** | Read and initiated by the DAC. |
+| **Request Sent Failed** | The operation manager could not send the event to its destination task. |
+| **Timeout** | Initiated, but "did not get an acknowledgement". The manual doesn't name the acknowledger; the RADD is the likely reading (inference). |
+| **Downloaded** | Initiated and "accepted by the RADD 6000". |
+| **Retrieving Status** | The DAC is fetching the event's status from the RADD 6000, via the Retrieve Operation Status control. |
+| **Unknown** | The RADD 6000 has no record of the event. |
+| **Device Offline** | The RADD 6000 is offline or has lost communication. |
+| **Active** | The event is executing. |
+| **Completed** | The event completed successfully. |
+| **Marked Completed** | The event was active but passed its end time, so the system closed it out as completed. |
+| **Failed** | "The operation failed." |
+| **Delayed** | A Category Epoch operation is active, so this event waits. |
+
+**Takeaway for oob-dac (#22):** the lifecycle follows the DAC → RADD
+handoff (hypothesis H1 on #22), not terminal replies. Terminal results
+(Last Response Date, Failures, Chronic Non-Responding) live on the
+terminal record. Neither the manual nor this table gives transition order
+or a final status for One-Way operations. Oob's transition table and its
+choice of Completed for One-Way operations are a reconstruction, status
+`hypothesized`. The reconstruction follows from the table above: the
+status depends only on the RADD finishing the event. Research note:
+issue #22 (oob-expert).
