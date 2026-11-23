@@ -1,0 +1,60 @@
+# Configuration for ops/docs-facts.py (r6 F6-13, wired by r5 F5-10).
+#
+# The facts themselves live in docs/facts.yaml; this file only says where to
+# look and which contexts are legitimate (ARCH-5). Read with stdlib tomllib.
+# Prose is checked one "unit" at a time: a Markdown paragraph, list item or
+# table row, or a run of Rust `//!` / `///` doc-comment lines.
+
+# Every pattern must match at least one file, or the check fails (QA-2).
+scan = [
+  "docs/**/*.md",
+  "AGENTS.md",
+  "README.md",
+  ".github/agents/*.md",
+  ".claude/agents/*.md",
+  "crates/**/*.rs",        # doc comments only (ARCH-2)
+  # add "crates/**/README.md" with the first crate README (a pattern that
+  # matches nothing fails the check)
+]
+
+# Review records quote the superseded prose they found; they are history,
+# not current claims, so they are not scanned. Each pattern must match a file.
+historical = [
+  "docs/ADR-001-adversarial-review*.md",
+  "docs/Reproduction Plan — Adversarial Review r*.md",
+]
+
+[oob_rate]
+# not_our_rate (1.544 Mb/s) is fine where the unit is plainly about 55-2.
+context_ok = ["55-2", "Mode B", "Grade B", "Host-POD"]
+
+[brand_skin]
+# The superseded brand (facts.yaml naming.superseded_brand) may be named
+# only together with a supersession marker.
+context_ok = ["supersed", "appears nowhere"]
+
+[disposition]
+# "pending/awaiting disposition" next to an F-ID or round that
+# facts.yaml review_dispositions records as accepted is stale (ARCH-2,
+# the PR #5 defect F6-13 was raised for). A unit that also says the round
+# was accepted is fine.
+phrases = [
+  "pending disposition",
+  "awaiting disposition",
+  "awaiting marshal's disposition",
+  "awaits disposition",
+  "awaits marshal's disposition",
+  "await marshal's disposition",
+  "undispositioned",
+  "not yet dispositioned",
+]
+context_ok = ["accepted"]
+
+# A true false positive is allowlisted here. Every field is required and
+# non-empty, `file` must exist, `contains` must be a substring of the
+# flagged unit, and an entry that matches nothing fails the check (QA-1).
+[[allow]]
+rule = "oob-rate"
+file = "docs/Sci-Atlanta Ecosystem Specification — Explorer, DNCS, SCTE 55-2.md"
+contains = "772 ksym/s"
+why = "the 55-2 PHY table row (Mode B symbol rate); the whole doc is the 55-2 spec"

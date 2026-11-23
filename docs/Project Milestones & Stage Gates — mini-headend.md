@@ -97,7 +97,10 @@ gate rules (§5).
     pre-G0.5-exit task.
 - **Evidence:** flowgraph commit + BER log; level log; O7 record in
   `docs/protocol/phy.md`; 24 h loopback log (underrun count, null ratio);
-  green doc-site CI run.
+  green doc-site CI run (jobs `mdbook (link check)`, `docs facts`,
+  `openapi drift` (a stub until Slice D); scaffold: `book.toml`,
+  generated `docs/SUMMARY.md`, `ops/docs-*`), whose `doc-site-<sha>`
+  artifact is the site Marshal attaches to `gate/g0.5`.
 
 ### G1 — First connect (M1) — MAJOR GATE
 
@@ -330,7 +333,9 @@ approval (rev 8), repository setting "require approval for workflows
 from outside collaborators" (r6 F6-8),
 branch protection (AGENTS.md §6.6), the `gh` `project` scope so oob-pm
 can build the Projects board + labels (`.github/agents/README.md` spec,
-AGENTS.md §14).*
+AGENTS.md §14), and adding the F5-10 CI jobs `mdbook (link check)`,
+`docs facts` and `openapi drift` to the `main` ruleset's required checks
+once they have reported green (AGENTS.md §6.6).*
 
 **Release tags (r5 F5-13):** tags use the collision-safe format
 `rel/<carrier>` — hunt-table carriers in the box's d 02 scroll order:

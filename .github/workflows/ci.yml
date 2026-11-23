@@ -104,6 +104,75 @@ jobs:
       - name: gitleaks git
         run: $RUNNER_TEMP/bin/gitleaks git . --verbose --redact
 
+  # r5 F5-10 / AGENTS.md §3: docs/ builds into an mdBook site on every
+  # commit, and a broken internal link or anchor fails the build. External
+  # links are deliberately not checked (no network flakiness here).
+  mdbook:
+    name: mdbook (link check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: SUMMARY.md matches the Overview's document map
+        run: python3 ops/docs-summary.py --check
+      # mdbook-linkcheck 0.7.7 speaks the mdBook 0.4 renderer protocol, so
+      # mdbook stays on 0.4.x. install-action verifies each prebuilt binary
+      # against the sha256 in its manifest at the pinned action SHA.
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2
+        with:
+          tool: mdbook@0.4.52,mdbook-linkcheck@0.7.7
+      - name: mdbook build (linkcheck renderer fails on missing link targets)
+        run: mdbook build
+      - name: internal anchors (built HTML) + file links in root/role Markdown
+        run: python3 ops/docs-anchors.py target/book/html
+      # ARCH-1 / AGENTS.md §3: keep the site this run built, named by commit,
+      # so the run cited as gate evidence carries the doc site. Attaching it
+      # to a gate tag stays Marshal's manual step. actions/upload-artifact
+      # v7.0.2, SHA resolved from the release tag (refs/tags/v7.0.2).
+      - name: keep the built doc site
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: doc-site-${{ github.sha }}
+          path: target/book/html
+          if-no-files-found: error
+          retention-days: 90
+
+  # r6 F6-13: prose must not contradict docs/facts.yaml. Rules, scan set and
+  # allowlist: ops/docs-facts.toml (tomllib needs Python 3.11+; the runner's
+  # python3 is 3.12).
+  facts:
+    name: docs facts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: prose and crate doc comments vs docs/facts.yaml
+        run: python3 ops/docs-facts.py
+
+  # r5 F5-10 / AGENTS.md §3: the admin API is utoipa -> openapi.json, and
+  # spec drift fails CI. STUB until Slice D gives oob-dac an API: it passes
+  # while no OpenAPI spec exists anywhere in the tree. Once Slice D lands,
+  # this job generates the spec from the code (an oob-dac binary/test that
+  # dumps the utoipa OpenApi doc) and diffs it against the committed
+  # openapi.json; any difference fails. If a spec (any case, .json/.yaml/
+  # .yml) appears before that wiring does, the stub fails so the gap cannot
+  # go unnoticed. The display name is final (ARCH-3): the required check is
+  # matched by name, so Slice D changes the steps, never the name.
+  openapi:
+    name: openapi drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: generated vs committed openapi.json (stub until Slice D)
+        run: |
+          set -euo pipefail
+          found="$(find . -path ./target -prune -o -path ./.git -prune -o \( -iname '*openapi*.json' -o -iname '*openapi*.yaml' -o -iname '*openapi*.yml' \) -print)"
+          if [ -z "$found" ]; then
+            echo "stub: no OpenAPI spec committed yet (oob-dac has no API before Slice D): nothing to compare"
+            exit 0
+          fi
+          echo "::error::an OpenAPI spec exists but the drift check is still a stub: wire generate-and-diff in this job (Slice D)"
+          echo "$found"
+          exit 1
+
   agent-guard:
     name: agent-guard
     runs-on: ubuntu-latest

@@ -1,10 +1,17 @@
 # docs/facts.yaml — the Oob facts registry (r6 F6-13).
 #
 # One home for numbers and states that the prose repeats across docs.
-# Consumed by the F5-10 mdBook facts check (pending: wired by F5-10's CI
-# work in a separate oob-dev-core PR). Until then this file is the
-# reference a reviewer checks prose against. Change a fact here and in
-# the prose in the same commit (AGENTS.md §3).
+# Checked against the prose on every commit by ops/docs-facts.py (CI job
+# `docs facts`, r5 F5-10); where it looks and which contexts it allows are
+# configured in ops/docs-facts.toml. Change a fact here and in the prose in
+# the same commit (AGENTS.md §3).
+#
+# YAML subset (ARCH-6): the check reads this file with a small stdlib loader
+# that supports block maps and lists, flow [a, b] and {k: v} on one line,
+# quoted and plain one-line scalars, and # comments. Block scalars (| >),
+# anchors/aliases, tags, multi-line plain scalars and multiple documents
+# fail the check loudly. Dates stay strings. To be replaced by the
+# uv/pydantic reader once schema CI exists (follow-up).
 
 oob_stream:
   modulation: QPSK
@@ -39,7 +46,8 @@ naming:
   software: Oob
   guide_stack: VueGuide+
   operator_ui: Oob Console
-  brand_skin: per-deployment config slot   # no preset operator identity ships; ArchaiTel superseded
+  brand_skin: per-deployment config slot   # no preset operator identity ships
+  superseded_brand: ArchaiTel              # former placeholder skin; never the current brand
 
 configuration:                     # ADR-003 + Marshal's QA-6/QA-7 rulings
   box_types: upstream catalog only; new type = upstream PR or fork   # QA-6
@@ -63,3 +71,4 @@ review_dispositions:               # all by Marshal
     date: 2026-11-22
     amended:
       F6-4: "ADR-003"
+

@@ -14,7 +14,7 @@ HackRF *clone* (~$105–150) demoted to metered fallback. See P0-1 and
 P2-1. Note: this revises the radio-role assignment implied by
 undispositioned finding r4 F4-1 (HackRF primary); the metering F4-1
 requires happens either way, and this plan is offered for Marshal's
-disposition alongside r4.
+disposition alongside r4. (r4 was since accepted, 2026-11-22.)
 
 **Rev 3 changes (Marshal's direction, 2026-11-22):** **LibreSDR** folded
 in as an *eventual option* — source listing logged (AliExpress item
