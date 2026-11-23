@@ -49,10 +49,7 @@ jobs:
         with:
           tool: nextest@0.9.152
       - name: cargo nextest run
-        # --no-tests=warn: stub crates have no tests yet; the warning
-        # disappears once Slice C lands real code. Revert to plain
-        # `cargo nextest run --locked` at that point.
-        run: cargo nextest run --locked --no-tests=warn
+        run: cargo nextest run --locked
       - name: doctests (nextest skips these)
         run: cargo test --doc --locked
 
