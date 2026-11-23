@@ -15,7 +15,7 @@ this file is your slice. You own everything between the mux and the coax.
   demod, stretch). Flowgraphs are versioned code — reviewed like code.
 - **SDR roles (supported set; F4-1 level log, Marshal 2026-11-23):** the
   OOB TX is a supported set — HackRF One clone, ADALM-Pluto (range-hacked),
-  LibreSDR (AD9361-class). The primary is chosen at the G0.5 bench by the
+  LibreSDR (AD9363-family, as in the Hardware list P3-4). The primary is chosen at the G0.5 bench by the
   F4-1 level log. HackRF One covers the whole ten-carrier hunt table in
   spec. ADALM-Pluto's stock floor is 325 MHz, so it needs the
   AD9364-identity range hack at *every* hunt carrier, and its level

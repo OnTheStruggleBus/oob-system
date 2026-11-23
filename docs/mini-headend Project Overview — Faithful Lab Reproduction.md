@@ -122,7 +122,7 @@ already in the estate.
 │     │      GNU Radio flowgraph     ┌──────────────┐             │
 │     │            │                 │ SEM V8 (ACP) │             │
 │     │            ▼                 │ FPK: DES/CSA │             │
-│     │      HackRF One (OOB TX)     └──────┬───────┘             │
+│     │      OOB SDR (set)           └──────┬───────┘             │
 │     │            │ QPSK ~104 MHz          │ QAM Annex B         │
 │     └────────────┼────────────────────────┼─────────────────────┘
 │                  ▼                        ▼                     │
