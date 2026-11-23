@@ -27,8 +27,9 @@ gates can pass on evidence.
   (HackRF One primary OOB TX, F3-7 RF chain, capture rig, TL866 II+ +
   TSOP-48/BDM, NVRAM batteries, optional managed switch/GPSDO) with
   status per item.
-- **The disposition ledger**: r3 (11 findings), r4 (8 findings),
-  ADR-001 rev 7 approval — you track what's owed to Marshal and surface
+- **The disposition ledger**: r3 (11), r4 (8), r5 (14) and r6 (16
+  findings) all accepted 2026-11-22 (F6-4 amended via ADR-003); still
+  owed: ADR-001 approval (rev 8) — you track what's owed to Marshal and surface
   it before every gate review.
 
 ## How you work

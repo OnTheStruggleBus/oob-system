@@ -1,6 +1,8 @@
 # ADR-003 — Configuration, Extensibility and Distribution Model
 
-- **Status:** Accepted — Marshal, 2026-11-22
+- **Status:** Accepted — Marshal, 2026-11-22; amended the same day by
+  Marshal's rulings on PR #11 review findings QA-6 (box types) and QA-7
+  (sacrificial-only CDL lock) — see "Marshal's rulings" below
 - **Date:** 2026-11-22
 - **Deciders:** Marshal (decision); oob-architect (author role, recording
   Marshal's amendment)
@@ -69,8 +71,8 @@ it**. The running system needs no git and no GitHub, and it opens no PRs.
 | Layer | What it covers | Where it lives | How it changes |
 | --- | --- | --- | --- |
 | **1. Operating the headend** | boxes (enroll, retire), the unit operational record, lineup, PID plan, traffic-class budgets (F6-3), entitlements, campaigns, guide listings, the brand skin slot | oob-dac's store (one sqlite file, F6-5) | Console or API, at runtime |
-| **2. Box types and message templates** | user-definable data profiles: capability profile, hunt list, firmware/CDL handling settings, message templates | oob-dac's store; created or imported in the Console, exportable | Console or API, at runtime; import/export as community packs |
-| **3. Oob code** | new protocol behavior, encoders, subsystems | this repository | upstream PR through the gate process, or a fork |
+| **2. Message templates** | user-defined message templates | oob-dac's store; created or imported in the Console, exportable | Console or API, at runtime; import/export as community packs |
+| **3. Oob code and box types** | new protocol behavior, encoders, subsystems, and **box-type profiles** (capability profile, hunt list, firmware/CDL handling settings) | this repository (box-type profiles in the upstream catalog, `ops/units.yaml`) | upstream PR through the gate process, or a fork |
 
 Layer 1 rules:
 
@@ -83,17 +85,26 @@ Layer 1 rules:
 - **Append-only journal** of every change (who, when, what, before/after),
   the same audit path F6-10 writes commands to.
 
-Layer 2 rule: **adding a box of a known type never needs a PR.** A new
-box *type* that the shipped profiles do not cover can be defined by the
-user as a `user-defined` profile; upstreaming it is optional (§3).
+Box-type rule (Marshal, QA-6): **boxes of known types are runtime; a new
+box type is added only through an upstream PR or a fork.** Adding,
+enrolling or retiring a box of a type in the catalog never needs a PR
+(Layer 1). Operators cannot create new box types at runtime; the
+running system reads box-type profiles from the upstream catalog it
+shipped with (or a fork's).
+
+Layer 2 rule: user-defined message templates load at runtime, labelled
+`user-defined`; promotion to `verified` is by upstream PR (§3).
 
 ### 3. Trust labels
 
-- Upstream profiles and templates keep the evidence statuses
+- Upstream box-type profiles and templates keep the evidence statuses
   `documented` / `hypothesized` / `verified`. `verified` still requires a
   capture referenced in a **reviewed upstream PR** (F6-6, F6-7).
-- Anything a user creates or imports is labelled **`user-defined`**. The
-  Console shows the label everywhere the item is used.
+- Any template a user creates or imports — and any other pack content
+  (lineups, guide themes, brand skins) — is labelled **`user-defined`**.
+  The Console shows the label everywhere the item is used. Box-type
+  profiles are never `user-defined`: they come only from the upstream
+  catalog (or a fork's).
 - Users can contribute upstream by PR with their evidence; promotion to
   `verified` follows the normal evidence rule.
 
@@ -105,14 +116,19 @@ user as a `user-defined` profile; upstreaming it is optional (§3).
 - **self-authored sample content** so a fresh install works out of the
   box: demo MPEG-2 MP@ML 480i loops, sample listings, a demo lineup, and
   the upstream box-type profiles;
-- a **community pack** import/export format for box profiles, message
-  templates, lineups, guide themes and brand skins. A pack **never**
+- a **community pack** import/export format for message templates,
+  lineups, guide themes and brand skins. A pack may reference or carry
+  box-type profiles **only as upstream-sourced data** (an existing
+  catalog entry, identified by its upstream ID); it cannot introduce a
+  new box type, and an import that would is refused. A pack **never**
   contains firmware, keys or box-identifying data: the exporter strips
   them, and refuses to export when it cannot;
 - **firmware import tooling** to dump, verify and import firmware from the
   user's *own* boxes into a local encrypted store, under the existing
   safety rules: sacrificial box first, and a two-route verified restore
-  (D0, r3 F3-3 / r4 F4-3) before any write-back.
+  (D0, r3 F3-3 / r4 F4-3) before any write-back. This write-back
+  precondition is unchanged by the QA-7 ruling, which covers only the
+  CDL campaign lock.
 
 **Oob never ships:** firmware images, flash dumps, key material
 (including the FPK constant), serials or Unit Addresses, or broadcaster
@@ -135,8 +151,21 @@ agents. On save it rejects at least:
 
 Destructive operations need the F6-10 policy layer: owner role, a
 short-lived confirmation token bound to (operation, target serial),
-dry-run as the default for bulk operations, sacrificial-only CDL until G4
-passes, and every command in the audit log.
+dry-run as the default for bulk operations, the sacrificial-only CDL
+lock below, and every command in the audit log.
+
+**Sacrificial-only CDL lock** (Marshal, QA-7): a **per-install,
+owner-role setting, ON by default**. While on, CDL campaigns may target
+only units flagged sacrificial. Turning it off requires only the F6-10
+destructive-operation confirmation token; the product imposes no D0
+evidence requirement. This replaces F6-10's "config flag Marshal flips
+until G4 passes" for installs.
+
+This setting governs **installations**, not this project's process:
+AGENTS.md §7's flash-recovery-before-download rule (sacrificial unit
+first; dump plus verified restore by two routes before any download
+enable — r3 F3-3 / r4 F4-3) still binds the upstream project's own lab
+and its agents.
 
 ### 6. Repository consequences
 
@@ -153,6 +182,18 @@ passes, and every command in the audit log.
   unit DB is no longer "derived, excluded from backup").
 - **AGENTS.md §6 rule 2 "Scope" note** about Console-opened config PRs is
   resolved: the running system opens no PRs, so no rule is needed.
+
+### Marshal's rulings on QA-6 and QA-7 (2026-11-22)
+
+PR #11's oob-qa review raised two questions this ADR could not settle
+from Marshal's original words. He answered both in the orchestrator
+session, choosing these options:
+
+- **QA-6 — "New types need a PR":** "Boxes of known types are runtime; a
+  new box type is added only through an upstream PR or a fork."
+  Recorded in §2 (box-type rule), §3 and §4.
+- **QA-7 — "Owner toggle only":** "Per-install owner setting, default on,
+  unlock needs only the confirmation token." Recorded in §5.
 
 ## Options Considered
 
@@ -208,8 +249,10 @@ the source of truth when run against a local clone (the F6-4 attack).
    this model (landed with this ADR: principle 2, §2 architecture,
    enrollment wizard, Discovery Lab and template editor, §4.5
    validation, §4.10 class budgets, §4.14, the M6 journeys).
-3. [ ] oob-architect: follow-up sweep of the Reproduction Plan §5 repo
-   tree and ADR-001's "config-as-code" wording.
+3. [x] oob-architect: follow-up sweep (r6 disposition PR, QA-3): VOD
+   spec §4 data model, Reproduction Plan §3.2 terminal schema and §5 repo
+   tree, ADR-001 decision summary (lineup source of truth), §2 estate
+   force and §9 configuration bullet.
 4. [ ] oob-dev-core (Slice D): oob-dac configuration store with revision
    history, rollback, append-only journal, and save-path validators
    (schema, lineup ↔ VCM ↔ playout ↔ SEM, §5 guardrails); one-click

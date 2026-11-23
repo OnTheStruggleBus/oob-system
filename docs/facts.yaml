@@ -41,6 +41,13 @@ naming:
   operator_ui: Oob Console
   brand_skin: per-deployment config slot   # no preset operator identity ships; ArchaiTel superseded
 
+configuration:                     # ADR-003 + Marshal's QA-6/QA-7 rulings
+  box_types: upstream catalog only; new type = upstream PR or fork   # QA-6
+  message_templates: runtime, user-defined; verified only via upstream PR
+  community_pack_contents: [message templates, lineups, guide themes, brand skins]
+  community_pack_box_types: upstream-sourced references only, no new types
+  sacrificial_only_cdl_lock: per-install owner setting, default on, unlock = F6-10 confirmation token   # QA-7
+
 decisions:
   ADR-001: proposed (rev 8)
   ADR-002: accepted 2026-11-22

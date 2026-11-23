@@ -324,7 +324,10 @@ carrier drift — F4 escalation path, not a default buy).
 
 *Rows are filled at each gate review. Dispositions closed 2026-11-22:
 adversarial reviews r3 (×11), r4 (×8), r5 (×14) — all accepted, deltas
-folded. Still open (Marshal's manual actions): ADR-001 rev 7 approval,
+folded; r6 (×16) — all accepted, F6-4 amended via ADR-003; ADR-002 and
+ADR-003 accepted. Still open (Marshal's manual actions): ADR-001
+approval (rev 8), repository setting "require approval for workflows
+from outside collaborators" (r6 F6-8),
 branch protection (AGENTS.md §6.6), the `gh` `project` scope so oob-pm
 can build the Projects board + labels (`.github/agents/README.md` spec,
 AGENTS.md §14).*

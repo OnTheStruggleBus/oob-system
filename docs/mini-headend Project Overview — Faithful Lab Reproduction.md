@@ -198,7 +198,7 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | Document | What it is |
 | --- | --- |
 | **This file** | Orientation — start here |
-| `ADR-001 — Emulated GI Cable Headend for DCT2000 Revival.md` (rev 7) | The decision record: scope, goals, kill criteria — awaits final approval |
+| `ADR-001 — Emulated GI Cable Headend for DCT2000 Revival.md` (rev 8) | The decision record: scope, goals, kill criteria — awaits final approval |
 | `Oob Reproduction Plan — mini-headend.md` | The working plan: discovery methodology, workstreams, milestones, tech stack (§8), manual findings (§3.1/§3.2) — *renamed from "rust-dac Reproduction Plan" at the Oob naming adoption* |
 | `DAC-6000 Operations Reference — Oob Design Basis.md` | Everything the DAC manual teaches, organized as design input |
 | `Sci-Atlanta Ecosystem Specification — Explorer, DNCS, SCTE 55-2.md` | Companion spec for the rival ecosystem (theming source; possible far-future second front) |
@@ -251,7 +251,7 @@ get folded in at the next revision.
   box-identifying data. One sqlite file is the installation, with
   one-click backup/restore (F6-5, amending F5-12). Contract drift swept
   and `docs/facts.yaml` added (F6-13).
-- Awaiting (Marshal's manual actions): ADR-001 rev 7 approval; branch
+- Awaiting (Marshal's manual actions): ADR-001 approval (rev 8); branch
   protection (AGENTS.md §6 checklist); the `gh` `project` scope so oob-pm
   can build the Projects board + labels (`.github/agents/README.md` spec,
   AGENTS.md §14); git-crypt init before G1 (F5-11) —

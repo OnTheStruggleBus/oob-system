@@ -163,14 +163,18 @@ via Marshal.
   *developing* Oob, never *operating* it; anything beyond in-system
   configuration is a fork.
 - **Three layers of change:** (1) operating the headend — runtime, as
-  above; (2) box types and message templates — user-definable data
-  profiles, created or imported in the Console and exportable; adding a
-  box of a known type never needs a PR; (3) Oob code — upstream PR
-  through the gate process, or a fork.
-- **Trust labels:** upstream profiles and templates keep `documented` /
-  `hypothesized` / `verified`, and `verified` still needs a capture in a
-  reviewed upstream PR (F6-6, F6-7). User-made or imported items are
-  `user-defined`.
+  above; adding or enrolling a box of a known type never needs a PR;
+  (2) message templates — user-defined, created or imported in the
+  Console at runtime and exportable; (3) Oob code **and box types** —
+  new box-type profiles (capability, hunt list, firmware/CDL handling)
+  are added only by upstream PR through the gate process, or a fork
+  (Marshal, QA-6: "Boxes of known types are runtime; a new box type is
+  added only through an upstream PR or a fork."). Operators cannot
+  create box types at runtime.
+- **Trust labels:** upstream box-type profiles and templates keep
+  `documented` / `hypothesized` / `verified`, and `verified` still needs
+  a capture in a reviewed upstream PR (F6-6, F6-7). User-made or imported
+  templates and pack content are `user-defined`.
 - **In the repository**, `ops/lineup.yaml` and `ops/units.yaml` are seed
   and example install data plus the upstream box-type catalog. They are
   pydantic-schema-validated in CI with the same validators oob-dac runs on
@@ -179,8 +183,10 @@ via Marshal.
   backup and diffing; that export never gates anything.
 - **Distribution:** Oob ships code, docs, self-authored sample content
   (demo MPEG-2 480i loops, sample listings, a demo lineup, upstream box
-  profiles), the community pack import/export format, and firmware
-  import tooling for the user's own boxes (under §7's safety rules). It
+  profiles), the community pack import/export format (templates,
+  lineups, guide themes, brand skins; box-type profiles only as
+  upstream-sourced data, never new types), and firmware
+  import tooling for the user's own boxes (under ADR-003 §4's write-back preconditions). It
   never ships firmware, flash dumps, key material (including the FPK),
   serials or Unit Addresses, or broadcaster content; community packs
   never contain them.
@@ -188,6 +194,11 @@ via Marshal.
   lineup above 860 MHz, an STD/HRC mismatch, a wrong EMM provider ID, or
   class budgets that starve C0; destructive operations need the F6-10
   policy layer (owner role, confirmation token, dry-run default, audit).
+  The **sacrificial-only CDL lock** is a per-install owner-role setting,
+  ON by default; turning it off needs only the confirmation token
+  (Marshal, QA-7). That setting governs installs only: §7's
+  flash-recovery-before-download rule still binds this project's own lab
+  and agents.
 - **The database is the installation** (F6-5, amending F5-12): one
   sqlite file, durability classified per table, continuous whole-file
   backup, one-click backup/restore and whole-install export.

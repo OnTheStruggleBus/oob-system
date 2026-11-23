@@ -74,8 +74,9 @@ under the owner's account, linked to this repo). Board setup:
    §3) is the only sequencing authority.
 2. A finding-implementing PR cites the finding ID in commit and PR text
    (e.g., `implements F4-6`).
-3. Dispositions (r3 ×11, r4 ×8, ADR-001 rev 7) live as board items in
-   **Gate review** until Marshal rules.
+3. Pending dispositions (today: ADR-001 approval (rev 8); r3–r6 were
+   all accepted 2026-11-22) live as board items in **Gate review** until
+   Marshal rules.
 4. Canary red >3 nights: scrum master files the reopen item against the
    highest affected milestone the same day.
 5. Stretch columns (`post-G6`) hold Interconnect/S3 items with no

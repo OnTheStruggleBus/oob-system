@@ -265,7 +265,7 @@ register in `docs/Project Milestones & Stage Gates — mini-headend.md` §7.*
 
 **Awaiting Marshal (manual actions, no agent can do these)**
 
-ADR-001 rev 7 approval · `gh` `project` scope for the board (oob-pm then
+ADR-001 approval (rev 8) · `gh` `project` scope for the board (oob-pm then
 builds board + labels) ·
 git-crypt init + key escrow (G1 entry requirement) · buy list purchases ·
 O7 / O15 / O16 restricted-document acquisitions (upload pattern) · VOD/PPV
