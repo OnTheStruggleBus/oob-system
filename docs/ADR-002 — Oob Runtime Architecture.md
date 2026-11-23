@@ -1,19 +1,16 @@
 # ADR-002 — Oob Runtime Architecture: Process Topology and the Mux ↔ PHY Seam
 
 - **Status:** Accepted — Marshal, 2026-11-22 ("Accept as recommended",
-  r6 disposition record §5)
-- **Hardware-option delta (Marshal's direction, 2026-11-23):** the OOB TX
-  is a **supported set** — ADALM-Pluto (range-hacked at the hunt
-  carriers), HackRF One clone, and LibreSDR — and the **primary is chosen
-  at the G0.5 bench** by the r4 F4-1 level log, not pinned in advance.
-  This ADR stays accepted. Its decisions are unchanged; the delta changes
-  only the SDR wording in Context and in Decision 6 and action 6 below.
-  The r4 F4-1 record itself is unchanged by this note.
-- **Date:** 2026-11-22
+  r6 disposition record §5); amended 2026-11-23 by Marshal's direction on
+  the OOB TX SDR — see "Amendment — 2026-11-23 (Marshal)" below. The
+  amendment changes SDR wording only; the decisions stand.
+- **Date:** 2026-11-22; amended 2026-11-23
 - **Deciders:** Marshal (approval); oob-architect (author role);
   oob-dev-core and oob-dev-rf (consulted, per AGENTS.md §14 step 3 —
   PR review is oob-qa and oob-architect only)
-- **Addresses:** r6 F6-1, F6-2, F6-3, F6-9, F6-12
+- **Addresses:** r6 F6-1, F6-2, F6-3, F6-9, F6-12. Amended 2026-11-23 for
+  the OOB TX SDR (Marshal's direction; see the Amendment section). Does not
+  touch the r4 F4-1 record.
 - **Builds on:** ADR-001 rev 8 (what to build); this ADR decides *how the
   running system is shaped*.
 - **History:** first proposed in PR #6 (merged before review, reverted in
@@ -86,6 +83,26 @@ Forces at play:
 7. **Lab tooling and the Console are API clients only.** Discovery Lab
    injection is class C5 traffic through the same command layer and pacer.
    It is not a second stream source.
+
+### Amendment — 2026-11-23 (Marshal): OOB TX supported set
+
+Recorded explicitly, mirroring ADR-003's "Marshal's rulings" subsection. In
+Marshal's direction of 2026-11-23, the hardware option for the OOB TX
+changed. The text above was already changed in place by this amendment:
+Context (the SDR named in the PHY line and the USB bullet), Decision 6, and
+action 6. The amendment is recorded here so it can be traced.
+
+- **Supported set.** The OOB TX is a supported set: **HackRF One clone**,
+  **ADALM-Pluto** (range-hacked at the hunt carriers), and **LibreSDR**.
+- **Primary.** The primary is **chosen at the G0.5 bench** by the r4 F4-1
+  level log. It is not pinned in advance.
+- **Action 6.** The host `systemd` service and its udev rule cover the chosen
+  SDR. A USB-attached radio (HackRF One clone, ADALM-Pluto) gets a udev rule.
+  A network-attached LibreSDR gets a reachability check in place of one.
+- **Unchanged.** The decisions (process topology, the pull seam, traffic
+  classes, deployment split) stand, and ADR-002 stays accepted. The r4 F4-1
+  record itself is unchanged. The F4-1 radio-role supersession is recorded
+  in AGENTS.md §1 and is cross-referenced here, not restated.
 
 ## Options Considered
 

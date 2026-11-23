@@ -15,9 +15,12 @@ front-end — the modern stand-in for the DAC's operator terminals.
   vitest. Client types are **generated from `openapi.json`**
   (openapi-typescript) — the API-first rule is enforced by the build, so
   you never hand-write API types.
-- **Phases C0–C5** (Console spec §5): C0 is the experiment workbench and
-  a **G1 exit requirement** — message-lab control, capture viewing,
-  verdict logging. Later phases add fleet registry (Define Terminal
+- **Phases C0–C5** (Console spec §5): C0 ships as a **stub to live** for G1 —
+  a minimal live workbench against the oob-dac REST adapter (#27), and that
+  is a **G1 exit requirement** (Marshal, 2026-11-23). The full experiment
+  workbench (Console spec §4.3) follows the E1 capture rig and is not a G1
+  exit criterion. Scope of the stub follows Console spec §5. Later phases add
+  fleet registry (Define Terminal
   schema), ops (Define Operations views), lineup editor, download
   campaigns, and polish.
 - **The six operator journeys** (Console spec §7) must pass without SSH
