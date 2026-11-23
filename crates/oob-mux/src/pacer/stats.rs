@@ -6,10 +6,10 @@
 //!   error.
 //! - `late_pulls`: a pull took longer than its configured budget.
 //! - `puller_underruns`: the flowgraph timed out waiting for a pull and
-//!   inserted nulls itself. The flowgraph counts these and reports them
-//!   over the seam (#15), which records them with
-//!   [`PacerStats::record_puller_underruns`]. This is the G0.5 evidence
-//!   counter.
+//!   inserted nulls itself. The flowgraph counts these and reports the
+//!   cumulative value in every seam request, so the counter lives in the
+//!   seam's stats (#15) as the last reported value, **not** here (ARCH-1).
+//!   This is the G0.5 evidence counter.
 
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
@@ -25,7 +25,6 @@ pub struct PacerStats {
     nulls_emitted: AtomicU64,
     late_pulls: AtomicU64,
     oversized_pulls: AtomicU64,
-    puller_underruns: AtomicU64,
     expired: AtomicU64,
     stamper_panics: AtomicU64,
     outcomes_lost: AtomicU64,
@@ -43,11 +42,8 @@ pub struct PacerStatsSnapshot {
     pub nulls_emitted: u64,
     /// Pulls that exceeded the configured `pull_budget`.
     pub late_pulls: u64,
-    /// Pulls asking for more than `max_pull` packets (served in full,
-    /// outside the documented time bound).
+    /// Pulls refused for asking more than `max_pull` packets.
     pub oversized_pulls: u64,
-    /// Puller-side underruns reported by the flowgraph over the seam.
-    pub puller_underruns: u64,
     /// One-shot PDUs dropped because their deadline passed.
     pub expired: u64,
     /// PDUs dropped because their stamper panicked.
@@ -68,18 +64,11 @@ impl PacerStats {
             nulls_emitted: self.nulls_emitted.load(Relaxed),
             late_pulls: self.late_pulls.load(Relaxed),
             oversized_pulls: self.oversized_pulls.load(Relaxed),
-            puller_underruns: self.puller_underruns.load(Relaxed),
             expired: self.expired.load(Relaxed),
             stamper_panics: self.stamper_panics.load(Relaxed),
             outcomes_lost: self.outcomes_lost.load(Relaxed),
             served_by_class: core::array::from_fn(|i| self.served_by_class[i].load(Relaxed)),
         }
-    }
-
-    /// Records `n` underruns the flowgraph reported (called by the seam
-    /// endpoint, #15).
-    pub fn record_puller_underruns(&self, n: u64) {
-        self.puller_underruns.fetch_add(n, Relaxed);
     }
 
     pub(crate) fn add_pull(&self, served: u64, nulls: u64) {

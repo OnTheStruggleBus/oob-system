@@ -50,7 +50,17 @@ A pull does no I/O, never awaits, allocates nothing when the caller's
 buffer has room for `max_pull`, and takes the queue lock only per dequeue.
 It times itself: a pull longer than `pull_budget` is reported `late`. The
 documented number comes from #16's criterion bench. A pull asking for more
-than `max_pull` is still answered in full, outside that bound, and counted.
+than `max_pull` is refused with `PullError::Oversized`, the caller's buffer
+untouched and the stream not advanced, and counted: a garbled request from
+the seam cannot make the mux allocate without bound. Zero values for
+`max_pull`, `pull_budget`, `queue_depth` or `outcome_capacity` are refused
+when the configuration is applied.
+
+Carousels: replacing a carousel with new content (a new PSI version) makes
+it due at once; re-submitting the same content keeps its schedule, so an
+idempotent re-submit from oob-dac never raises its rate. A one-shot PDU is
+still eligible at exactly its deadline, and expired one-shots are reaped
+in every class on each dequeue.
 
 ## Counters
 
@@ -59,10 +69,11 @@ than `max_pull` is still answered in full, outside that bound, and counted.
 | `nulls_emitted` | Null fill on shortfall. Normal operation, not an error. |
 | `packets_served` | Non-null packets released (also per class). |
 | `late_pulls` | A pull took longer than `pull_budget`. |
-| `puller_underruns` | The flowgraph timed out and inserted nulls itself; reported over the seam (#15). The G0.5 evidence counter. |
-| `expired`, `stamper_panics`, `outcomes_lost`, `oversized_pulls` | Deadline drops, contained stamper panics, outcome-channel overflow, pulls above `max_pull`. |
+| `puller_underruns` | **Seam counter (#15), not a pacer counter.** The flowgraph timed out and inserted nulls itself; it reports the cumulative value in every seam request, and the seam's stats keep the last reported value. The G0.5 evidence counter. |
+| `expired`, `stamper_panics`, `outcomes_lost`, `oversized_pulls` | Deadline drops, contained stamper panics, outcome-channel overflow, refused pulls above `max_pull`. |
 
-Exposure as `/metrics` is #29.
+All but `puller_underruns` live in `PacerStats`. Exposure as `/metrics` is
+#29.
 
 ## Not here yet
 

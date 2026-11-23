@@ -90,7 +90,10 @@ pub trait TimeStamper: Send + Sync {
     ///
     /// Must not allocate or block. The packetizer recomputes the CRC32
     /// afterwards. A panic here is contained: the PDU is dropped
-    /// ([`DropReason::StamperPanicked`]) and the stream continues.
+    /// ([`DropReason::StamperPanicked`]), the panic payload is leaked
+    /// rather than dropped (its `Drop` could panic again), and the stream
+    /// continues. Containment requires `panic = "unwind"`, the default;
+    /// no Oob build profile may set `panic = "abort"`.
     fn stamp(&self, section: &mut [u8], at: UtcTime);
 }
 
@@ -150,10 +153,18 @@ pub enum Submission {
     /// Emitted once, then reported on the outcome channel.
     Once(Pdu),
     /// Repeats every `period` of stream time until replaced (same `id`)
-    /// or withdrawn (PSI, connect/config carousel). A replacement takes
-    /// effect at the next PDU boundary and is eligible at once; a PDU
-    /// already in flight is never cut. Carousel emissions are counted in
-    /// the pacer's statistics, not reported per emission.
+    /// or withdrawn (PSI, connect/config carousel). A PDU already in
+    /// flight is never cut; a replacement takes effect at the next PDU
+    /// boundary. When it is due depends on what changed:
+    ///
+    /// - **new content** (section bytes, PID, class or priority differ,
+    ///   for example a new PSI version): due at once;
+    /// - **same content** (an idempotent re-submit, such as oob-dac
+    ///   reconciling from its store): keeps the old schedule, so
+    ///   re-submitting never raises the carousel's rate (QA-5).
+    ///
+    /// Carousel emissions are counted in the pacer's statistics, not
+    /// reported per emission.
     Cyclic {
         /// The carousel's name.
         id: CarouselId,

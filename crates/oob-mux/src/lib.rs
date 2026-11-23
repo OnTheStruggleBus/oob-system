@@ -19,7 +19,7 @@
 //!  [packetizer] PDU → 188-byte packets; CC per PID; stamp at pull
 //!        │ one packet at a time
 //!        ▼
-//!  [pacer]      PullSource::pull(n) → exactly n packets, nulls on shortfall
+//!  [pacer]      PullSource::pull(n ≤ max_pull) → exactly n packets, nulls on shortfall
 //!        ▲
 //!        │ the pull seam (#15): the flowgraph asks, the flowgraph's clock rules
 //! ```
@@ -51,6 +51,7 @@
 //! modules. Nothing here is hub-specific (AGENTS.md §9).
 
 pub mod clock;
+pub mod config;
 pub mod pacer;
 pub mod packet;
 pub mod packetizer;
@@ -60,8 +61,9 @@ pub mod rate;
 pub mod scheduler;
 
 pub use clock::{Clock, ManualClock, MonoTime, SystemClock, UtcTime};
+pub use config::ConfigError;
 pub use pacer::stats::{PacerStats, PacerStatsSnapshot};
-pub use pacer::{Pacer, PacerConfig, PullReport, PullSource};
+pub use pacer::{Pacer, PacerConfig, PullError, PullReport, PullSource};
 pub use packet::TsPacket;
 pub use packetizer::Packetizer;
 pub use pdu::{

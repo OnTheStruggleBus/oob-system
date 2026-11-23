@@ -20,6 +20,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use crate::clock::MonoTime;
+use crate::config::ConfigError;
 use crate::pacer::stats::PacerStats;
 use crate::pdu::{
     CarouselId, MAX_SECTION_LEN, Outcome, OutcomeEvent, Pdu, PduId, Submission, TrafficClass,
@@ -31,12 +32,13 @@ use queue::{CarouselEntry, OnceEntry, Pick, Queues};
 /// Layer 1): the values come from oob-dac's store, so there is no default.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchedulerConfig {
-    /// Maximum one-shot PDUs waiting per class.
+    /// Maximum one-shot PDUs waiting per class; at least 1.
     pub queue_depth: usize,
-    /// Maximum registered carousels across all classes.
+    /// Maximum registered carousels across all classes; 0 disables
+    /// carousels.
     pub max_carousels: usize,
-    /// Capacity of the outcome channel. When it is full, outcomes are
-    /// counted as lost rather than blocking the pull path.
+    /// Capacity of the outcome channel; at least 1. When it is full,
+    /// outcomes are counted as lost rather than blocking the pull path.
     pub outcome_capacity: usize,
     /// Classes that refuse submissions.
     pub disabled_classes: Vec<TrafficClass>,
@@ -131,6 +133,15 @@ impl core::fmt::Debug for SchedulerHandle {
     }
 }
 
+/// Whether a carousel replacement carries the same content: section bytes,
+/// PID, class and priority.
+fn same_content(a: &Pdu, b: &Pdu) -> bool {
+    a.pid == b.pid
+        && a.class == b.class
+        && a.priority == b.priority
+        && a.payload.as_bytes() == b.payload.as_bytes()
+}
+
 fn validate(pdu: &Pdu) -> Result<(), SubmitError> {
     let b = pdu.payload.as_bytes();
     let len = b.len();
@@ -196,7 +207,16 @@ impl SchedulerHandle {
                     next_due_slot: 0,
                 };
                 if let Some(slot) = q.carousels.iter_mut().find(|c| c.id == carousel) {
+                    // Same content keeps its schedule, so idempotent
+                    // re-submits never raise the rate; new content is due
+                    // at once (QA-5, see `Submission::Cyclic`).
+                    let unchanged = same_content(&slot.pdu, &entry.pdu);
+                    let (old_due, old_seq) = (slot.next_due_slot, slot.seq);
                     *slot = entry;
+                    if unchanged {
+                        slot.next_due_slot = old_due;
+                        slot.seq = old_seq;
+                    }
                 } else if q.carousels.len() >= s.config.max_carousels {
                     return Err(SubmitError::CarouselLimit {
                         max: s.config.max_carousels,
@@ -248,7 +268,20 @@ impl core::fmt::Debug for Scheduler {
 
 impl Scheduler {
     /// A scheduler, its producer handle, and the outcome channel.
-    pub fn new(config: SchedulerConfig) -> (Self, SchedulerHandle, OutcomeReceiver) {
+    ///
+    /// # Errors
+    ///
+    /// [`ConfigError`] for a zero `queue_depth` or `outcome_capacity`
+    /// (QA-7).
+    pub fn new(
+        config: SchedulerConfig,
+    ) -> Result<(Self, SchedulerHandle, OutcomeReceiver), ConfigError> {
+        if config.queue_depth == 0 {
+            return Err(ConfigError::ZeroQueueDepth);
+        }
+        if config.outcome_capacity == 0 {
+            return Err(ConfigError::ZeroOutcomeCapacity);
+        }
         let (tx, rx) = sync_channel(config.outcome_capacity);
         let shared = Arc::new(Shared {
             queues: Mutex::new(Queues::new(config.queue_depth, config.max_carousels)),
@@ -261,7 +294,7 @@ impl Scheduler {
             outcomes: tx,
             stats: Arc::new(PacerStats::default()),
         };
-        (scheduler, SchedulerHandle { shared }, rx)
+        Ok((scheduler, SchedulerHandle { shared }, rx))
     }
 
     pub(crate) fn set_stats(&mut self, stats: Arc<PacerStats>) {

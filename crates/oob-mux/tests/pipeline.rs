@@ -6,9 +6,10 @@ use std::sync::mpsc::TryRecvError;
 use std::time::Duration;
 
 use oob_mux::{
-    CarouselId, Clock, DropReason, ManualClock, MonoTime, Outcome, OutcomeReceiver, Pacer,
-    PacerConfig, PacketRate, Payload, Pdu, Pid, PullSource, Scheduler, SchedulerConfig,
-    SchedulerHandle, Submission, SubmitError, TimeStamper, TrafficClass, TsPacket, UtcTime,
+    CarouselId, Clock, ConfigError, DropReason, ManualClock, MonoTime, Outcome, OutcomeReceiver,
+    Pacer, PacerConfig, PacketRate, Payload, Pdu, Pid, PullError, PullSource, Scheduler,
+    SchedulerConfig, SchedulerHandle, Submission, SubmitError, TimeStamper, TrafficClass, TsPacket,
+    UtcTime,
 };
 
 // Test fixture values only; real values are runtime configuration.
@@ -27,7 +28,7 @@ fn sched_config() -> SchedulerConfig {
 fn pacer_config() -> PacerConfig {
     PacerConfig {
         packet_rate: PacketRate::from_bits_per_second(BPS).unwrap(),
-        max_pull: 64,
+        max_pull: 128,
         pull_budget: Duration::from_millis(10),
     }
 }
@@ -44,9 +45,9 @@ fn rig_with(sc: SchedulerConfig) -> Rig {
         MonoTime::default(),
         UtcTime::from_unix(Duration::from_secs(T0_UTC)),
     ));
-    let (scheduler, handle, outcomes) = Scheduler::new(sc);
+    let (scheduler, handle, outcomes) = Scheduler::new(sc).unwrap();
     let dyn_clock: Arc<dyn Clock> = clock.clone();
-    let pacer = Pacer::new(pacer_config(), scheduler, dyn_clock);
+    let pacer = Pacer::new(pacer_config(), scheduler, dyn_clock).unwrap();
     Rig {
         pacer,
         handle,
@@ -89,7 +90,7 @@ fn pdu(class: TrafficClass, priority: u8, len: usize, tag: u8) -> Pdu {
 
 fn pull(p: &mut Pacer, n: usize) -> Vec<TsPacket> {
     let mut out = Vec::with_capacity(n);
-    let r = p.pull(n, &mut out);
+    let r = p.pull(n, &mut out).unwrap();
     assert_eq!(out.len(), n, "exactly n");
     assert_eq!(r.served + r.nulls, n);
     assert_eq!(r.nulls, out.iter().filter(|k| k.is_null()).count());
@@ -168,25 +169,56 @@ impl Rng {
 
 #[test]
 fn pull_returns_exactly_n_over_random_queue_states() {
+    // QA-8: one-shots, carousels (new, replaced, withdrawn), release times,
+    // deadlines and panicking stampers, all mixed at random.
     let mut r = rig();
     let max = r.pacer.config().max_pull;
     let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
     let mut total = 0u64;
     let mut out = Vec::with_capacity(max);
-    for _ in 0..2000 {
+    for _ in 0..3000 {
         for _ in 0..rng.below(3) {
             let class = TrafficClass::ALL[rng.below(6) as usize];
-            let len = 4 + rng.below(1200) as usize;
+            let len = 8 + rng.below(1200) as usize;
             let tag = rng.below(200) as u8;
-            let p = pdu(class, rng.below(4) as u8, len, tag);
-            // A full queue is a legitimate state; it must not disturb pulls.
-            let _ = r.handle.submit(Submission::Once(p));
+            let mut p = pdu(class, rng.below(4) as u8, len, tag);
+            let now = r.clock.mono();
+            if rng.below(4) == 0 {
+                p.release_at = Some(now.saturating_add(Duration::from_millis(rng.below(20))));
+            }
+            match rng.below(10) {
+                0 => p.stamp = Some(Arc::new(PanickingStamper)),
+                1 => p.stamp = Some(Arc::new(SecondsStamper)),
+                _ => {}
+            }
+            // Refusals (full queue, carousel limit) are legitimate states;
+            // they must not disturb pulls.
+            match rng.below(5) {
+                0 => {
+                    let _ = r.handle.submit(Submission::Cyclic {
+                        id: CarouselId(rng.below(6) as u32),
+                        pdu: p,
+                        period: Duration::from_millis(1 + rng.below(50)),
+                    });
+                }
+                1 => {
+                    let _ = r.handle.withdraw(CarouselId(rng.below(6) as u32));
+                }
+                _ => {
+                    if rng.below(3) == 0 {
+                        p.deadline = Some(now.saturating_add(Duration::from_millis(rng.below(10))));
+                    }
+                    let _ = r.handle.submit(Submission::Once(p));
+                }
+            }
         }
+        r.clock.advance(Duration::from_millis(rng.below(3)));
         let n = 1 + rng.below(max as u64) as usize;
         out.clear();
-        let rep = r.pacer.pull(n, &mut out);
+        let rep = r.pacer.pull(n, &mut out).unwrap();
         assert_eq!(out.len(), n);
         assert_eq!(rep.served + rep.nulls, n);
+        assert_eq!(rep.nulls, out.iter().filter(|k| k.is_null()).count());
         total += n as u64;
     }
     let s = r.pacer.stats().snapshot();
@@ -194,6 +226,10 @@ fn pull_returns_exactly_n_over_random_queue_states() {
     assert_eq!(s.packets_served + s.nulls_emitted, s.slots);
     assert_eq!(s.served_by_class.iter().sum::<u64>(), s.packets_served);
     assert_eq!(r.pacer.slot(), total);
+    assert!(
+        s.stamper_panics > 0 && s.expired > 0,
+        "paths exercised: {s:?}"
+    );
 }
 
 /// Writes the UTC seconds into bytes 4..8 of the section.
@@ -307,12 +343,12 @@ impl TimeStamper for SlowStamper {
 #[test]
 fn a_pull_over_budget_is_reported_late() {
     let mut r = rig();
-    assert!(!r.pacer.pull(4, &mut Vec::new()).late);
+    assert!(!r.pacer.pull(4, &mut Vec::new()).unwrap().late);
     let mut p = pdu(TrafficClass::C0System, 0, 16, 1);
     p.stamp = Some(Arc::new(SlowStamper(r.clock.clone())));
     r.handle.submit(Submission::Once(p)).unwrap();
     let mut out = Vec::new();
-    let rep = r.pacer.pull(4, &mut out);
+    let rep = r.pacer.pull(4, &mut out).unwrap();
     assert!(rep.late);
     assert_eq!(out.len(), 4);
     assert_eq!(r.pacer.stats().snapshot().late_pulls, 1);
@@ -375,7 +411,7 @@ fn replacing_a_carousel_never_cuts_the_pdu_in_flight() {
     let mut out = pull(&mut r.pacer, 2); // version 1 is mid-flight (6 packets)
     r.handle.submit(cyc(2)).unwrap();
     out.extend(pull(&mut r.pacer, 10));
-    // v1's six packets complete, then v2 starts at once.
+    // v1's six packets complete, then v2 (new content) starts at once.
     assert_eq!(starts(&out), vec![1, 2]);
     assert!(out[..6].iter().all(|k| k.pid_value() == 0x101));
     assert!(out[6].pusi() && out[6].pid_value() == 0x102);
@@ -475,21 +511,184 @@ fn submission_errors() {
 }
 
 #[test]
-fn oversized_pulls_are_served_in_full_and_counted() {
+fn oversized_pulls_are_refused_without_touching_out() {
+    // QA-1: a garbled n from the seam must not panic or allocate.
     let mut r = rig();
-    let n = r.pacer.config().max_pull + 1;
-    pull(&mut r.pacer, n);
-    assert_eq!(r.pacer.stats().snapshot().oversized_pulls, 1);
+    let max = r.pacer.config().max_pull;
+    let mut out = Vec::new();
+    for n in [max + 1, usize::MAX] {
+        assert_eq!(
+            r.pacer.pull(n, &mut out),
+            Err(PullError::Oversized { n, max })
+        );
+    }
+    assert!(out.is_empty() && out.capacity() == 0);
+    assert_eq!(r.pacer.slot(), 0, "the stream did not advance");
+    let s = r.pacer.stats().snapshot();
+    assert_eq!((s.oversized_pulls, s.slots), (2, 0));
+    pull(&mut r.pacer, max); // exactly max_pull is fine
 }
 
 #[test]
-fn puller_underruns_are_recorded_from_the_seam() {
-    let r = rig();
-    let stats = r.pacer.stats();
-    stats.record_puller_underruns(3);
-    stats.record_puller_underruns(2);
-    assert_eq!(stats.snapshot().puller_underruns, 5);
-    assert_eq!(stats.snapshot().nulls_emitted, 0, "distinct counters");
+fn zero_config_values_are_refused() {
+    // QA-7.
+    let sc = |queue_depth, outcome_capacity| SchedulerConfig {
+        queue_depth,
+        outcome_capacity,
+        ..sched_config()
+    };
+    assert_eq!(
+        Scheduler::new(sc(0, 1)).err(),
+        Some(ConfigError::ZeroQueueDepth)
+    );
+    assert_eq!(
+        Scheduler::new(sc(1, 0)).err(),
+        Some(ConfigError::ZeroOutcomeCapacity)
+    );
+    let zero_pull = PacerConfig {
+        max_pull: 0,
+        ..pacer_config()
+    };
+    let zero_budget = PacerConfig {
+        pull_budget: Duration::ZERO,
+        ..pacer_config()
+    };
+    let new_pacer = |c| {
+        let (s, _, _) = Scheduler::new(sched_config()).unwrap();
+        Pacer::new(c, s, Arc::new(ManualClock::default())).err()
+    };
+    assert_eq!(new_pacer(zero_pull), Some(ConfigError::ZeroMaxPull));
+    assert_eq!(new_pacer(zero_budget), Some(ConfigError::ZeroPullBudget));
+    let mut r = rig();
+    assert_eq!(
+        r.pacer.apply_config(zero_pull),
+        Err(ConfigError::ZeroMaxPull)
+    );
+    assert_eq!(*r.pacer.config(), pacer_config(), "old settings kept");
+}
+
+/// A panic payload whose Drop panics again.
+struct PanicOnDrop;
+impl Drop for PanicOnDrop {
+    fn drop(&mut self) {
+        panic!("payload drop");
+    }
+}
+
+struct PanicAnyStamper;
+impl TimeStamper for PanicAnyStamper {
+    fn stamp(&self, _: &mut [u8], _: UtcTime) {
+        std::panic::panic_any(PanicOnDrop);
+    }
+}
+
+#[test]
+fn a_panic_payload_that_panics_on_drop_is_contained() {
+    // QA-3.
+    let mut r = rig();
+    let mut bad = pdu(TrafficClass::C0System, 0, 16, 1);
+    bad.stamp = Some(Arc::new(PanicAnyStamper));
+    r.handle.submit(Submission::Once(bad)).unwrap();
+    let out = pull(&mut r.pacer, 2);
+    assert!(out.iter().all(TsPacket::is_null));
+    assert_eq!(r.pacer.stats().snapshot().stamper_panics, 1);
+}
+
+#[test]
+fn expired_pdus_in_lower_classes_are_reaped_while_higher_ones_have_work() {
+    // QA-4.
+    let mut r = rig_with(SchedulerConfig {
+        queue_depth: 4,
+        ..sched_config()
+    });
+    r.handle
+        .submit(Submission::Cyclic {
+            id: CarouselId(1),
+            pdu: pdu(TrafficClass::C0System, 0, 10, 1),
+            period: Duration::from_nanos(1), // always due
+        })
+        .unwrap();
+    for tag in 10..14 {
+        let mut p = pdu(TrafficClass::C5Lab, 0, 10, tag);
+        p.deadline = Some(MonoTime::from_origin(Duration::from_millis(5)));
+        r.handle.submit(Submission::Once(p)).unwrap();
+    }
+    r.clock.advance(Duration::from_millis(10));
+    assert!(pull(&mut r.pacer, 32).iter().all(|k| !k.is_null()));
+    assert_eq!(r.pacer.stats().snapshot().expired, 4);
+    let expired = std::iter::from_fn(|| r.outcomes.try_recv().ok())
+        .filter(|e| e.outcome == Outcome::Expired)
+        .count();
+    assert_eq!(expired, 4);
+    r.handle
+        .submit(Submission::Once(pdu(TrafficClass::C5Lab, 0, 10, 20)))
+        .unwrap();
+}
+
+#[test]
+fn a_pdu_is_still_eligible_at_exactly_its_deadline() {
+    // QA-8: "by this instant".
+    let mut r = rig();
+    let mut p = pdu(TrafficClass::C1Addressed, 0, 10, 3);
+    p.deadline = Some(MonoTime::from_origin(Duration::from_millis(5)));
+    r.handle.submit(Submission::Once(p)).unwrap();
+    r.clock.advance(Duration::from_millis(5));
+    assert_eq!(starts(&pull(&mut r.pacer, 1)), vec![3]);
+    assert_eq!(r.pacer.stats().snapshot().expired, 0);
+}
+
+#[test]
+fn equal_carousels_that_are_always_due_alternate() {
+    // QA-8: round-robin among equal-priority carousels.
+    let mut r = rig();
+    for (id, tag) in [(1, 1), (2, 2)] {
+        r.handle
+            .submit(Submission::Cyclic {
+                id: CarouselId(id),
+                pdu: pdu(TrafficClass::C3Guide, 0, 10, tag),
+                period: Duration::from_nanos(1),
+            })
+            .unwrap();
+    }
+    assert_eq!(starts(&pull(&mut r.pacer, 6)), vec![1, 2, 1, 2, 1, 2]);
+}
+
+#[test]
+fn a_higher_priority_one_shot_beats_a_due_carousel_in_its_class() {
+    // QA-8.
+    let mut r = rig();
+    r.handle
+        .submit(Submission::Cyclic {
+            id: CarouselId(1),
+            pdu: pdu(TrafficClass::C0System, 1, 10, 1),
+            period: Duration::from_secs(1),
+        })
+        .unwrap();
+    r.handle
+        .submit(Submission::Once(pdu(TrafficClass::C0System, 2, 10, 2)))
+        .unwrap();
+    r.handle
+        .submit(Submission::Once(pdu(TrafficClass::C0System, 0, 10, 3)))
+        .unwrap();
+    assert_eq!(starts(&pull(&mut r.pacer, 3)), vec![2, 1, 3]);
+}
+
+#[test]
+fn re_submitting_an_unchanged_carousel_keeps_its_rate() {
+    // QA-5: 100 ms period, re-submitted unchanged every 10-slot pull for
+    // 1 s of stream: still 10 emissions, not 100.
+    let mut r = rig();
+    let cyc = || Submission::Cyclic {
+        id: CarouselId(1),
+        pdu: pdu(TrafficClass::C0System, 0, 10, 1),
+        period: Duration::from_millis(100),
+    };
+    let mut emitted = 0;
+    for _ in 0..100 {
+        r.handle.submit(cyc()).unwrap();
+        emitted += starts(&pull(&mut r.pacer, 10)).len();
+    }
+    assert_eq!(emitted, 10);
 }
 
 #[test]
@@ -515,6 +714,10 @@ fn the_rate_is_a_runtime_parameter() {
     assert_eq!(r.pacer.stream_time(), Duration::from_millis(100));
     let mut c = *r.pacer.config();
     c.packet_rate = PacketRate::from_bits_per_second(BPS * 2).unwrap();
-    r.pacer.apply_config(c);
-    assert_eq!(r.pacer.stream_time(), Duration::from_millis(50));
+    r.pacer.apply_config(c).unwrap();
+    // QA-2: time accrued so far is kept, later slots accrue at the new rate.
+    assert_eq!(r.pacer.stream_time(), Duration::from_millis(100));
+    pull(&mut r.pacer, 100);
+    assert_eq!(r.pacer.stream_time(), Duration::from_millis(150));
+    assert_eq!(r.pacer.slot(), 200);
 }

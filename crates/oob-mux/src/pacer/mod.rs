@@ -24,34 +24,35 @@
 //!
 //! let (scheduler, _handle, _outcomes) = Scheduler::new(SchedulerConfig {
 //!     queue_depth: 4, max_carousels: 4, outcome_capacity: 4, disabled_classes: vec![],
-//! });
+//! })?;
 //! let config = PacerConfig {
 //!     packet_rate: PacketRate::from_bits_per_second(1504 * 1000).unwrap_or_else(|| unreachable!()),
 //!     max_pull: 8,
 //!     pull_budget: Duration::from_millis(1),
 //! };
-//! let mut pacer = Pacer::new(config, scheduler, Arc::new(SystemClock::new()));
+//! let mut pacer = Pacer::new(config, scheduler, Arc::new(SystemClock::new()))?;
 //! let mut out = Vec::with_capacity(8);
-//! let report = pacer.pull(3, &mut out);
+//! let report = pacer.pull(3, &mut out)?;
 //! assert_eq!((out.len(), report.nulls), (3, 3));
 //! assert!(out.iter().all(|p| p.is_null()));
+//! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! There is no public null constructor:
+//! The null constructor is private to the crate (E0624):
 //!
-//! ```compile_fail
-//! let _ = oob_mux::pacer::null_packet();
+//! ```compile_fail,E0624
+//! let _ = oob_mux::TsPacket::null;
 //! ```
 //!
-//! the null module and its constant are private:
+//! the null module and its constant are private (E0603):
 //!
-//! ```compile_fail
+//! ```compile_fail,E0603
 //! let _ = oob_mux::pacer::null::NULL_PACKET;
 //! ```
 //!
-//! and a packet cannot be built from raw bytes:
+//! and a packet cannot be built from raw bytes (E0423):
 //!
-//! ```compile_fail
+//! ```compile_fail,E0423
 //! let _ = oob_mux::TsPacket([0x47; 188]);
 //! ```
 //!
@@ -61,11 +62,12 @@
 //! capacity for `n` (reserve `max_pull` once). It takes the queue lock only
 //! for each dequeue. It times itself on the monotonic clock: a pull that
 //! takes longer than `pull_budget` is reported `late` and counted in
-//! `late_pulls`. The worst case for `n <= max_pull` is `n` packet
-//! constructions plus at most one dequeue per PDU started; #16's criterion
-//! bench sets the documented number. A pull with `n > max_pull` is still
-//! served in full but falls outside that bound and is counted in
-//! `oversized_pulls`.
+//! `late_pulls`. The worst case is `n <= max_pull` packet constructions
+//! plus at most one dequeue per PDU started; #16's criterion bench sets
+//! the documented number. A request for more than `max_pull` packets is
+//! refused with [`PullError::Oversized`], `out` untouched, and counted in
+//! `oversized_pulls` (QA-1): a garbled request from the seam cannot make
+//! the mux allocate without bound.
 
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 
@@ -76,6 +78,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::clock::{Clock, MonoTime};
+use crate::config::ConfigError;
 use crate::packet::TsPacket;
 use crate::packetizer::Packetizer;
 use crate::pdu::{Outcome, TrafficClass};
@@ -88,8 +91,36 @@ use stats::PacerStats;
 pub trait PullSource: Send {
     /// Appends exactly `n` packets to `out`, null-filled on shortfall.
     /// Never blocks on I/O and never awaits.
-    fn pull(&mut self, n: usize, out: &mut Vec<TsPacket>) -> PullReport;
+    ///
+    /// # Errors
+    ///
+    /// [`PullError::Oversized`] when `n` exceeds the source's `max_pull`;
+    /// `out` is then left untouched and the stream does not advance.
+    fn pull(&mut self, n: usize, out: &mut Vec<TsPacket>) -> Result<PullReport, PullError>;
 }
+
+/// Why a pull was refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PullError {
+    /// The request asked for more packets than `max_pull`.
+    Oversized {
+        /// Packets asked for.
+        n: usize,
+        /// The configured `max_pull`.
+        max: usize,
+    },
+}
+
+impl core::fmt::Display for PullError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Oversized { n, max } => write!(f, "pull of {n} packets exceeds max_pull {max}"),
+        }
+    }
+}
+
+impl std::error::Error for PullError {}
 
 /// Pacer settings. Runtime configuration (ADR-003 Layer 1): the values
 /// come from oob-dac's store, so there is no default.
@@ -98,10 +129,22 @@ pub struct PacerConfig {
     /// The rate the flowgraph pulls at; a parameter until O7 fixes it,
     /// and still a parameter afterwards (r6 F6-2).
     pub packet_rate: PacketRate,
-    /// The largest `n` the time bound is documented for.
+    /// The largest `n` a pull accepts; at least 1.
     pub max_pull: usize,
-    /// The documented worst-case duration of one pull.
+    /// The documented worst-case duration of one pull; non-zero.
     pub pull_budget: Duration,
+}
+
+impl PacerConfig {
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.max_pull == 0 {
+            return Err(ConfigError::ZeroMaxPull);
+        }
+        if self.pull_budget.is_zero() {
+            return Err(ConfigError::ZeroPullBudget);
+        }
+        Ok(())
+    }
 }
 
 /// What one pull did.
@@ -123,6 +166,9 @@ pub struct Pacer {
     clock: Arc<dyn Clock>,
     config: PacerConfig,
     slot: u64,
+    /// Stream time at `base_slot`; moves on each rate change (QA-2).
+    base_time: Duration,
+    base_slot: u64,
     class: TrafficClass,
 }
 
@@ -138,21 +184,32 @@ impl core::fmt::Debug for Pacer {
 
 impl Pacer {
     /// A pacer at slot 0 over `scheduler`.
-    pub fn new(config: PacerConfig, mut scheduler: Scheduler, clock: Arc<dyn Clock>) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// [`ConfigError`] for a zero `max_pull` or `pull_budget`.
+    pub fn new(
+        config: PacerConfig,
+        mut scheduler: Scheduler,
+        clock: Arc<dyn Clock>,
+    ) -> Result<Self, ConfigError> {
+        config.validate()?;
         let stats = Arc::new(PacerStats::default());
         scheduler.set_stats(Arc::clone(&stats));
-        Self {
+        Ok(Self {
             scheduler,
             packetizer: Packetizer::new(),
             stats,
             clock,
             config,
             slot: 0,
+            base_time: Duration::ZERO,
+            base_slot: 0,
             class: TrafficClass::C0System,
-        }
+        })
     }
 
-    /// The live counters, for `/metrics` (#29) and the seam (#15).
+    /// The live counters, for `/metrics` (#29).
     pub fn stats(&self) -> Arc<PacerStats> {
         Arc::clone(&self.stats)
     }
@@ -163,9 +220,19 @@ impl Pacer {
     }
 
     /// Replaces the settings. Takes effect at the next pull, which is the
-    /// only boundary there is: a pull holds `&mut self`.
-    pub fn apply_config(&mut self, config: PacerConfig) {
+    /// only boundary there is: a pull holds `&mut self`. Stream time
+    /// accrued so far is kept; later slots accrue at the new rate.
+    ///
+    /// # Errors
+    ///
+    /// [`ConfigError`] for a zero `max_pull` or `pull_budget`; the old
+    /// settings then stay in force.
+    pub fn apply_config(&mut self, config: PacerConfig) -> Result<(), ConfigError> {
+        config.validate()?;
+        self.base_time = self.stream_time();
+        self.base_slot = self.slot;
         self.config = config;
+        Ok(())
     }
 
     /// Slots answered so far: the stream's time base.
@@ -173,9 +240,11 @@ impl Pacer {
         self.slot
     }
 
-    /// Stream time covered so far at the configured rate.
+    /// Stream time covered so far. Monotonic across rate changes.
     pub fn stream_time(&self) -> Duration {
-        self.config.packet_rate.stream_time(self.slot)
+        let since = self.slot.saturating_sub(self.base_slot);
+        self.base_time
+            .saturating_add(self.config.packet_rate.stream_time(since))
     }
 
     /// The next non-null packet, starting a new PDU if needed. The
@@ -222,11 +291,15 @@ impl Pacer {
 }
 
 impl PullSource for Pacer {
-    fn pull(&mut self, n: usize, out: &mut Vec<TsPacket>) -> PullReport {
-        let start = self.clock.mono();
+    fn pull(&mut self, n: usize, out: &mut Vec<TsPacket>) -> Result<PullReport, PullError> {
         if n > self.config.max_pull {
             self.stats.add_oversized();
+            return Err(PullError::Oversized {
+                n,
+                max: self.config.max_pull,
+            });
         }
+        let start = self.clock.mono();
         out.reserve(n);
         let mut report = PullReport::default();
         let mut idle_until = 0;
@@ -250,6 +323,6 @@ impl PullSource for Pacer {
             report.late = true;
             self.stats.add_late();
         }
-        report
+        Ok(report)
     }
 }

@@ -57,9 +57,12 @@ impl Queues {
         self.seq
     }
 
-    /// Removes every one-shot PDU whose deadline has passed, calling
-    /// `expired` for each, then picks the next eligible PDU in strict
-    /// class order. Allocation-free.
+    /// Removes every one-shot PDU whose deadline has passed, in every
+    /// class (QA-4), calling `expired` for each; then picks the next
+    /// eligible PDU in strict class order. Allocation-free; the sweep costs
+    /// at most classes × `queue_depth` checks.
+    ///
+    /// A PDU is still eligible at exactly its deadline ("by this instant").
     ///
     /// When nothing is eligible, returns the earliest slot at which a
     /// carousel becomes due, if any.
@@ -70,8 +73,7 @@ impl Queues {
         rate: PacketRate,
         mut expired: impl FnMut(PduId),
     ) -> Result<Pick, Option<u64>> {
-        for class in TrafficClass::ALL {
-            let q = &mut self.once[class.index()];
+        for q in &mut self.once {
             let mut i = 0;
             while i < q.len() {
                 if q[i].pdu.deadline.is_some_and(|d| d < now) {
@@ -80,6 +82,9 @@ impl Queues {
                     i += 1;
                 }
             }
+        }
+        for class in TrafficClass::ALL {
+            let q = &mut self.once[class.index()];
             let released = |p: &Pdu| p.release_at.is_none_or(|r| r <= now);
             // Order key: higher priority first, then earlier arrival.
             let key = |priority: u8, seq: u64| (priority, core::cmp::Reverse(seq));

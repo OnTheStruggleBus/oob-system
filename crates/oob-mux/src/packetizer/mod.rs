@@ -89,7 +89,10 @@ impl Packetizer {
         self.buf.extend_from_slice(pdu.payload.as_bytes());
         if let Some(stamper) = &pdu.stamp {
             let buf = &mut self.buf;
-            if catch_unwind(AssertUnwindSafe(|| stamper.stamp(buf, at))).is_err() {
+            if let Err(payload) = catch_unwind(AssertUnwindSafe(|| stamper.stamp(buf, at))) {
+                // The payload is foreign too: its Drop could panic again,
+                // outside any guard. Leak it instead (QA-3).
+                std::mem::forget(payload);
                 self.buf.clear();
                 return Err(DropReason::StamperPanicked);
             }
