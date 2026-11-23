@@ -234,7 +234,7 @@ handoff (hypothesis H1 on #22), not terminal replies. Terminal results
 (Last Response Date, Failures, Chronic Non-Responding) live on the
 terminal record. Neither the manual nor this table gives transition order
 or a final status for One-Way operations. Oob's transition table
-([#22](https://github.com/OnTheStruggleBus/oob-system/issues/22#issuecomment-7106763407))
+([#22](https://github.com/OnTheStruggleBus/oob-system/issues/22#issuecomment-7106984109))
 is a `hypothesized` reconstruction. It ends a One-Way operation at
 **Completed**, or **Marked Completed** if its end time passes while Active.
 The reasoning: per the table above, the status depends on the event on the
