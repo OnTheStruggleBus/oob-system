@@ -227,7 +227,7 @@ gate rules (§5).
 
 | Track | Feeds | Done when |
 | --- | --- | --- |
-| **E1 — Capture rig** (r3 F3-2) | G1 entry | Camera OCR of the front panel, capture-card d-screen grabs, and DCT2500 RS-232 scrape all producing files into `lab/captures/`; OCR accuracy spot-checked against manual d-screen readings |
+| **E1 — Capture rig** (r3 F3-2) | G1 entry | Camera OCR of the front panel, capture-card d-screen grabs, and DCT2500 RS-232 scrape all producing files into `lab/captures/`; OCR accuracy spot-checked against manual d-screen readings. Specified in the [Capture Rig Specification](Capture%20Rig%20Specification%20—%20mini-headend.md) (zero human interaction per experiment) |
 | **E2 — D0 flash RE** (r3 F3-3, r4 F4-3) | G4 entry; W8/O13 support | Clean dump via *both* validated routes (TL866 + 68k BDM), verified restore, message-ID enum registry extracted; dumps in git-crypt |
 | **E3 — F0 census** (O2/O12) | G2 exit; G6 fidelity call | Every fleet box's d-screen set recorded; platform table built; guide residency known per platform; CPSC 02-227 cord check logged |
 | **E4 — SEM bench** (r4 F4-2) | G2 entry; G3 entry (license) | ACP presence + **license state** verified (FPK selectable, not greyed); SEM-EM jar + MIBs archived to git; tsp loop via GigE → RF out confirmed on the meter; W4 fallback re-documented |

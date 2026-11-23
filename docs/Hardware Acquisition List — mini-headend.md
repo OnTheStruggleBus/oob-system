@@ -34,7 +34,9 @@ HackRF One clone, and LibreSDR (P3-4 is now in the set; its buy status is
 unchanged and no purchase is implied). The **primary is chosen at the
 G0.5 bench** by the F4-1 level log, not pinned here. This note records the
 hardware-option delta; the r4 F4-1 record is unchanged and not
-dispositioned by this revision. Rev 5 adds no buy and no spend.
+dispositioned by this revision. The capture-rig kit (P0-3) is now specified
+in the [Capture Rig Specification](Capture%20Rig%20Specification%20—%20mini-headend.md).
+Rev 5 adds no buy and no spend.
 
 **Already in the estate (no purchase):** Motorola SEM V8 P/N
 507199-001-00 (ACP confirmed — QAM + FPK encryption), ADALM-Pluto (OOB
@@ -101,6 +103,8 @@ The chain between SDR and plant, bought as one kit:
 - **Unblocks:** G0.5 exit (level log through the chain into a dummy load).
 
 ### P0-3. Capture rig (E1, r3 F3-2 — "highest-leverage purchase in the plan")
+
+*Specified in the [Capture Rig Specification](Capture%20Rig%20Specification%20—%20mini-headend.md) (rev 5 of this list).*
 
 | Item | Spec / notes |
 | --- | --- |
