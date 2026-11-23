@@ -34,6 +34,10 @@ r6 (F6-1…F6-16) were all accepted on 2026-11-22 — F6-4 with an
 amendment recorded as ADR-003. No findings are open. ADR-002 (runtime
 architecture) and ADR-003 (configuration, extensibility and
 distribution) are accepted.
+When a future round is open, treat its undispositioned findings as
+**constraints you must not silently violate**, not as approved work: you
+may implement a finding's delta, but say so explicitly in the commit and
+PR text.
 
 **F4-1 supersession (Marshal, orchestrator session 2026-11-23):** the
 OOB TX supported-set framing — ADALM-Pluto (range-hacked), HackRF One
@@ -41,11 +45,6 @@ clone and LibreSDR, the primary chosen at the G0.5 bench by the F4-1
 level log — supersedes finding r4 F4-1's HackRF-primary radio-role
 assignment. r4 remains accepted and F4-1 is not reopened; only its
 radio-role assignment is superseded by this later owner direction.
-
-When a future round is open, treat its undispositioned findings as
-**constraints you must not silently violate**, not as approved work: you
-may implement a finding's delta, but say so explicitly in the commit and
-PR text.
 
 ## 1. Stage gates are the process (non-negotiable)
 
@@ -448,7 +447,7 @@ These are hard rules with legal weight:
 - PHY: GNU Radio 3.10 flowgraphs in-repo; the OOB TX is a supported set —
   ADALM-Pluto (range hack at every hunt carrier), HackRF One clone and
   LibreSDR — the primary chosen at the G0.5 bench by the F4-1 level log
-  (supersedes F4-1's HackRF-primary assignment per Marshal, 2026-11-23; see §1).
+  (supersedes F4-1's HackRF-primary assignment per Marshal, 2026-11-23; see §0).
 - RE workbench: Ghidra (m68k), binwalk, capstone, imhex (pattern templates
   double as wire-format drafts), minipro, 68k BDM, sigrok.
 
