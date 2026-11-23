@@ -225,6 +225,13 @@ Schema migrations are versioned from the first table.
 
 ### F6-6 — "Protocol document as code" conflicts with runtime-editable templates (medium, oob-msg / Console)
 
+> **Accepted 2026-11-22; lab-commit step superseded by ADR-003 §3.** Lab
+> templates and experiment records save to oob-dac's store as
+> `user-defined`. A branch plus PR is needed only to contribute a
+> template upstream; promotion to `verified` still needs that PR, oob-qa
+> review and a capture (F6-7). The catalog-as-data / `build.rs` split
+> below stands.
+
 **Attack.** `oob-msg` "*is*" the O4 protocol document as Rust code. Console
 §4.3/§4.4 has the Discovery Lab editing versioned templates in git and
 "one-click commit to the protocol document". AGENTS.md routes status
@@ -325,6 +332,11 @@ stack, and it sits on the G0.5 critical path.
 - Record this in ADR-002's deployment section.
 
 ### F6-10 — Destructive-operation safety is enforced in the UI, not the server (medium, safety / API)
+
+> **Accepted 2026-11-22; sacrificial-only mode amended (Marshal, QA-7).**
+> For installs, the lock is a per-install owner-role setting, ON by
+> default, unlocked with the confirmation token alone — not "a config
+> flag Marshal flips". See §5 and ADR-003 §5.
 
 **Attack.** Typed confirmation (`FACTORY INIT <serial>`), sacrificial-box
 defaults and dry-run-first are specified in Console §4.2/§4.8. AGENTS.md §7
@@ -486,24 +498,24 @@ time slots depend on them.
 
 ## 4. Disposition table
 
-| Finding | Severity | Proposed sequencing | Disposition (Marshal, 2026-11-22) |
-| --- | --- | --- | --- |
-| F6-1 | high | ADR-002 approval before Slice C/D start | Accepted as proposed (ADR-002 accepted) |
-| F6-2 | high | ADR-002; G0.5 exit evidence (24 h loopback, zero underruns) | Accepted as proposed (ADR-002); G0.5 exit item added to the Gates doc |
-| F6-3 | high | Slice C design; test lands with the shaper | Accepted; per-class floors/caps are operator settings editable at runtime (ADR-003); the server refuses a configuration that starves C0 system |
-| F6-4 | high | Before C0 enrollment wizard; amends AGENTS.md §5 | **Accepted with amendment** → ADR-003 (supersedes the §2 F6-4 delta) |
-| F6-5 | medium-high | Amends F5-12; before the first precious table exists | Accepted as proposed (amends F5-12); adds one-click full backup/restore and whole-install export — the DB is now the installation |
-| F6-6 | medium | Slice C (oob-msg) design | Accepted; user-defined templates (incl. imported community packs) load at runtime; upstream `documented`/`verified` compile via `build.rs`; Slice C |
-| F6-7 | medium | Before G1 entry (with F5-11) | Accepted; before G1 entry, with F5-11 |
-| F6-8 | medium | Before the canary exists (post-M1); repo setting now | Accepted; repo setting "require approval for workflows from outside collaborators" now (owner action); lab runner post-M1 |
-| F6-9 | medium | ADR-002 deployment section; G0.5 bench | Accepted as proposed (ADR-002 deployment section) |
-| F6-10 | medium | Slice D (oob-dac API) | Accepted; Slice D — the server-side guardrail that makes full configurability safe, for every client incl. forks and scripts |
-| F6-11 | medium | Slice D (oob-dac API) | Accepted; Slice D |
-| F6-12 | medium | Slice C (seam only; zero pre-G6 hub work) | Accepted as proposed |
-| F6-13 | medium | Immediate docs sweep (PR #5 wording already reverted) | Accepted; sweep done in the r6 disposition PR, `docs/facts.yaml` added; the mdBook prose-vs-facts check is wired later by F5-10's CI work (separate oob-dev-core PR) |
-| F6-14 | low | With each daemon's first binary | Accepted as proposed |
-| F6-15 | low | Slice C | Accepted as proposed |
-| F6-16 | low | Host build; F5-8 catalog entry | Accepted as proposed |
+| Finding | Severity | Proposed sequencing | Disposition (Marshal, 2026-11-22) | Consequence (per ADR-003; recorded by oob-architect) |
+| --- | --- | --- | --- | --- |
+| F6-1 | high | ADR-002 approval before Slice C/D start | Accepted as recommended | — |
+| F6-2 | high | ADR-002; G0.5 exit evidence (24 h loopback, zero underruns) | Accepted as recommended | — |
+| F6-3 | high | Slice C design; test lands with the shaper | Accepted as recommended | Per-class floors/caps are operator settings editable at runtime; the server refuses a configuration that starves C0 system |
+| F6-4 | high | Before C0 enrollment wizard; amends AGENTS.md §5 | **Accepted with amendment** → ADR-003 | ADR-003 replaces the proposed delta (no PRs from the running system; local YAML export instead of an `ops-state` branch) |
+| F6-5 | medium-high | Amends F5-12; before the first precious table exists | Accepted as recommended | The DB is the installation: adds one-click full backup/restore and whole-install export |
+| F6-6 | medium | Slice C (oob-msg) design | Accepted as recommended | User-defined templates (incl. imported community packs) load at runtime; upstream `documented`/`verified` compile via `build.rs`; lab commits are store records, upstream contribution is a PR |
+| F6-7 | medium | Before G1 entry (with F5-11) | Accepted as recommended | — |
+| F6-8 | medium | Before the canary exists (post-M1); repo setting now | Accepted as recommended | — |
+| F6-9 | medium | ADR-002 deployment section; G0.5 bench | Accepted as recommended | — |
+| F6-10 | medium | Slice D (oob-dac API) | Accepted as recommended | The server-side guardrail that makes full configurability safe, for every client incl. forks and scripts; sacrificial-only CDL lock per Marshal's QA-7 ruling (§5) |
+| F6-11 | medium | Slice D (oob-dac API) | Accepted as recommended | — |
+| F6-12 | medium | Slice C (seam only; zero pre-G6 hub work) | Accepted as recommended | — |
+| F6-13 | medium | Immediate docs sweep (PR #5 wording already reverted) | Accepted as recommended | Sweep done in the r6 disposition PR; `docs/facts.yaml` added; the mdBook prose-vs-facts check is wired by F5-10's CI work (separate oob-dev-core PR) |
+| F6-14 | low | With each daemon's first binary | Accepted as recommended | — |
+| F6-15 | low | Slice C | Accepted as recommended | — |
+| F6-16 | low | Host build; F5-8 catalog entry | Accepted as recommended | — |
 
 ## 5. Disposition record (2026-11-22)
 
@@ -511,9 +523,11 @@ Marshal dispositioned r6 in the orchestrator session on 2026-11-22,
 together with ADR-002 (G0.5 agenda). Recorded verbatim where quoted.
 
 **Everything except F6-4:** "Accept as recommended". ADR-002 is
-**Accepted**; F6-1, F6-2, F6-9 and F6-12 are accepted as proposed;
-the remaining findings are accepted with the sequencing notes in the
-§4 table.
+**Accepted**, and F6-1…F6-3 and F6-5…F6-16 are accepted as
+recommended, with the sequencing in the §4 table. That is the whole of
+Marshal's ruling on them; the table's "Consequence" column records what
+follows from ADR-003 (the amended F6-4) for F6-3, F6-5, F6-6, F6-10 and
+F6-13, as derived by oob-architect — not separate decisions.
 
 **F6-4 — accepted with amendment.** Marshal's words:
 
@@ -538,14 +552,40 @@ tooling"**. He did **not** choose "Allow user content", so the
 no-broadcaster-content rule stands: playout loops and listings remain
 self-authored (AGENTS.md §5, ADR-003 §4).
 
-**Consequences recorded elsewhere in the same PR:**
+**Follow-up rulings (Marshal, 2026-11-22, on PR #11 review findings).**
+Two questions the review of the disposition PR raised were put to
+Marshal as choices; he picked:
 
+- **QA-6 — "New types need a PR":** "Boxes of known types are runtime; a
+  new box type is added only through an upstream PR or a fork." Box-type
+  profiles are upstream/code-level; operators cannot create new box
+  types at runtime; community packs carry box-type profiles only as
+  upstream-sourced data. Recorded in ADR-003 §2–§4.
+- **QA-7 — "Owner toggle only":** "Per-install owner setting, default on,
+  unlock needs only the confirmation token." The F6-10 sacrificial-only
+  CDL lock is a per-install owner-role setting, ON by default; turning it
+  off needs only the F6-10 confirmation token, with no D0 evidence
+  requirement in the product. AGENTS.md §7's flash-recovery-before-
+  download rule still binds the upstream project's own lab and agents.
+  Recorded in ADR-003 §5.
+
+**Consequences recorded elsewhere in the same PR** (follow from the
+dispositions above and ADR-003; not additional rulings):
+
+- F6-3: class floors/caps are runtime operator settings (ADR-002
+  decision 4, ADR-003 §5).
+- F6-6: lab templates and records are `user-defined` store items; only
+  upstream contribution is a PR (ADR-003 §3; F6-6 note above).
+- F6-10: the server-side policy layer guards every client (ADR-003 §5);
+  the sacrificial-only CDL lock is per-install per QA-7 above.
 - F6-5 amends F5-12: the unit DB is no longer "derived, excluded from
   backup"; durability is per table in one file, and the whole file is
   backed up (ADR-003 §6).
 - F6-13: AGENTS.md, the Console spec, the DAC Reference §9, the
-  Overview, the Gates doc and the Interconnect spec swept;
-  `docs/facts.yaml` added.
+  Overview, the Gates doc (G0.5 exit and register footnote), the
+  Interconnect spec, the VOD & PPV spec §4, the Reproduction Plan
+  (§3.2, §5, status), ADR-001 (configuration wording), README and the
+  role files swept; `docs/facts.yaml` added.
 - F6-2: the G0.5 exit criteria gain the 24 h loopback item.
 - F6-8: the repository setting is an owner action for Marshal; agents
   cannot change repository settings.

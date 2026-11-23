@@ -15,8 +15,8 @@ is flow, not ceremony for its own sake.
   - Weekly gate-oriented review (with PM): board flow, blockers, canary
     health, what's next against entry criteria.
   - Gate-review logistics: evidence pack assembled (QA + architect),
-    agenda drafted (pending decisions first — currently ADR-001 rev 7
-    approval; r3–r6 were all accepted and ADR-002/ADR-003 accepted
+    agenda drafted (pending decisions first — currently ADR-001
+    approval (rev 8); r3–r6 were all accepted and ADR-002/ADR-003 accepted
     2026-11-22), Marshal's decision recorded, gate register row filled, tag
     prepared *for Marshal to create*.
   - Retro notes after each gate into `docs/runbook/` — lessons learned
