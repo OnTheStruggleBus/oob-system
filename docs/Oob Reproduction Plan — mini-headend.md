@@ -6,7 +6,7 @@ MVPD of one*), the crates are `oob-*`, and the guide stack is **VueGuide+**.
 Formerly "rust-dac Reproduction Plan".*
 
 - **Date:** 2026-11-21
-- **Status:** Proposed — companion to ADR-001 rev 7
+- **Status:** Proposed — companion to ADR-001 (rev 8)
 - **Dispositions folded (2026-11-22, Marshal):** adversarial reviews r3 (×11), r4 (×8), r5 (×14) all accepted with the amendments recorded in each review's Disposition section; the deltas below carry their finding refs
 - **Premise (Marshal's call):** the reproduction is the path. Surplus hardware is demoted to pure opportunism — no planning weight, no dependencies. Everything the project needs is built, or discovered with the boxes themselves as the oracle.
 
