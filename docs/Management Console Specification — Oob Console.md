@@ -26,11 +26,14 @@ Three rules shape it:
    back door and no state of its own. Anything the UI can do, `curl`, a
    script, or the nightly canary can do through the same verbs — the API
    is the product; the Console is its best showcase.
-2. **Config-as-code.** `units.yaml`, `lineup.yaml`, message templates,
-   carousel configs — all live in git. A UI edit produces a commit with
-   author, timestamp, and diff. Rollback is `git`. This is the same
-   discipline as the harness contract ("every experiment is a commit"),
-   extended to *every* knob in the system.
+2. **Fully configurable in-system (ADR-003).** Every setting an operator
+   needs — boxes, lineup, PID plan, class budgets, entitlements,
+   campaigns, listings, box types, message templates, the brand skin
+   slot — lives in oob-dac's store and changes at runtime through the
+   API. oob-dac validates every save, keeps a revision history with
+   rollback, and journals every change (who, when, before/after). The
+   running system needs no git and opens no PRs; git governs *developing*
+   Oob, not operating it.
 3. **The box is still the referee.** Wherever the Console shows a
    setting, it also shows — or links to — the box-visible evidence that
    the setting took: the d-screen scrape, the OCR'd front panel, the
@@ -60,18 +63,19 @@ that slow the work.
 │  • WS channels: telemetry, experiments,  │
 │    logs, alarms                          │
 │  • OpenAPI (utoipa) — self-documenting   │
-│  • git integration: config edits =       │
-│    commits (author=timestamped operator) │
-└───┬──────────┬───────────┬───────────────┘
-    ▼          ▼           ▼
- sqlite    git repo     msg/oob-mux/cdl/
- (unit DB) (configs +   playout engines
-            templates)  + capture rig adapters
+│  • config store: validate on save,       │
+│    revisions + rollback, journal         │
+└───┬──────────────────────┬───────────────┘
+    ▼                      ▼
+ sqlite (one file,      msg/oob-mux/cdl/
+ F6-5): unit DB,        playout engines
+ config, box types,     + capture rig adapters
+ templates, journal
 ```
 
-- **No Console-side database.** State lives in oob-dac's sqlite (unit
-  DB), git (configs/templates), and the engines. Restarting the Console
-  loses nothing.
+- **No Console-side database.** State lives in oob-dac's sqlite file
+  (unit DB, configuration, box types, templates, journal — ADR-003) and
+  the engines. Restarting the Console loses nothing.
 - **AuthN/Z:** lab-scale. Owner account (full) + read-only "museum mode"
   guest (for demos and visitors). Token-based; the whole thing binds to
   the lab LAN / WireGuard only — never internet-exposed, matching the
@@ -133,7 +137,9 @@ architecture — period-faithful *and* proven. Top-level sections:
   auto-enrollment on the classic platform (plan §3.2) — enrollment is
   operator-side. The wizard walks it: enter UA + serial from the unit
   label (or read them off d 01/d 05 via the capture rig) → assign
-  Terminal ID, type, plants, account → commit to `units.yaml` → guided
+  Terminal ID, type, plants, account; pick the box type from the
+  upstream or `user-defined` profiles → save to oob-dac's store
+  (validated, journaled; no git, no PR — ADR-003) → guided
   recovery sequence with live box evidence: factory init if `E 09`,
   unit creation if `E 11`, then connect → watch `E 00` + d 02 data
   activity land inline. Dead NVRAM batteries (r4 F4-4) surface as
@@ -162,6 +168,10 @@ architecture — period-faithful *and* proven. Top-level sections:
 - **Safety:** destructive ops (factory init, cold init) require typed
   confirmation (`FACTORY INIT <serial>`); bulk ops always dry-run first;
   the sacrificial box is clearly badged so experiments default to it.
+  The Console only *presents* these rules: oob-dac enforces them for
+  every client (F6-10 — owner role, a short-lived confirmation token
+  bound to operation + target serial, dry-run default, sacrificial-only
+  CDL until G4, audit log).
 
 ### 4.3 Discovery Lab (the W3 workbench — born first, §5)
 
@@ -169,16 +179,21 @@ architecture — period-faithful *and* proven. Top-level sections:
   field: hex, enum, address, checksum-auto) → inject now / schedule →
   live feedback panel (capture-rig camera OCR of the front panel,
   d 02 lock state, d 14 PID/message counters, RS-232 scrape on the
-  instrumented DCT2500) → record verdict → one-click commit to the
-  protocol document with template hash + evidence attached.
+  instrumented DCT2500) → record verdict → save the experiment record
+  (template hash + evidence) in the store. Templates the lab creates are
+  `user-defined`; contributing one to the upstream protocol document is a
+  PR with its capture, and only that PR can promote it to `verified`
+  (F6-6, F6-7, ADR-003 §3).
 - **Hypothesis backlog board:** the discovery queue (factory-init →
   unit-creation → connect → VCM → …, per r4 F4-4 ordering), drag to
   reorder, each card carrying its current evidence count.
 - **A/B injection:** send variant A to the sacrificial box, variant B
   after reset, compare d 14 counter deltas side-by-side.
 - **Rate discipline:** injection rate-limited against the insertion
-  bandwidth budget (§4.9) so experiments can't flood the 1.544 Mb/s
-  stream; budget gauge visible in the runner at all times.
+  bandwidth budget (§4.10) so experiments can't flood the 2.048 Mb/s
+  OOB stream (1.024 Msym/s QPSK); lab injection is traffic class C5
+  (F6-3), capped and isolated; budget gauge visible in the runner at all
+  times.
 
 ### 4.4 Protocol (O4, browsable)
 
@@ -186,7 +201,9 @@ architecture — period-faithful *and* proven. Top-level sections:
   *documented* / *hypothesized* / *verified* — field dictionary, wire
   layout (hex map), evidence links (experiments that proved it),
   provenance (DAC manual §, install manual §, patent #, RE artifact).
-- **Template editor:** versioned templates in git; structural lint
+- **Template editor:** templates versioned in oob-dac's store (upstream
+  templates read-only, edits saved as `user-defined` copies; import/export
+  as community packs — ADR-003); structural lint
   (length fields, checksum, address-mode legality per provider-ID
   rules); diff view between versions; "used by N experiments" backrefs.
 - **Addressing model:** the d 05 taxonomy as a first-class reference —
@@ -207,9 +224,12 @@ architecture — period-faithful *and* proven. Top-level sections:
   (highlighted within the hunt table), guard bands; guardrails enforced
   in the editor (≤860 MHz lineup limit, STD/HRC consistency with the
   SEM's plan setting — r4 F4-8).
-- **Validation:** lineup consistency CI results inline; a lineup that
-  fails CI cannot be committed (hook can be overridden by owner with a
-  reason, which is logged).
+- **Validation:** oob-dac validates every save (schema + lineup ↔ VCM ↔
+  playout ↔ SEM consistency, moved from CI into the save path — ADR-003)
+  and shows the result inline. The server refuses unsafe configuration
+  for every client — lineup above 860 MHz, STD/HRC mismatch, wrong EMM
+  provider ID, class budgets that starve C0 — with no override; other
+  failed checks block the save and name the conflicting objects.
 
 ### 4.6 Playout
 
@@ -256,7 +276,7 @@ the substitute grid. This section is its control room.*
 - **Residency census view:** d 10 modules across the fleet, per platform
   (r4 F4-5 language: which platforms have which guide build).
 - **Listings pipeline:** schedule editor (self-authored listings from
-  `lineup.yaml`) → synthesizer → carousel; transport status (OOB vs
+  the lineup in oob-dac's store) → synthesizer → carousel; transport status (OOB vs
   in-band, per the F3-5 identification experiment); opacity-check
   results (r4 F4-3) surfaced as pipeline warnings.
 - **Presentation config:** genre palette (factory defaults from the
@@ -277,8 +297,11 @@ the substitute grid. This section is its control room.*
 - **Radio health:** HackRF/Pluto status, flowgraph start/stop, loopback
   BER test runner and history, drift watch (GPSDO escalation flag if
   d 02 ever shows drift).
-- **Bandwidth budget:** the ~1000 Kbps insertion shaper, per-service
-  allocation bars (messages, guide data, download carousel, headroom).
+- **Bandwidth budget:** the ~1000 Kbps insertion shaper as traffic
+  classes C0 system … C5 lab (F6-3, ADR-002) — live per-class rate bars
+  against each class's floor and cap. Floors and caps are operator
+  settings, editable at runtime (ADR-003); the server refuses any
+  configuration that starves C0 system.
 
 ### 4.11 Return Path (S1 stretch, present but dormant until W7)
 
@@ -311,10 +334,19 @@ the substitute grid. This section is its control room.*
 
 - **Users:** owner + read-only museum-mode guest; API tokens for
   automation (canary, capture rig, hub agents).
-- **Config versioning:** commit history for units.yaml / lineup.yaml /
-  templates / carousel configs; diff + rollback in UI.
-- **Backup/restore:** sqlite + git bundles; restore drill button (does
-  a dry-run restore to a scratch dir and reports).
+- **Config versioning:** revision history for every configuration object
+  (units, lineup, box types, templates, carousel configs, class budgets)
+  and the append-only change journal; diff + rollback in UI (ADR-003).
+- **Backup/restore:** the database is the installation (F6-5, ADR-003):
+  one-click full backup and restore of the single sqlite file
+  (continuous whole-file backup underneath), whole-install export, and a
+  restore drill button (does a dry-run restore to a scratch dir and
+  reports). Optional YAML export of runtime state for diffing — local
+  only, never a gate.
+- **Community packs:** import/export of box profiles, templates,
+  lineups, guide themes and brand skins; imported items are
+  `user-defined`; the exporter strips or refuses firmware, keys and
+  box-identifying data (ADR-003 §4).
 - **Containers:** status, restart, image versions; update workflow note.
 - **API explorer:** the WireLink verb reference (OpenAPI), try-it
   console — the same API the SPA uses, documented for scripting.
@@ -356,14 +388,16 @@ At M6 exit, an operator can — from the Console alone, without SSH:
    authorized (`E 00`) using only guided unit ops, watching box evidence
    inline.
 2. Author or edit a message template, lint it, inject it, and file the
-   experiment — committed, with telemetry attached.
-3. Change the lineup and have CI, guardrails, VCM push, and playout
-   follow in one commit.
+   experiment — saved with telemetry attached (contributing it upstream
+   is a separate PR, ADR-003 §3).
+3. Change the lineup and have validation, guardrails, VCM push, and
+   playout follow in one save, with a revision to roll back to.
 4. Run a full code-download campaign against a platform, with rollback,
    and read the per-box module states as proof.
 5. Watch the guide carousel health, push an operator message to the
    MSGS inbox, and verify repopulation latency after a box cold boot.
 6. See every setting the system holds, its current value, its source
-   (git commit), and the box-visible evidence that it's live.
+   (store revision and journal entry; `user-defined` vs upstream), and
+   the box-visible evidence that it's live.
 
 Anything missing from that list is a Console bug by definition.

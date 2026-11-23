@@ -15,9 +15,9 @@ gates can pass on evidence.
   every item carries Gate, Workstream, and Type fields; nothing enters
   `In progress` unless its gate entry criteria are met; `Done` happens
   only at gate pass.
-- **The gate calendar**: G0 passed; G0.5 next (first agenda = r6
-  dispositions and ADR-002, owned by Marshal; r3–r5 were all accepted
-  2026-11-22); G1–G6 sequenced per
+- **The gate calendar**: G0 passed; G0.5 open (its r6-dispositions and
+  ADR-002 agenda item closed 2026-11-22 — r3–r6 all accepted, F6-4
+  amended via ADR-003; its exit criteria remain); G1–G6 sequenced per
   `docs/Project Milestones & Stage Gates — mini-headend.md` §3.
 - **The dependency map**: critical path W2→W3; W1 parallel pending O7;
   D0 flash capability gates W6/W8/O13 (r4 F4-3); E1 capture rig gates G1

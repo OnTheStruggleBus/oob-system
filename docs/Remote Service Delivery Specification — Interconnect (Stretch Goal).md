@@ -105,7 +105,8 @@ So:
    timestamped) over a persistent TCP connection inside the WireGuard
    tunnel.
 2. The hub's **oob-regen** service performs the 55-1 framing and
-   **null-stuffing locally at exactly 1.544 Mb/s**, feeding the SDR
+   **null-stuffing locally at exactly 2.048 Mb/s** (1.024 Msym/s QPSK),
+   feeding the SDR
    flowgraph at a hard constant rate. WAN jitter is absorbed by a PDU
    buffer; if the buffer starves, regen stuffs nulls — exactly what a real
    OM does when the DAC is quiet. Boxes see an unbroken carrier either way.

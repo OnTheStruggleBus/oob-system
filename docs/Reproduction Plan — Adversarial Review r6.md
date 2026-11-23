@@ -8,12 +8,17 @@
   in PR #5; AGENTS.md §6 "Marshal's merge is the approval" merged in
   PR #7; `main` protected by rulesets requiring a PR and the six CI checks,
   with no bypass).
-- **Status:** proposed — findings await Marshal's disposition
+- **Status:** dispositioned 2026-11-22 by Marshal — all sixteen findings
+  accepted; F6-4 accepted **with amendment**, recorded as
+  `ADR-003 — Configuration, Extensibility and Distribution Model.md`
+  (see §5)
 - **History:** first proposed in PR #6, which merged before its role
   reviews and was reverted in PR #8. Re-proposed unchanged in substance;
   only the repository-state references are refreshed.
-- **Companion:** `ADR-002 — Oob Runtime Architecture.md` (draft), which
-  carries the decision record for F6-1, F6-2, F6-3, and F6-12.
+- **Companions:** `ADR-002 — Oob Runtime Architecture.md` (accepted
+  2026-11-22), which carries the decision record for F6-1, F6-2, F6-3,
+  F6-9 and F6-12; `ADR-003 — Configuration, Extensibility and
+  Distribution Model.md` (accepted 2026-11-22), the amended F6-4.
 
 ## 1. Verdict
 
@@ -138,6 +143,12 @@ Back it with three tests:
 
 ### F6-4 — Two write paths into the single source of truth (high, config / process)
 
+> **Accepted with amendment (2026-11-22).** The delta below is the one
+> originally proposed and is **superseded** by ADR-003: the running
+> system is fully configurable at runtime and opens no PRs; the
+> `ops-state` branch is replaced by a local YAML export. Kept here as
+> the review record.
+
 **Attack.** Two documents disagree on how `ops/` changes:
 
 - **AGENTS.md §5/§6:** `ops/units.yaml` and `ops/lineup.yaml` change only
@@ -169,6 +180,10 @@ protection, or it bypasses the review rule.
   plants, activation) lives in the DB and is journaled.
 
 ### F6-5 — Durability is per table, not per database (medium-high, data)
+
+> **Accepted 2026-11-22.** Where this delta says "journaled to
+> `ops-state` (F6-4)", read the local append-only journal and optional
+> local YAML export of ADR-003 §6; no `ops-state` branch exists.
 
 **Attack.** F5-12 was dispositioned as "the unit DB is derived state —
 rebuildable from ops config plus box re-enrollment, excluded from backup."
@@ -471,24 +486,69 @@ time slots depend on them.
 
 ## 4. Disposition table
 
-| Finding | Severity | Proposed sequencing |
-| --- | --- | --- |
-| F6-1 | high | ADR-002 approval before Slice C/D start |
-| F6-2 | high | ADR-002; G0.5 exit evidence (24 h loopback, zero underruns) |
-| F6-3 | high | Slice C design; test lands with the shaper |
-| F6-4 | high | Before C0 enrollment wizard; amends AGENTS.md §5 |
-| F6-5 | medium-high | Amends F5-12; before the first precious table exists |
-| F6-6 | medium | Slice C (oob-msg) design |
-| F6-7 | medium | Before G1 entry (with F5-11) |
-| F6-8 | medium | Before the canary exists (post-M1); repo setting now |
-| F6-9 | medium | ADR-002 deployment section; G0.5 bench |
-| F6-10 | medium | Slice D (oob-dac API) |
-| F6-11 | medium | Slice D (oob-dac API) |
-| F6-12 | medium | Slice C (seam only; zero pre-G6 hub work) |
-| F6-13 | medium | Immediate docs sweep (PR #5 wording already reverted) |
-| F6-14 | low | With each daemon's first binary |
-| F6-15 | low | Slice C |
-| F6-16 | low | Host build; F5-8 catalog entry |
+| Finding | Severity | Proposed sequencing | Disposition (Marshal, 2026-11-22) |
+| --- | --- | --- | --- |
+| F6-1 | high | ADR-002 approval before Slice C/D start | Accepted as proposed (ADR-002 accepted) |
+| F6-2 | high | ADR-002; G0.5 exit evidence (24 h loopback, zero underruns) | Accepted as proposed (ADR-002); G0.5 exit item added to the Gates doc |
+| F6-3 | high | Slice C design; test lands with the shaper | Accepted; per-class floors/caps are operator settings editable at runtime (ADR-003); the server refuses a configuration that starves C0 system |
+| F6-4 | high | Before C0 enrollment wizard; amends AGENTS.md §5 | **Accepted with amendment** → ADR-003 (supersedes the §2 F6-4 delta) |
+| F6-5 | medium-high | Amends F5-12; before the first precious table exists | Accepted as proposed (amends F5-12); adds one-click full backup/restore and whole-install export — the DB is now the installation |
+| F6-6 | medium | Slice C (oob-msg) design | Accepted; user-defined templates (incl. imported community packs) load at runtime; upstream `documented`/`verified` compile via `build.rs`; Slice C |
+| F6-7 | medium | Before G1 entry (with F5-11) | Accepted; before G1 entry, with F5-11 |
+| F6-8 | medium | Before the canary exists (post-M1); repo setting now | Accepted; repo setting "require approval for workflows from outside collaborators" now (owner action); lab runner post-M1 |
+| F6-9 | medium | ADR-002 deployment section; G0.5 bench | Accepted as proposed (ADR-002 deployment section) |
+| F6-10 | medium | Slice D (oob-dac API) | Accepted; Slice D — the server-side guardrail that makes full configurability safe, for every client incl. forks and scripts |
+| F6-11 | medium | Slice D (oob-dac API) | Accepted; Slice D |
+| F6-12 | medium | Slice C (seam only; zero pre-G6 hub work) | Accepted as proposed |
+| F6-13 | medium | Immediate docs sweep (PR #5 wording already reverted) | Accepted; sweep done in the r6 disposition PR, `docs/facts.yaml` added; the mdBook prose-vs-facts check is wired later by F5-10's CI work (separate oob-dev-core PR) |
+| F6-14 | low | With each daemon's first binary | Accepted as proposed |
+| F6-15 | low | Slice C | Accepted as proposed |
+| F6-16 | low | Host build; F5-8 catalog entry | Accepted as proposed |
+
+## 5. Disposition record (2026-11-22)
+
+Marshal dispositioned r6 in the orchestrator session on 2026-11-22,
+together with ADR-002 (G0.5 agenda). Recorded verbatim where quoted.
+
+**Everything except F6-4:** "Accept as recommended". ADR-002 is
+**Accepted**; F6-1, F6-2, F6-9 and F6-12 are accepted as proposed;
+the remaining findings are accepted with the sequencing notes in the
+§4 table.
+
+**F6-4 — accepted with amendment.** Marshal's words:
+
+> "This needs to be self contained fully user configurable"
+
+> "Shouldn't open PRs to add boxes beyond new box _types_"
+
+> "Think of this like BOSS it should be fully user configurable and meet
+> the ability or end users to do most things or fork the project and do
+> other things. It is a faithful not infiging recreation of this service
+> for hobbiests and archival preservation"
+
+The amended delta is recorded as
+`ADR-003 — Configuration, Extensibility and Distribution Model.md`
+(Accepted). It replaces F6-4's proposed delta: PRs and gates govern
+developing Oob, never operating it; the running system needs no git and
+opens no PRs; the `ops-state` branch becomes a local YAML export.
+
+**Distribution rules** (asked alongside F6-4). Marshal chose **"Ship
+sample content"**, **"Community pack format"** and **"Firmware import
+tooling"**. He did **not** choose "Allow user content", so the
+no-broadcaster-content rule stands: playout loops and listings remain
+self-authored (AGENTS.md §5, ADR-003 §4).
+
+**Consequences recorded elsewhere in the same PR:**
+
+- F6-5 amends F5-12: the unit DB is no longer "derived, excluded from
+  backup"; durability is per table in one file, and the whole file is
+  backed up (ADR-003 §6).
+- F6-13: AGENTS.md, the Console spec, the DAC Reference §9, the
+  Overview, the Gates doc and the Interconnect spec swept;
+  `docs/facts.yaml` added.
+- F6-2: the G0.5 exit criteria gain the 24 h loopback item.
+- F6-8: the repository setting is an owner action for Marshal; agents
+  cannot change repository settings.
 
 *Review closes where every round has: the approach survives, and here are
 the deltas. This round's deltas are cheap only for as long as the crates

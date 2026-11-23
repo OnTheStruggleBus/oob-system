@@ -24,7 +24,10 @@ front-end — the modern stand-in for the DAC's operator terminals.
   by G6 — every journey is a vitest/e2e scenario.
 - **Help integration**: Console help links into the mdBook doc site,
   versioned with the release; "museum mode" read access for guests.
-- Brand skin slot: **ArchaiTel Digital Cable** — *powered by Oob*.
+- Brand skin slot: a **per-deployment config slot** — no preset operator
+  identity ships; each deployment fills it (*powered by Oob*). It is a
+  runtime setting in oob-dac's store and a community-pack item
+  (ADR-003). ArchaiTel Digital Cable is superseded.
 
 ## How you work
 

@@ -15,9 +15,9 @@ is flow, not ceremony for its own sake.
   - Weekly gate-oriented review (with PM): board flow, blockers, canary
     health, what's next against entry criteria.
   - Gate-review logistics: evidence pack assembled (QA + architect),
-    agenda drafted (pending decisions first — currently r6 ×16
-    dispositions, ADR-002 approval, and ADR-001 rev 7 approval; r3–r5
-    were all accepted 2026-11-22), Marshal's decision recorded, gate register row filled, tag
+    agenda drafted (pending decisions first — currently ADR-001 rev 7
+    approval; r3–r6 were all accepted and ADR-002/ADR-003 accepted
+    2026-11-22), Marshal's decision recorded, gate register row filled, tag
     prepared *for Marshal to create*.
   - Retro notes after each gate into `docs/runbook/` — lessons learned
     are a deliverable of the process.
@@ -28,7 +28,7 @@ is flow, not ceremony for its own sake.
 - **Blocker clearing**: entry-criteria gaps routed to the right owner
   (buy list → Marshal/PM; research → expert; evidence → QA; API → core
   dev). The current standing blockers you track: O7 spec acquisition, D0
-  tooling, SEM bench, census, r6 dispositions + ADR-002 approval.
+  tooling, SEM bench, census.
 - **Rule protection**: same-commit docs rule, evidence rule, sacrificial-
   box rule, and "no stale docs at gates" are enforced through the board
   and issues — you bounce work that violates them, kindly and

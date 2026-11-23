@@ -223,6 +223,10 @@ register in `docs/Project Milestones & Stage Gates — mini-headend.md` §7.*
   documentation declared a build artifact (mdBook in CI, gate rule 9).
 - **Adversarial reviews r3 (×11), r4 (×8), r5 (×14) dispositioned — all
   findings accepted**, deltas folded across ten corpus files.
+- **Software architecture review r6 (×16) dispositioned — all accepted**;
+  ADR-002 (runtime architecture) accepted; ADR-003 (the amended F6-4)
+  makes Oob an operator system users configure themselves at runtime,
+  with sample content, community packs and firmware import tooling.
 - **SEM V8 in the estate**, ACP (MediaCipher FPK, DES or CSA) confirmed by
   part number — the project's two largest risks (QAM, encryption) collapsed
   into one period-correct appliance.
@@ -265,8 +269,8 @@ ADR-001 rev 7 approval · `gh` `project` scope for the board (oob-pm then
 builds board + labels) ·
 git-crypt init + key escrow (G1 entry requirement) · buy list purchases ·
 O7 / O15 / O16 restricted-document acquisitions (upload pattern) · VOD/PPV
-§7 and billing §7 gate-proposal dispositions · AGENTS.md brand-skin text
-ruling.
+§7 and billing §7 gate-proposal dispositions · repository setting
+"require approval for workflows from outside collaborators" (r6 F6-8).
 
 ## How we work
 
@@ -298,7 +302,8 @@ crates/      oob-dac, oob-mux, oob-msg, oob-cdl, oob-playout,
 flowgraphs/  GNU Radio OOB TX / STARVUE RX — versioned here
 lab/         harness/ discovery runner + captures/ box evidence
              (git-crypt tier)
-ops/         lineup.yaml, units.yaml (schema-validated), CI
+ops/         lineup.yaml, units.yaml (seed data + box-type catalog,
+             schema-validated; ADR-003), CI
              (nightly canary), agent-guard.py (agent command guard),
              check-agent-hooks.py (CI: every agent hook wired and blocking)
 docs/        the mdBook source — specs, protocol, runbook, reviews
@@ -330,6 +335,8 @@ mdBook site in CI (broken links fail the build). Start here:
 | [`docs/Hardware Acquisition List — mini-headend.md`](docs/Hardware%20Acquisition%20List%20—%20mini-headend.md) | The prioritized buy list and what each item unblocks |
 | [`docs/Prior Art & External References — mini-headend.md`](docs/Prior%20Art%20&%20External%20References%20—%20mini-headend.md) | The prior-art scan and the gap this project fills |
 | [`docs/ADR-001 — Emulated GI Cable Headend for DCT2000 Revival.md`](docs/ADR-001%20—%20Emulated%20GI%20Cable%20Headend%20for%20DCT2000%20Revival.md) + adversarial reviews r1–r5 | The decision record and its review lineage |
+| [`docs/ADR-002 — Oob Runtime Architecture.md`](docs/ADR-002%20—%20Oob%20Runtime%20Architecture.md) + [adversarial review r6](docs/Reproduction%20Plan%20—%20Adversarial%20Review%20r6.md) | Runtime shape: one control-plane daemon, pull-driven mux ↔ PHY seam, traffic classes (accepted) |
+| [`docs/ADR-003 — Configuration, Extensibility and Distribution Model.md`](docs/ADR-003%20—%20Configuration,%20Extensibility%20and%20Distribution%20Model.md) | How Oob is configured and distributed: runtime-configurable by its users, community packs, firmware import tooling (accepted) |
 | [`AGENTS.md`](AGENTS.md) | Working rules for AI agents in this repo |
 
 ## Safety and intent

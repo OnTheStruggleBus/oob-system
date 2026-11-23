@@ -209,10 +209,11 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | `Project Milestones & Stage Gates — mini-headend.md` | The operating contract: milestone/gate map G0–G6 with entry/exit/evidence rules, enabling tracks, the living gate register, and the full development tool stack |
 | `Hardware Acquisition List — mini-headend.md` | The prioritized buy list: what to acquire, in P0→P3 order, and which gate or track each purchase unblocks |
 | `Prior Art & External References — mini-headend.md` | The 2026-11-22 prior-art scan: closest relatives (a Mode B OOB decoder; the 33c3 DigiCipher II talk), vendor-side corroboration, box-side hobby docs, adjacent scenes, and the gap this project fills |
-| `ADR-002 — Oob Runtime Architecture.md` | Runtime shape: one control-plane daemon, the pull-driven mux ↔ PHY seam with the flowgraph as clock master, traffic classes for the insertion budget, deployment split — **proposed, awaiting approval**; gates Slice C/D design |
+| `ADR-002 — Oob Runtime Architecture.md` | Runtime shape: one control-plane daemon, the pull-driven mux ↔ PHY seam with the flowgraph as clock master, traffic classes for the insertion budget, deployment split — **accepted (Marshal, 2026-11-22)**; gates Slice C/D design |
+| `ADR-003 — Configuration, Extensibility and Distribution Model.md` | How Oob is configured and distributed: an operator system users run and configure themselves at runtime (no git, no PRs), three layers of change, `user-defined` trust label, community packs, firmware import tooling, server-side guardrails — **accepted (Marshal, 2026-11-22)**; the amended r6 F6-4 |
 | `ADR-001-adversarial-review.md`, `-r2.md` | Reviews of the ADR (rounds 1–2) |
 | `Reproduction Plan — Adversarial Review r3.md`, `r4.md`, `r5.md` | Reviews of the plan (rounds 3–5; r5 is the full-corpus pass with the dedicated Sci-Atlanta section). **All three dispositioned 2026-11-22 — all findings accepted** |
-| `Reproduction Plan — Adversarial Review r6.md` | First software-architecture pass (F6-1…F6-16): process topology, mux ↔ PHY timing, insertion-budget classes, config write paths, data durability, evidence chain, CI/deploy, API safety, contract drift — **proposed, awaiting disposition** |
+| `Reproduction Plan — Adversarial Review r6.md` | First software-architecture pass (F6-1…F6-16): process topology, mux ↔ PHY timing, insertion-budget classes, config write paths, data durability, evidence chain, CI/deploy, API safety, contract drift — **dispositioned 2026-11-22: all accepted; F6-4 amended via ADR-003** |
 
 Reviews are part of the process, not an obstacle course: every round so
 far has ended with "the approach survives; here are deltas," and the deltas
@@ -239,8 +240,17 @@ get folded in at the next revision.
 - Reviews: **dispositioned** — r3 (×11), r4 (×8), r5 (×14) all accepted
   2026-11-22; deltas folded into the plan, gates doc, AGENTS.md, HW list,
   S-A spec, and Interconnect spec in the disposition commit set. The unit
-  DB is declared derived state (F5-12); release tags are `rel/<carrier>`
-  (F5-13).
+  DB is declared derived state (F5-12, since amended by F6-5); release
+  tags are `rel/<carrier>` (F5-13).
+- Software architecture: **decided** — r6 (×16) dispositioned 2026-11-22,
+  all accepted; **ADR-002** (runtime topology, pull-driven mux ↔ PHY
+  seam, traffic classes) accepted; **ADR-003** accepted as the amended
+  F6-4: Oob is an operator system users configure themselves at runtime
+  (no git, no PRs), ships self-authored sample content, a community pack
+  format and firmware import tooling, and never ships firmware, keys or
+  box-identifying data. One sqlite file is the installation, with
+  one-click backup/restore (F6-5, amending F5-12). Contract drift swept
+  and `docs/facts.yaml` added (F6-13).
 - Awaiting (Marshal's manual actions): ADR-001 rev 7 approval; branch
   protection (AGENTS.md §6 checklist); the `gh` `project` scope so oob-pm
   can build the Projects board + labels (`.github/agents/README.md` spec,
@@ -248,8 +258,11 @@ get folded in at the next revision.
   needs Marshal's key escrow; the buy list (HackRF One clone primary OOB
   TX, RF chain, capture rig, flash tooling, sundries — see the Hardware
   Acquisition List).
-- Pre-G0.5-exit task on the board: mdBook scaffold + CI link-check +
-  utoipa drift stub (F5-10).
+- Pre-G0.5-exit tasks on the board: mdBook scaffold + CI link-check +
+  utoipa drift stub (F5-10), which also wires the prose-vs-`facts.yaml`
+  check (F6-13); the 24 h mux ↔ PHY pull loopback (F6-2).
+- Awaiting (owner action from r6): repository setting "require approval
+  for workflows from outside collaborators" (F6-8).
 - Next physical actions: box census, SEM bench bring-up, PHY bench at a
   high hunt carrier, first connect-message experiment.
 

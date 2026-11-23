@@ -192,4 +192,4 @@ format + segment framing to confirm against a live box."
 | bsilog (§4) | `audit` log |
 | STARFONE modem banks (§1) | `starfone` (mgetty NAS bridge) — stretch |
 | RPD channel/frequency config (§9) | `starvue` upstream config — M6 |
-| SEM V8 scrambling (DES/CSA, FPK) | `playout` scrambler stage (after FPK constant) |
+| SEM V8 scrambling (DES/CSA, FPK) | **SEM ACP** (FPK mode, DES or CSA) — no `playout` scrambler stage; oob-dac only records the tier matrix (SEM-ACP decision, Plan W5) |

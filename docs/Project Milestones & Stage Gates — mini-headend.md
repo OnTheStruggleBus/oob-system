@@ -87,13 +87,17 @@ gate rules (§5).
   - Chosen hunt-table carrier (104.2/110.25 class) measured through the
     F3-7 chain into a dummy load; level log committed (r4 F4-1 metering).
   - OOB TX committed: HackRF One primary, Pluto spare (r4 F4-1).
+  - **Mux ↔ PHY pull seam proven (r6 F6-2, ADR-002):** a 24 h loopback
+    run with the flowgraph pulling from the pacer (stub allowed), **zero
+    pull underruns**, and the **null ratio logged**.
   - **Docs scaffolding exists (r5 F5-10):** mdBook scaffold (`book.toml` +
     `SUMMARY.md` generated from the doc map) builds `docs/` in CI, the
     broken-link check fails the build, and the utoipa drift-check job stub
     is wired. Gate rule 9 is unenforceable until this exists, so it is a
     pre-G0.5-exit task.
 - **Evidence:** flowgraph commit + BER log; level log; O7 record in
-  `docs/protocol/phy.md`; green doc-site CI run.
+  `docs/protocol/phy.md`; 24 h loopback log (underrun count, null ratio);
+  green doc-site CI run.
 
 ### G1 — First connect (M1) — MAJOR GATE
 
