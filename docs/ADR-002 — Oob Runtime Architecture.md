@@ -102,7 +102,7 @@ action 6. The amendment is recorded here so it can be traced.
 - **Unchanged.** The decisions (process topology, the pull seam, traffic
   classes, deployment split) stand, and ADR-002 stays accepted. The r4 F4-1
   record itself is unchanged. The F4-1 radio-role supersession is recorded
-  in AGENTS.md §1 and is cross-referenced here, not restated.
+  in AGENTS.md §0 (Read first) and is cross-referenced here, not restated.
 
 ## Options Considered
 
