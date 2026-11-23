@@ -157,11 +157,11 @@ pub enum Submission {
     /// flight is never cut; a replacement takes effect at the next PDU
     /// boundary. When it is due depends on what changed:
     ///
-    /// - **new content** (section bytes, PID, class or priority differ,
-    ///   for example a new PSI version): due at once;
-    /// - **same content** (an idempotent re-submit, such as oob-dac
+    /// - **anything changed** (section bytes, PID, class, priority or
+    ///   period; for example a new PSI version): due at once;
+    /// - **nothing changed** (an idempotent re-submit, such as oob-dac
     ///   reconciling from its store): keeps the old schedule, so
-    ///   re-submitting never raises the carousel's rate (QA-5).
+    ///   re-submitting never raises the carousel's rate (QA-5, QA-9).
     ///
     /// Carousel emissions are counted in the pacer's statistics, not
     /// reported per emission.

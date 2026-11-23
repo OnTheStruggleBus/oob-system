@@ -44,6 +44,26 @@ pub struct SchedulerConfig {
     pub disabled_classes: Vec<TrafficClass>,
 }
 
+impl SchedulerConfig {
+    /// Checks the settings without building a scheduler, so oob-dac's save
+    /// path can refuse a bad row (ARCH-2). [`Scheduler::new`] runs the same
+    /// check.
+    ///
+    /// # Errors
+    ///
+    /// [`ConfigError`] for a zero `queue_depth` or `outcome_capacity`
+    /// (QA-7).
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.queue_depth == 0 {
+            return Err(ConfigError::ZeroQueueDepth);
+        }
+        if self.outcome_capacity == 0 {
+            return Err(ConfigError::ZeroOutcomeCapacity);
+        }
+        Ok(())
+    }
+}
+
 /// Why a submission or withdrawal was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -207,10 +227,12 @@ impl SchedulerHandle {
                     next_due_slot: 0,
                 };
                 if let Some(slot) = q.carousels.iter_mut().find(|c| c.id == carousel) {
-                    // Same content keeps its schedule, so idempotent
-                    // re-submits never raise the rate; new content is due
-                    // at once (QA-5, see `Submission::Cyclic`).
-                    let unchanged = same_content(&slot.pdu, &entry.pdu);
+                    // Same content and period keep the schedule, so
+                    // idempotent re-submits never raise the rate; any
+                    // change, the period included, is due at once (QA-5,
+                    // QA-9, see `Submission::Cyclic`).
+                    let unchanged =
+                        slot.period == entry.period && same_content(&slot.pdu, &entry.pdu);
                     let (old_due, old_seq) = (slot.next_due_slot, slot.seq);
                     *slot = entry;
                     if unchanged {
@@ -276,12 +298,7 @@ impl Scheduler {
     pub fn new(
         config: SchedulerConfig,
     ) -> Result<(Self, SchedulerHandle, OutcomeReceiver), ConfigError> {
-        if config.queue_depth == 0 {
-            return Err(ConfigError::ZeroQueueDepth);
-        }
-        if config.outcome_capacity == 0 {
-            return Err(ConfigError::ZeroOutcomeCapacity);
-        }
+        config.validate()?;
         let (tx, rx) = sync_channel(config.outcome_capacity);
         let shared = Arc::new(Shared {
             queues: Mutex::new(Queues::new(config.queue_depth, config.max_carousels)),

@@ -136,7 +136,14 @@ pub struct PacerConfig {
 }
 
 impl PacerConfig {
-    fn validate(&self) -> Result<(), ConfigError> {
+    /// Checks the settings without building a pacer, so oob-dac's save
+    /// path can refuse a bad row (ARCH-2). [`Pacer::new`] and
+    /// [`Pacer::apply_config`] run the same check.
+    ///
+    /// # Errors
+    ///
+    /// [`ConfigError`] for a zero `max_pull` or `pull_budget` (QA-7).
+    pub fn validate(&self) -> Result<(), ConfigError> {
         if self.max_pull == 0 {
             return Err(ConfigError::ZeroMaxPull);
         }

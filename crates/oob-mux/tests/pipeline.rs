@@ -691,6 +691,83 @@ fn re_submitting_an_unchanged_carousel_keeps_its_rate() {
     assert_eq!(emitted, 10);
 }
 
+/// Pulls 2 slots after `first` is emitted at slot 0, replaces carousel 1
+/// with `second`, and returns the slots of section starts in the next 50.
+fn replacement_emissions(first: Submission, second: Submission) -> Vec<usize> {
+    let mut r = rig();
+    r.handle.submit(first).unwrap();
+    assert_eq!(starts(&pull(&mut r.pacer, 2)).len(), 1);
+    r.handle.submit(second).unwrap();
+    let out = pull(&mut r.pacer, 50);
+    (0..out.len()).filter(|&i| out[i].pusi()).collect()
+}
+
+#[test]
+fn a_new_section_version_on_the_same_pid_is_due_at_once() {
+    // QA-10: the #17 new-PSI-version case: only the section bytes change.
+    let cyc = |tag| {
+        let mut p = pdu(TrafficClass::C0System, 0, 10, 1);
+        p.payload = Payload::Section(section(10, tag));
+        Submission::Cyclic {
+            id: CarouselId(1),
+            pdu: p,
+            period: Duration::from_secs(60),
+        }
+    };
+    assert_eq!(replacement_emissions(cyc(1), cyc(2)), vec![0]);
+    assert_eq!(replacement_emissions(cyc(1), cyc(1)), Vec::<usize>::new());
+}
+
+#[test]
+fn a_new_pid_alone_is_due_at_once() {
+    // QA-10: only the PID changes.
+    let cyc = |pid_value| {
+        let mut p = pdu(TrafficClass::C0System, 0, 10, 1);
+        p.pid = pid(pid_value);
+        Submission::Cyclic {
+            id: CarouselId(1),
+            pdu: p,
+            period: Duration::from_secs(60),
+        }
+    };
+    assert_eq!(replacement_emissions(cyc(0x30), cyc(0x31)), vec![0]);
+}
+
+#[test]
+fn a_period_change_alone_is_due_at_once() {
+    // QA-9: 60 s → 10 ms must not wait out the old 60 s schedule.
+    let cyc = |period| Submission::Cyclic {
+        id: CarouselId(1),
+        pdu: pdu(TrafficClass::C0System, 0, 10, 1),
+        period,
+    };
+    assert_eq!(
+        replacement_emissions(cyc(Duration::from_secs(60)), cyc(Duration::from_millis(10))),
+        vec![0, 10, 20, 30, 40]
+    );
+}
+
+#[test]
+fn config_validate_is_public_and_matches_the_constructors() {
+    // ARCH-2: oob-dac's save path validates without building anything.
+    assert_eq!(sched_config().validate(), Ok(()));
+    assert_eq!(pacer_config().validate(), Ok(()));
+    let bad_sched = SchedulerConfig {
+        outcome_capacity: 0,
+        ..sched_config()
+    };
+    let bad_pacer = PacerConfig {
+        pull_budget: Duration::ZERO,
+        ..pacer_config()
+    };
+    assert_eq!(bad_sched.validate(), Err(ConfigError::ZeroOutcomeCapacity));
+    assert_eq!(bad_pacer.validate(), Err(ConfigError::ZeroPullBudget));
+    assert_eq!(
+        Scheduler::new(bad_sched).err(),
+        Some(ConfigError::ZeroOutcomeCapacity)
+    );
+}
+
 #[test]
 fn a_full_outcome_channel_never_blocks_the_pull() {
     let mut r = rig_with(SchedulerConfig {

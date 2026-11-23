@@ -56,9 +56,12 @@ the seam cannot make the mux allocate without bound. Zero values for
 `max_pull`, `pull_budget`, `queue_depth` or `outcome_capacity` are refused
 when the configuration is applied.
 
-Carousels: replacing a carousel with new content (a new PSI version) makes
-it due at once; re-submitting the same content keeps its schedule, so an
-idempotent re-submit from oob-dac never raises its rate. A one-shot PDU is
+Carousels: replacing a carousel with any change (new section bytes such as
+a new PSI version, or a new PID, class, priority or period) makes it due at
+once; re-submitting it unchanged keeps its schedule, so an idempotent
+re-submit from oob-dac never raises its rate. `SchedulerConfig::validate`
+and `PacerConfig::validate` let oob-dac check settings before saving
+them. A one-shot PDU is
 still eligible at exactly its deadline, and expired one-shots are reaped
 in every class on each dequeue.
 
