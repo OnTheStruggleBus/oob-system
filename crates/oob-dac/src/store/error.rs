@@ -14,9 +14,9 @@ pub enum ConstraintKind {
     DuplicateSerial,
     /// All 16 777 215 terminal IDs (24-bit, never reused) are spent.
     TerminalIdExhausted,
-    /// A field outside its domain: the unit address, serial or check
-    /// digits are malformed, or a terminal type is not one of the five
-    /// Define Terminal types.
+    /// A field outside its domain: a malformed unit address, serial, date or
+    /// IP address, or a terminal type that is not one of the five Define
+    /// Terminal types.
     Invalid(String),
     /// A schema `CHECK` failed; the text names the column or expression.
     Check(String),
@@ -58,15 +58,6 @@ pub enum StoreError {
         /// The journal table.
         table: &'static str,
     },
-    /// The precious write **committed**, but deriving its consequences
-    /// failed. Derived state lags; the next write, or the next open,
-    /// replays the pending events (the outbox rule).
-    DerivationPending {
-        /// The highest committed event sequence number.
-        committed_seq: i64,
-        /// What failed during derivation.
-        source: Box<StoreError>,
-    },
     /// An `event_log` payload did not decode (a bug, never operator input).
     Payload(serde_json::Error),
     /// The writer thread has stopped; the handle can no longer reach it.
@@ -88,13 +79,6 @@ impl fmt::Display for StoreError {
             Self::Migrate { to, source } => write!(f, "migration {to} failed: {source}"),
             Self::Constraint(k) => write!(f, "constraint violated: {k:?}"),
             Self::AppendOnly { table } => write!(f, "{table} is append-only"),
-            Self::DerivationPending {
-                committed_seq,
-                source,
-            } => write!(
-                f,
-                "write committed (event {committed_seq}) but derivation failed: {source}"
-            ),
             Self::Payload(e) => write!(f, "event payload did not decode: {e}"),
             Self::WriterGone => write!(f, "the store writer thread has stopped"),
             Self::Sqlite(e) => write!(f, "sqlite: {e}"),
@@ -107,7 +91,6 @@ impl std::error::Error for StoreError {
         match self {
             Self::Open(e) => Some(e),
             Self::Migrate { source, .. } => Some(source),
-            Self::DerivationPending { source, .. } => Some(source.as_ref()),
             Self::Payload(e) => Some(e),
             Self::Sqlite(e) => Some(e),
             _ => None,

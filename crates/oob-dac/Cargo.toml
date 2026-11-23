@@ -13,7 +13,8 @@ workspace = true
 [dependencies]
 # The store (#21). Bundled sqlite pins one sqlite version for every install
 # (ADR-003: the file is the installation). rusqlite MIT, sqlite public domain.
-rusqlite = { version = "0.43.0", features = ["bundled"] }
+# `limits` sets SQLITE_LIMIT_ATTACHED=0 so ATTACH is impossible (QA-7).
+rusqlite = { version = "0.43.0", features = ["bundled", "limits"] }
 # event_log payloads are JSON (MIT/Apache-2.0).
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", default-features = false, features = ["std"] }

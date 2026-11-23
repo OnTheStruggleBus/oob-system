@@ -33,7 +33,24 @@ impl Event {
             Self::TerminalCreated { .. } => "TerminalCreated",
         }
     }
+
+    /// The schema version that introduced this kind (QA-3).
+    ///
+    /// **Rule:** a new `Event` variant ships with a new migration and names
+    /// that migration's number here, so an older build meets the newer file
+    /// as [`StoreError::SchemaTooNew`] instead of an undecodable event. The
+    /// test `event_kinds_are_pinned_to_schema_versions` keeps the
+    /// [`EVENT_KINDS`] table and this match in step.
+    pub fn introduced_in(&self) -> u32 {
+        match self {
+            Self::TerminalCreated { .. } => 1,
+        }
+    }
 }
+
+/// Every event kind, by the schema version that introduced it. Entries for
+/// released versions never change; a new kind needs a new version.
+pub const EVENT_KINDS: &[(u32, &[&str])] = &[(1, &["TerminalCreated"])];
 
 /// An `event_log` sequence number (monotonic, never reused).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

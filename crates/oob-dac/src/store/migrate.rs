@@ -23,17 +23,27 @@ pub(crate) fn user_version(conn: &Connection) -> Result<u32, StoreError> {
 /// Brings `conn` to [`SCHEMA_VERSION`]; returns the number of migrations
 /// applied (0 when already at head).
 pub(crate) fn migrate(conn: &mut Connection) -> Result<u32, StoreError> {
+    migrate_with(conn, MIGRATIONS)
+}
+
+/// [`migrate`] over an explicit migration list (tests inject a failing
+/// migration through this, QA-6).
+pub(crate) fn migrate_with(
+    conn: &mut Connection,
+    migrations: &[(u32, &str)],
+) -> Result<u32, StoreError> {
+    let head = migrations.last().map_or(0, |(n, _)| *n);
     let found = user_version(conn)?;
-    if found > SCHEMA_VERSION {
+    if found > head {
         return Err(StoreError::SchemaTooNew {
             found,
-            supported: SCHEMA_VERSION,
+            supported: head,
         });
     }
     let mut applied = 0;
-    for &(to, sql) in MIGRATIONS.iter().filter(|(n, _)| *n > found) {
+    for &(to, sql) in migrations.iter().filter(|(n, _)| *n > found) {
         let step = |conn: &mut Connection| -> rusqlite::Result<()> {
-            let tx = conn.transaction()?;
+            let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             tx.execute_batch(sql)?;
             tx.pragma_update(None, "user_version", to)?;
             tx.commit()

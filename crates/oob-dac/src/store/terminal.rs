@@ -74,9 +74,14 @@ impl FromStr for TerminalType {
 }
 
 /// A unit address as printed on the box: `nnn-nnnnn-nnnnn-nnn`, 16 decimal
-/// digits. The first 13 are the 40-bit address; the last three are kept
-/// verbatim (their check algorithm is not yet sourced, so they are stored,
-/// not validated).
+/// digits: 13 address digits (the 40-bit address) plus 3 check digits.
+///
+/// **Status: documented** for the DCT700 (install manual p. B-10) and
+/// DCT1700 (p. B-11) under "d 05: Unit Address" (oob-expert note on #21);
+/// applying the split to the DCT2000 is same-family inference. The check
+/// algorithm is unknown, so the check digits are kept verbatim: never
+/// computed, never validated, never generated. Parse and display round-trip
+/// losslessly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnitAddress {
     address: u64,
@@ -101,7 +106,7 @@ impl UnitAddress {
         self.address
     }
 
-    /// The three trailing printed digits.
+    /// The three check digits as printed (stored verbatim, not validated).
     pub fn check(self) -> u16 {
         self.check
     }
@@ -161,15 +166,15 @@ pub struct NewTerminal {
     pub account_number: Option<String>,
     /// On-Plant flag.
     pub on_plant: bool,
-    /// Install date (ISO 8601).
+    /// Install date, `YYYY-MM-DD`.
     pub install_date: Option<String>,
-    /// Auto-Registration Date (DSG).
+    /// Auto-Registration Date (DSG), `YYYY-MM-DD`.
     pub auto_registration_date: Option<String>,
     /// Activated flag.
     pub activated: bool,
     /// Autodiscovered (DSG/DOCSIS).
     pub autodiscovered: bool,
-    /// IP address (DSG/DOCSIS).
+    /// IP address (DSG/DOCSIS), IPv4 or IPv6 text form.
     pub ip_address: Option<String>,
     /// BSI name.
     pub bsi_name: Option<String>,
@@ -216,8 +221,50 @@ impl NewTerminal {
         if self.box_type.is_empty() {
             return Err(invalid("empty box type".into()));
         }
+        for (field, date) in [
+            ("install_date", &self.install_date),
+            ("auto_registration_date", &self.auto_registration_date),
+        ] {
+            if let Some(d) = date
+                && !is_calendar_date(d)
+            {
+                return Err(invalid(format!("{field} {d:?} (want YYYY-MM-DD)")));
+            }
+        }
+        if let Some(ip) = &self.ip_address
+            && ip.parse::<std::net::IpAddr>().is_err()
+        {
+            return Err(invalid(format!("ip_address {ip:?}")));
+        }
         Ok(())
     }
+}
+
+/// `YYYY-MM-DD` naming a real Gregorian calendar day.
+fn is_calendar_date(s: &str) -> bool {
+    let b = s.as_bytes();
+    if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
+        return false;
+    }
+    let num = |r: std::ops::Range<usize>| -> Option<u32> {
+        let part = &s[r];
+        part.bytes()
+            .all(|c| c.is_ascii_digit())
+            .then(|| part.parse().ok())
+            .flatten()
+    };
+    let (Some(y), Some(m), Some(d)) = (num(0..4), num(5..7), num(8..10)) else {
+        return false;
+    };
+    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let days = match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days).contains(&d)
 }
 
 /// A stored terminal record.

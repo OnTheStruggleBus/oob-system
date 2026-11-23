@@ -3,20 +3,26 @@
 //!
 //! - **Engine.** `rusqlite` with bundled sqlite (one pinned sqlite for every
 //!   install). One writer: the [`Store`] owns the only read-write
-//!   connection, and async callers reach it through a [`StoreHandle`] backed
-//!   by a dedicated writer thread. Readers use separate read-only
-//!   connections ([`Store::reader`]), which WAL runs alongside the writer.
+//!   connection and holds an exclusive lock on `<db>.lock` for its lifetime,
+//!   so a second open fails; write transactions are `BEGIN IMMEDIATE`.
+//!   Async callers reach it through a [`StoreHandle`] backed by a dedicated
+//!   writer thread. Readers use separate read-only connections
+//!   ([`Store::reader`]), which WAL runs alongside the writer.
 //! - **Pragmas.** `journal_mode=WAL`, `synchronous=FULL` (precious ledgers
-//!   survive power loss), `foreign_keys=ON`, a busy timeout, and a
-//!   `quick_check` on open ([`StoreError::Corrupt`]).
-//! - **Exactly one database.** The store never issues `ATTACH`, and the
-//!   connections are private to this module, so nothing else can.
+//!   survive power loss), `foreign_keys=ON`, `recursive_triggers=ON`, each
+//!   read back on open; a busy timeout; and a `quick_check` on open
+//!   ([`StoreError::Corrupt`]).
+//! - **Exactly one database.** Every connection is opened with
+//!   `SQLITE_LIMIT_ATTACHED = 0`, so `ATTACH` is impossible by construction.
 //! - **Classification.** Every table is [`Precious`](Durability::Precious),
 //!   [`DerivedFromEvents`](Durability::DerivedFromEvents) or
 //!   [`DerivedObserved`](Durability::DerivedObserved) in [`TABLES`].
 //! - **Outbox.** Precious writes and their [`Event`]s commit together;
 //!   [`Deriver`]s fold the events into derived tables afterwards, idempotently,
 //!   and [`Store::rebuild_derived`] drops and rebuilds every derived table.
+//!   A committed write always returns its value; derivation lag and errors
+//!   are reported by [`Store::derivation_health`], never by failing a write
+//!   or an open.
 //! - **Migrations.** Forward-only, on `PRAGMA user_version`; a newer file is
 //!   refused ([`StoreError::SchemaTooNew`]).
 //!
@@ -55,14 +61,15 @@ mod tests;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use rusqlite::{Connection, OpenFlags, OptionalExtension};
+use rusqlite::limits::Limit;
+use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior};
 
 pub use audit::{AuditEntry, AuditRecord};
-pub use classify::{Durability, TABLES, TableClass, class_of};
+pub use classify::{BOX_IDENTIFYING, Durability, TABLES, TableClass, class_of};
 pub use error::{ConstraintKind, StoreError};
 pub use handle::StoreHandle;
 pub use migrate::SCHEMA_VERSION;
-pub use outbox::{Deriver, Event, EventSeq, TerminalStatusDeriver};
+pub use outbox::{Deriver, EVENT_KINDS, Event, EventSeq, TerminalStatusDeriver};
 pub use terminal::{NewTerminal, TERMINAL_ID_MAX, Terminal, TerminalId, TerminalType, UnitAddress};
 
 /// Install settings for the store (ADR-003 Layer 1, read from the daemon's
@@ -105,6 +112,9 @@ pub struct RebuildReport {
     pub tables: Vec<&'static str>,
     /// Events replayed into them (summed over derivers).
     pub events_replayed: u64,
+    /// Set when the replay failed after the recreate committed; the replay
+    /// resumes on the next write or open.
+    pub derivation_error: Option<String>,
 }
 
 #[cfg(test)]
@@ -116,47 +126,123 @@ pub(crate) enum Fault {
     FailDerive,
 }
 
+/// How far derived state lags the precious log (QA-2, QA-3). A failing
+/// deriver never fails a committed write or an open; it shows up here, for
+/// the daemon's health check and the canary to read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DerivationHealth {
+    /// Events not yet applied by the slowest deriver.
+    pub pending_events: u64,
+    /// The last derivation error, cleared by the next successful pass.
+    pub last_error: Option<String>,
+}
+
 /// The store: the single read-write connection to the one database file.
 pub struct Store {
     conn: Connection,
     path: PathBuf,
     opts: StoreOptions,
     derivers: Vec<Box<dyn Deriver>>,
+    derive_error: Option<String>,
+    /// Held for the store's lifetime: one writer per file (QA-4).
+    _lock: std::fs::File,
     #[cfg(test)]
     fault: Option<Fault>,
+}
+
+fn open_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> StoreError {
+    StoreError::Open(std::io::Error::other(e))
+}
+
+/// The writer lock file next to the database: `<db>.lock`.
+fn lock_path(path: &Path) -> PathBuf {
+    let mut p = path.as_os_str().to_owned();
+    p.push(".lock");
+    PathBuf::from(p)
+}
+
+/// Makes `ATTACH` impossible on `conn` (QA-7) and checks it took.
+fn forbid_attach(conn: &Connection) -> Result<(), StoreError> {
+    conn.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0)?;
+    if conn.limit(Limit::SQLITE_LIMIT_ATTACHED)? != 0 {
+        return Err(open_err("could not forbid ATTACH"));
+    }
+    Ok(())
+}
+
+/// Sets the writer's pragmas and reads each one back (QA-5): WAL,
+/// `synchronous=FULL`, `foreign_keys=ON`, `recursive_triggers=ON` (so
+/// REPLACE fires the journals' delete triggers, QA-1).
+pub(crate) fn configure_writer(conn: &Connection) -> Result<(), StoreError> {
+    let mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))?;
+    if !mode.eq_ignore_ascii_case("wal") {
+        return Err(open_err(format!("journal_mode is {mode}, not wal")));
+    }
+    conn.pragma_update(None, "synchronous", "FULL")?;
+    conn.pragma_update(None, "foreign_keys", "ON")?;
+    conn.pragma_update(None, "recursive_triggers", "ON")?;
+    for (pragma, want) in [
+        ("synchronous", 2),
+        ("foreign_keys", 1),
+        ("recursive_triggers", 1),
+    ] {
+        let got: i64 = conn.query_row(&format!("PRAGMA {pragma}"), [], |r| r.get(0))?;
+        if got != want {
+            return Err(open_err(format!("PRAGMA {pragma} is {got}, not {want}")));
+        }
+    }
+    Ok(())
 }
 
 impl Store {
     /// Opens (creating if absent) the store at `path`, checks it, migrates it
     /// to [`SCHEMA_VERSION`], and replays any events not yet derived.
+    ///
+    /// Only one `Store` may hold a file: a second open while the first is
+    /// alive fails with [`StoreError::Open`]. A derivation failure does not
+    /// fail the open; it is reported by [`derivation_health`](Self::derivation_health).
     pub fn open(path: &Path, opts: &StoreOptions) -> Result<Store, StoreError> {
+        let lock = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path(path))
+            .map_err(StoreError::Open)?;
+        match lock.try_lock() {
+            Ok(()) => {}
+            Err(std::fs::TryLockError::WouldBlock) => {
+                return Err(open_err(format!(
+                    "{} is already open by another writer",
+                    path.display()
+                )));
+            }
+            Err(std::fs::TryLockError::Error(e)) => return Err(StoreError::Open(e)),
+        }
         let mut conn = Connection::open_with_flags(
             path,
             OpenFlags::SQLITE_OPEN_READ_WRITE
                 | OpenFlags::SQLITE_OPEN_CREATE
                 | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )
-        .map_err(|e| StoreError::Open(std::io::Error::other(e)))?;
+        .map_err(open_err)?;
         conn.busy_timeout(opts.busy_timeout)?;
+        forbid_attach(&conn)?;
         quick_check(&conn)?;
-        let mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))?;
-        if !mode.eq_ignore_ascii_case("wal") {
-            return Err(StoreError::Open(std::io::Error::other(format!(
-                "journal_mode is {mode}, not wal"
-            ))));
-        }
-        conn.pragma_update(None, "synchronous", "FULL")?;
-        conn.pragma_update(None, "foreign_keys", "ON")?;
+        configure_writer(&conn)?;
         migrate::migrate(&mut conn)?;
         let mut store = Store {
             conn,
             path: path.to_owned(),
             opts: opts.clone(),
             derivers: outbox::builtin_derivers(),
+            derive_error: None,
+            _lock: lock,
             #[cfg(test)]
             fault: None,
         };
-        store.derive_pending()?;
+        // Replay what a crash left behind; a failure is reported, not fatal.
+        let _ = store.derive_pending();
         Ok(store)
     }
 
@@ -165,18 +251,22 @@ impl Store {
         &self.path
     }
 
-    /// Runs `f` in one write transaction and commits it, then derives the
-    /// consequences of any events it appended.
+    /// Runs `f` in one write transaction (`BEGIN IMMEDIATE`) and commits
+    /// it, then derives the consequences of any events it appended.
     ///
-    /// If `f` fails, nothing is written. If derivation fails after the
-    /// commit, the result is [`StoreError::DerivationPending`]: the precious
-    /// write is durable, and the next write or open replays the rest.
+    /// If `f` fails, nothing is written. Once the commit succeeds the result
+    /// is `Ok(value)`: the precious write is the outcome. A derivation
+    /// failure after the commit is recorded in
+    /// [`derivation_health`](Self::derivation_health), and the next write or
+    /// open replays the pending events.
     pub fn write<T>(
         &mut self,
         f: impl FnOnce(&Tx<'_>) -> Result<T, StoreError>,
     ) -> Result<T, StoreError> {
         let tx = Tx {
-            inner: self.conn.transaction()?,
+            inner: self
+                .conn
+                .transaction_with_behavior(TransactionBehavior::Immediate)?,
         };
         let value = f(&tx)?;
         tx.commit()?;
@@ -184,24 +274,46 @@ impl Store {
         if self.fault == Some(Fault::PanicBeforeDerive) {
             panic!("injected crash between the precious commit and derivation");
         }
-        match self.derive_pending() {
-            Ok(_) => Ok(value),
-            Err(source) => Err(StoreError::DerivationPending {
-                committed_seq: self.last_event_seq().unwrap_or(-1),
-                source: Box::new(source),
-            }),
+        let _ = self.derive_pending();
+        Ok(value)
+    }
+
+    /// How far derived state lags, and the last derivation error.
+    pub fn derivation_health(&self) -> Result<DerivationHealth, StoreError> {
+        let mut pending = 0u64;
+        for d in &self.derivers {
+            let n: i64 = self.conn.query_row(
+                "SELECT count(*) FROM event_log WHERE seq > coalesce(\
+                 (SELECT applied_seq FROM derive_watermark WHERE deriver = ?1), 0)",
+                [d.name()],
+                |r| r.get(0),
+            )?;
+            pending = pending.max(n as u64);
         }
+        Ok(DerivationHealth {
+            pending_events: pending,
+            last_error: self.derive_error.clone(),
+        })
     }
 
     /// Folds every event past each deriver's watermark into its derived
     /// tables, one transaction per batch. Returns the number of
-    /// (deriver, event) applications.
+    /// (deriver, event) applications. The outcome is also recorded for
+    /// [`derivation_health`](Self::derivation_health).
     pub fn derive_pending(&mut self) -> Result<u64, StoreError> {
+        let result = self.derive_pass();
+        self.derive_error = result.as_ref().err().map(ToString::to_string);
+        result
+    }
+
+    fn derive_pass(&mut self) -> Result<u64, StoreError> {
         let mut applied = 0;
         for d in &self.derivers {
             loop {
                 let tx = Tx {
-                    inner: self.conn.transaction()?,
+                    inner: self
+                        .conn
+                        .transaction_with_behavior(TransactionBehavior::Immediate)?,
                 };
                 let from = tx.watermark(d.name())?;
                 let batch = tx.events_after(from)?;
@@ -227,8 +339,15 @@ impl Store {
     /// from the start (used by restore, #24). `DerivedFromEvents` tables are
     /// rebuilt exactly; `DerivedObserved` tables come back with no
     /// observations; `Precious` tables are never touched.
+    ///
+    /// Once the drop-and-recreate commits, a replay failure does not fail
+    /// the rebuild: it is reported in [`RebuildReport::derivation_error`] and
+    /// [`derivation_health`](Self::derivation_health), and later writes or
+    /// opens continue the replay.
     pub fn rebuild_derived(&mut self) -> Result<RebuildReport, StoreError> {
-        let tx = self.conn.transaction()?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let mut tables = Vec::new();
         for class in TABLES
             .iter()
@@ -256,31 +375,27 @@ impl Store {
             tables.push(class.name);
         }
         tx.commit()?;
-        let events_replayed = self.derive_pending()?;
+        let (events_replayed, derivation_error) = match self.derive_pending() {
+            Ok(n) => (n, None),
+            Err(e) => (0, Some(e.to_string())),
+        };
         Ok(RebuildReport {
             tables,
             events_replayed,
+            derivation_error,
         })
     }
 
-    /// Opens a read-only connection to the same file.
+    /// Opens a read-only connection to the same file (`ATTACH` forbidden).
     pub fn reader(&self) -> Result<Reader, StoreError> {
         let conn = Connection::open_with_flags(
             &self.path,
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )
-        .map_err(|e| StoreError::Open(std::io::Error::other(e)))?;
+        .map_err(open_err)?;
         conn.busy_timeout(self.opts.busy_timeout)?;
+        forbid_attach(&conn)?;
         Ok(Reader { conn })
-    }
-
-    fn last_event_seq(&self) -> Result<i64, StoreError> {
-        Ok(self
-            .conn
-            .query_row("SELECT max(seq) FROM event_log", [], |r| {
-                r.get::<_, Option<i64>>(0)
-            })?
-            .unwrap_or(0))
     }
 }
 

@@ -129,7 +129,8 @@ fn one_file_wal_full_no_attach() {
         .unwrap();
     assert_eq!(fk, 1);
 
-    // The directory holds the one database and its WAL companions only.
+    // The directory holds the one database, its WAL companions and the
+    // writer lock only.
     let files: BTreeSet<String> = std::fs::read_dir(&dir.0)
         .unwrap()
         .map(|e| e.unwrap().file_name().into_string().unwrap())
@@ -137,6 +138,60 @@ fn one_file_wal_full_no_attach() {
     for f in &files {
         assert!(f.starts_with("oob-dac.sqlite"), "unexpected file {f}");
     }
+}
+
+#[test]
+fn attach_is_impossible_on_writer_and_reader() {
+    // QA-7: SQLITE_LIMIT_ATTACHED = 0 on every connection.
+    let dir = TempDir::new();
+    let store = open(&dir.db());
+    let reader = store.reader().unwrap();
+    for conn in [&store.conn, &reader.conn] {
+        assert!(
+            conn.execute_batch("ATTACH ':memory:' AS x").is_err(),
+            "ATTACH must fail"
+        );
+        assert_eq!(conn.limit(Limit::SQLITE_LIMIT_ATTACHED).unwrap(), 0);
+    }
+}
+
+#[test]
+fn configure_writer_sets_and_verifies_pragmas() {
+    // QA-5: start from the opposite of what the store needs.
+    let dir = TempDir::new();
+    let conn = Connection::open(dir.db()).unwrap();
+    conn.pragma_update(None, "synchronous", "NORMAL").unwrap();
+    conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
+    conn.pragma_update(None, "recursive_triggers", "OFF")
+        .unwrap();
+    configure_writer(&conn).unwrap();
+    for (pragma, want) in [
+        ("synchronous", 2i64),
+        ("foreign_keys", 1),
+        ("recursive_triggers", 1),
+    ] {
+        let got: i64 = conn
+            .query_row(&format!("PRAGMA {pragma}"), [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(got, want, "{pragma}");
+    }
+    let mode: String = conn
+        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(mode, "wal");
+}
+
+#[test]
+fn second_writer_is_refused() {
+    // QA-4: one Store per file; the lock is released on drop.
+    let dir = TempDir::new();
+    let first = open(&dir.db());
+    assert!(matches!(
+        Store::open(&dir.db(), &StoreOptions::default()),
+        Err(StoreError::Open(_))
+    ));
+    drop(first);
+    drop(open(&dir.db()));
 }
 
 // --- AC: a classification registry covers every table ---
@@ -166,7 +221,7 @@ fn append_only_tables_are_precious_and_guarded() {
     let store = open(&dir.db());
     for t in TABLES.iter().filter(|t| t.append_only) {
         assert_eq!(t.durability, Durability::Precious, "{}", t.name);
-        for op in ["update", "delete"] {
+        for op in ["update", "delete", "overwrite"] {
             let trig = format!("{}_no_{op}", t.name);
             let n: i64 = store
                 .conn
@@ -227,8 +282,10 @@ fn empty_db_migrates_to_head() {
             "table terminal",
             "table terminal_status",
             "trigger audit_log_no_delete",
+            "trigger audit_log_no_overwrite",
             "trigger audit_log_no_update",
             "trigger event_log_no_delete",
+            "trigger event_log_no_overwrite",
             "trigger event_log_no_update",
         ]
     );
@@ -255,6 +312,28 @@ fn newer_schema_is_refused() {
         }
         other => panic!("expected SchemaTooNew, got {:?}", other.err()),
     }
+}
+
+#[test]
+fn failed_migration_rolls_back_to_previous_version() {
+    // QA-6: migration 2 fails half-way; the file stays at version 1.
+    let dir = TempDir::new();
+    let mut conn = Connection::open(dir.db()).unwrap();
+    let migrations: &[(u32, &str)] = &[
+        (1, "CREATE TABLE a (x INTEGER) STRICT;"),
+        (
+            2,
+            "CREATE TABLE x (a INTEGER) STRICT; CREATE TABLE x (a INTEGER) STRICT;",
+        ),
+    ];
+    match migrate::migrate_with(&mut conn, migrations) {
+        Err(StoreError::Migrate { to: 2, .. }) => {}
+        other => panic!("expected Migrate {{ to: 2 }}, got {other:?}"),
+    }
+    assert_eq!(migrate::user_version(&conn).unwrap(), 1);
+    let tables = tables_of(&conn);
+    assert!(tables.contains("a"));
+    assert!(!tables.contains("x"), "half-applied migration left table x");
 }
 
 #[test]
@@ -370,6 +449,65 @@ fn bad_fields_are_rejected() {
         store.write(|tx| tx.create_terminal("t", &short)),
         Err(StoreError::Constraint(ConstraintKind::Invalid(_)))
     ));
+
+    // QA-8: dates and IP addresses are typed, in Rust and in the schema.
+    let bad_records: Vec<NewTerminal> = vec![
+        NewTerminal {
+            install_date: Some("next tuesday".into()),
+            ..sample(2)
+        },
+        NewTerminal {
+            install_date: Some("2026-02-30".into()),
+            ..sample(2)
+        },
+        NewTerminal {
+            auto_registration_date: Some("2026-1-05".into()),
+            ..sample(2)
+        },
+        NewTerminal {
+            ip_address: Some("10.0.0.256".into()),
+            ..sample(2)
+        },
+    ];
+    for t in &bad_records {
+        assert!(
+            matches!(
+                store.write(|tx| tx.create_terminal("t", t)),
+                Err(StoreError::Constraint(ConstraintKind::Invalid(_)))
+            ),
+            "{t:?}"
+        );
+    }
+    let good = NewTerminal {
+        install_date: Some("2024-02-29".into()),
+        auto_registration_date: Some("2026-11-23".into()),
+        ip_address: Some("fd00::1".into()),
+        ..sample(3)
+    };
+    store.write(|tx| tx.create_terminal("t", &good)).unwrap();
+    for (col, val) in [
+        ("install_date", "next tuesday"),
+        ("install_date", "2026-02-30"),
+        ("auto_registration_date", "2026-1-05"),
+        ("ip_address", "not an ip"),
+    ] {
+        let err = store
+            .write(|tx| {
+                tx.conn().execute(
+                    &format!(
+                        "INSERT INTO terminal (unit_address, ua_check, serial, terminal_type, \
+                         box_type, {col}) VALUES (9, 0, 'ABCDEFGHIJKL', 'One-Way', 'dct2000', ?1)"
+                    ),
+                    [val],
+                )?;
+                Ok(())
+            })
+            .unwrap_err();
+        assert!(
+            matches!(err, StoreError::Constraint(ConstraintKind::Check(_))),
+            "{col}={val}: {err:?}"
+        );
+    }
 }
 
 #[test]
@@ -412,17 +550,32 @@ fn unit_address_printed_form() {
 
 #[test]
 fn no_box_instance_comes_from_git() {
-    // A fresh store has no terminals: migrations seed none, and the store
-    // allocates every ID (NewTerminal has no ID field). The seed-loader
-    // half of this check (#30 loading upstream data) lands with #30.
+    // ARCH-3: the rule is "no box instance", not "no rows" — migrations may
+    // seed install settings (#23), never a box-identifying table. The store
+    // allocates every terminal ID (NewTerminal has no ID field). The
+    // seed-loader half (first-run seed load, #25) lands there.
+    assert!(BOX_IDENTIFYING.iter().all(|t| class_of(t).is_some()));
     let dir = TempDir::new();
     let store = open(&dir.db());
-    assert_eq!(count(&store.conn, "terminal"), 0);
-    for (_, sql) in migrate::MIGRATIONS {
-        assert!(
-            !sql.to_ascii_uppercase().contains("INSERT"),
-            "migrations must not seed rows"
-        );
+    for table in BOX_IDENTIFYING {
+        assert_eq!(count(&store.conn, table), 0, "{table}");
+        for (n, sql) in migrate::MIGRATIONS {
+            let flat = sql
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_ascii_lowercase();
+            for verb in ["insert into", "insert or replace into", "replace into"] {
+                for quoted in [table.to_string(), format!("\"{table}\"")] {
+                    for end in [" ", "("] {
+                        assert!(
+                            !flat.contains(&format!("{verb} {quoted}{end}")),
+                            "migration {n} inserts into box-identifying table {table}"
+                        );
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -452,6 +605,33 @@ fn journals_are_append_only() {
         ("event_log", "DELETE FROM event_log"),
         ("audit_log", "UPDATE audit_log SET outcome = 'x'"),
         ("audit_log", "DELETE FROM audit_log"),
+        // QA-1: REPLACE deletes the old row without a DELETE statement.
+        (
+            "event_log",
+            "INSERT OR REPLACE INTO event_log (seq, kind, payload, actor) \
+             VALUES (1, 'TerminalCreated', '{\"kind\":\"TerminalCreated\",\"terminal_id\":1}', \
+             'forged')",
+        ),
+        (
+            "event_log",
+            "REPLACE INTO event_log (seq, kind, payload, actor) \
+             VALUES (1, 'TerminalCreated', '{}', 'forged')",
+        ),
+        (
+            "audit_log",
+            "REPLACE INTO audit_log (seq, actor, role, front_door, command, outcome) \
+             VALUES (1, 'FORGED', 'owner', 'test', 'c', 'ok')",
+        ),
+        (
+            "audit_log",
+            "INSERT OR REPLACE INTO audit_log (seq, actor, role, front_door, command, outcome) \
+             VALUES (1, 'FORGED', 'owner', 'test', 'c', 'ok')",
+        ),
+        (
+            "event_log",
+            "INSERT INTO event_log (seq, kind, payload, actor) VALUES (1, 'x', '{}', 'forged') \
+             ON CONFLICT (seq) DO UPDATE SET actor = excluded.actor",
+        ),
     ] {
         let err = store
             .write(|tx| {
@@ -466,7 +646,17 @@ fn journals_are_append_only() {
     }
     let audit = store.reader().unwrap().audit_records().unwrap();
     assert_eq!(audit.len(), 1);
+    assert_eq!(audit[0].entry.actor, "marshal");
     assert_eq!(audit[0].entry.outcome, "ok");
+    let actor: String = store
+        .conn
+        .query_row("SELECT actor FROM event_log WHERE seq = 1", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(actor, "test");
+    // Ordinary appends still work after all that.
+    create(&mut store, 2).unwrap();
 }
 
 // --- AC: outbox; crash injection between precious commit and derivation ---
@@ -509,22 +699,112 @@ fn crash_between_commit_and_derivation_is_repaired_on_reopen() {
 }
 
 #[test]
-fn derivation_failure_reports_pending_and_next_write_repairs() {
+fn derivation_failure_keeps_the_committed_value_and_reports_lag() {
+    // QA-2 / ARCH-4: a committed write returns its value; lag is reported.
     let dir = TempDir::new();
     let mut store = open(&dir.db());
     store.fault = Some(Fault::FailDerive);
-    match create(&mut store, 1) {
-        Err(StoreError::DerivationPending { committed_seq, .. }) => assert_eq!(committed_seq, 1),
-        other => panic!("expected DerivationPending, got {other:?}"),
-    }
+    let a = create(&mut store, 1).expect("committed write must return Ok");
+    assert_eq!(a.get(), 1);
     assert_eq!(count(&store.conn, "terminal"), 1);
     assert_eq!(count(&store.conn, "terminal_status"), 0);
+    let health = store.derivation_health().unwrap();
+    assert_eq!(health.pending_events, 1);
+    assert!(health.last_error.is_some());
+
+    // An audit append under the same fault is also Ok, exactly once.
+    store
+        .write(|tx| {
+            tx.append_audit(&AuditEntry {
+                actor: "a".into(),
+                role: "owner".into(),
+                front_door: "test".into(),
+                command: "c".into(),
+                target: None,
+                outcome: "ok".into(),
+                before: None,
+                after: None,
+            })
+        })
+        .unwrap();
+    assert_eq!(count(&store.conn, "audit_log"), 1);
 
     store.fault = None;
     let b = create(&mut store, 2).unwrap();
     let reader = store.reader().unwrap();
-    assert!(reader.has_status_row(TerminalId(1)).unwrap());
+    assert!(reader.has_status_row(a).unwrap());
     assert!(reader.has_status_row(b).unwrap());
+    assert_eq!(
+        store.derivation_health().unwrap(),
+        DerivationHealth {
+            pending_events: 0,
+            last_error: None
+        }
+    );
+}
+
+#[test]
+fn undecodable_event_does_not_brick_open() {
+    // QA-3: an event kind this build does not know (a bug, or a newer build
+    // that skipped the schema bump) is reported, never fatal to open.
+    let dir = TempDir::new();
+    let mut store = open(&dir.db());
+    create(&mut store, 1).unwrap();
+    store
+        .conn
+        .execute(
+            "INSERT INTO event_log (kind, payload, actor) VALUES ('Future', '{\"kind\":\"Future\"}', 'x')",
+            [],
+        )
+        .unwrap();
+    drop(store);
+
+    let mut store = open(&dir.db());
+    let health = store.derivation_health().unwrap();
+    assert_eq!(health.pending_events, 1);
+    assert!(
+        health
+            .last_error
+            .as_deref()
+            .unwrap_or("")
+            .contains("Future"),
+        "{health:?}"
+    );
+    // Precious data is still reachable and writable.
+    assert_eq!(store.reader().unwrap().terminals().unwrap().len(), 1);
+    create(&mut store, 2).unwrap();
+    assert_eq!(count(&store.conn, "terminal"), 2);
+}
+
+#[test]
+fn event_kinds_are_pinned_to_schema_versions() {
+    // QA-3: every Event variant names the migration that introduced it, and
+    // EVENT_KINDS lists exactly those kinds. A new variant without a new
+    // schema version fails here.
+    let samples = [Event::TerminalCreated { terminal_id: 1 }];
+    let mut listed = BTreeSet::new();
+    let mut last_version = 0;
+    for (version, kinds) in EVENT_KINDS {
+        assert!(*version > last_version, "EVENT_KINDS must be ascending");
+        assert!(*version <= SCHEMA_VERSION);
+        last_version = *version;
+        for k in *kinds {
+            assert!(listed.insert(*k), "{k} listed twice");
+        }
+    }
+    let actual: BTreeSet<&str> = samples.iter().map(Event::kind).collect();
+    assert_eq!(listed, actual, "EVENT_KINDS out of step with Event");
+    for ev in &samples {
+        let (v, kinds) = EVENT_KINDS
+            .iter()
+            .find(|(_, ks)| ks.contains(&ev.kind()))
+            .unwrap();
+        assert_eq!(*v, ev.introduced_in(), "{}", ev.kind());
+        assert!(kinds.contains(&ev.kind()));
+        // Round-trips through the stored JSON form.
+        let json = serde_json::to_string(ev).unwrap();
+        assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), *ev);
+    }
 }
 
 // --- AC: derived tables can be dropped and rebuilt from precious ones ---
@@ -580,6 +860,7 @@ fn rebuild_derived_restores_derived_and_never_touches_precious() {
     let report = store.rebuild_derived().unwrap();
     assert_eq!(report.tables, ["terminal_status", "derive_watermark"]);
     assert_eq!(report.events_replayed, 5);
+    assert_eq!(report.derivation_error, None);
 
     assert_eq!(precious(&store.conn), precious_before);
     assert_eq!(from_events(&store.conn), from_events_before);

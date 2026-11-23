@@ -7,8 +7,14 @@
 -- Precious. The Define Terminal record (Plan §3.2). terminal_id is
 -- allocated by the store (24-bit, never reused: AUTOINCREMENT), never
 -- supplied, so no box instance can be seeded from git (ADR-003 §6).
--- unit_address is the 40-bit address (the first 13 digits of the printed
--- nnn-nnnnn-nnnnn-nnn form); ua_check holds the last three printed digits.
+-- Unit address split: the printed form nnn-nnnnn-nnnnn-nnn has 16 digits,
+-- 13 address digits plus 3 check digits. DOCUMENTED for the DCT700 (install
+-- manual p. B-10) and DCT1700 (p. B-11) under "d 05: Unit Address"
+-- (oob-expert note on #21); applying it to the DCT2000 is same-family
+-- inference. The check algorithm is unknown, so ua_check is stored
+-- verbatim: never computed, never validated, never generated. unit_address
+-- (the 40-bit value of the 13 address digits) is the UNIQUE identity; the
+-- printed form round-trips losslessly.
 CREATE TABLE terminal (
     terminal_id            INTEGER PRIMARY KEY AUTOINCREMENT
                            CHECK (terminal_id BETWEEN 1 AND 16777215),
@@ -22,11 +28,17 @@ CREATE TABLE terminal (
     box_type               TEXT NOT NULL CHECK (length(box_type) > 0),
     account_number         TEXT,
     on_plant               INTEGER NOT NULL DEFAULT 0 CHECK (on_plant IN (0, 1)),
-    install_date           TEXT,
-    auto_registration_date TEXT,
+    -- Dates are YYYY-MM-DD and must be real calendar dates.
+    install_date           TEXT CHECK (install_date IS NULL
+                                       OR date(install_date) IS install_date),
+    auto_registration_date TEXT CHECK (auto_registration_date IS NULL
+                                       OR date(auto_registration_date) IS auto_registration_date),
     activated              INTEGER NOT NULL DEFAULT 0 CHECK (activated IN (0, 1)),
     autodiscovered         INTEGER NOT NULL DEFAULT 0 CHECK (autodiscovered IN (0, 1)),
-    ip_address             TEXT,
+    -- Parsed as an IPv4/IPv6 address in Rust; the schema bounds the shape.
+    ip_address             TEXT CHECK (ip_address IS NULL
+                                       OR (length(ip_address) BETWEEN 2 AND 45
+                                           AND ip_address NOT GLOB '*[^0-9A-Fa-f.:]*')),
     bsi_name               TEXT,
     downstream_plant       TEXT,
     upstream_plant         TEXT,
@@ -70,6 +82,15 @@ BEGIN
     SELECT RAISE(ABORT, 'append-only: event_log');
 END;
 
+-- REPLACE / INSERT OR REPLACE deletes the conflicting row without firing
+-- BEFORE DELETE unless recursive_triggers is on (QA-1): refuse any insert
+-- that targets an existing seq. Store::open also sets recursive_triggers.
+CREATE TRIGGER event_log_no_overwrite BEFORE INSERT ON event_log
+WHEN NEW.seq IS NOT NULL AND EXISTS (SELECT 1 FROM event_log WHERE seq = NEW.seq)
+BEGIN
+    SELECT RAISE(ABORT, 'append-only: event_log');
+END;
+
 -- DerivedFromEvents. How far each deriver has folded event_log; drop it
 -- and replay starts from 0.
 CREATE TABLE derive_watermark (
@@ -98,6 +119,12 @@ BEGIN
 END;
 
 CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log
+BEGIN
+    SELECT RAISE(ABORT, 'append-only: audit_log');
+END;
+
+CREATE TRIGGER audit_log_no_overwrite BEFORE INSERT ON audit_log
+WHEN NEW.seq IS NOT NULL AND EXISTS (SELECT 1 FROM audit_log WHERE seq = NEW.seq)
 BEGIN
     SELECT RAISE(ABORT, 'append-only: audit_log');
 END;

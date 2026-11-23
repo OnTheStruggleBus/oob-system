@@ -68,6 +68,12 @@ pub const TABLES: &[TableClass] = &[
     },
 ];
 
+/// Tables whose rows are box instances or box-identifying data (unit
+/// addresses, serials). No box instance comes from git (ADR-003 §6): no
+/// migration and no seed may insert into these, and a fresh store has none.
+/// A later table holding box-identifying data joins this list.
+pub const BOX_IDENTIFYING: &[&str] = &["terminal"];
+
 /// The registry entry for `name`, if any.
 pub fn class_of(name: &str) -> Option<&'static TableClass> {
     TABLES.iter().find(|t| t.name == name)
