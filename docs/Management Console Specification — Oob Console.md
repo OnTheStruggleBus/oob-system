@@ -170,7 +170,11 @@ architecture — period-faithful *and* proven. Top-level sections:
   delay enforced ≥250 ms; optional Repeat-Every schedule. Every bulk op
   runs as a trackable campaign with the DAC status lifecycle — New →
   Request Sent → Timeout → Downloaded → Retrieving Status → Completed /
-  Failed — per unit, with dry-run first.
+  Failed — per unit, with dry-run first. The arrows follow the manual's
+  list order (p. 11-4), not a documented transition sequence. The
+  definitions are in the DAC-6000 Operations Reference §10. Oob's
+  transition table is a `hypothesized` reconstruction, recorded on
+  [#22](https://github.com/OnTheStruggleBus/oob-system/issues/22#issuecomment-7106984109).
 - **Safety:** destructive ops (factory init, cold init) require typed
   confirmation (`FACTORY INIT <serial>`); bulk ops always dry-run first;
   the sacrificial box is clearly badged so experiments default to it.

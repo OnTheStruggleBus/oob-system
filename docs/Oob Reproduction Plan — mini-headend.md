@@ -68,7 +68,12 @@ Macrovision, Physical Channel Map, Periodic ERS EMM Generation, **Compute DST
 Interval**, CableCARD SNT, CP Phone Number. Each operation carries a visible
 status lifecycle (New → Request Sent → Timeout → Downloaded → Retrieving
 Status → … → Completed/Failed) — our scheduler and the Console's ops views
-mirror this model exactly. Notable for the backlog: the poll family and
+use these status names. The arrows follow the manual's list order (p. 11-4),
+not a documented transition sequence. The definitions are in the DAC-6000
+Operations Reference §10. Oob's transition table is a `hypothesized`
+reconstruction, recorded on
+[#22](https://github.com/OnTheStruggleBus/oob-system/issues/22#issuecomment-7106984109).
+Notable for the backlog: the poll family and
 **Disconnect** are first-class messages we must emit, not side effects; and
 "Insert System Time" is the manufacturer's own name for the r3 F3-9 Time
 message, with Compute DST Interval as its companion.
