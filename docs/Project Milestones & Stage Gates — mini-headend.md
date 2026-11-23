@@ -125,9 +125,14 @@ gate rules (§5).
     install manual — not DCT2500-gated; the census designates the
     instrumented box or records its absence, and the RS-232 console tier
     applies only if an instrumentable unit exists); Insert System Time
-    emitted on schedule; Console C0 live as the experiment workbench.
+    emitted on schedule; Console C0 live in its **stub-to-live** scope: a
+    minimal live workbench against the oob-dac REST adapter (issue #27).
+    The full experiment workbench (Console spec §4.3) is deferred until the
+    E1 capture rig exists and is not a G1 exit criterion (Marshal's
+    direction, 2026-11-23).
 - **Evidence:** capture-rig scrapes (front-panel OCR + d-screens) per
-  experiment; the harness commit log; C0 screenshots.
+  experiment; the harness commit log; C0 screenshots of the live workbench
+  against #27.
 - **Review:** full adversarial review (r-series format) before PASS.
 
 ### G2 — Clear tier (M2)
@@ -236,8 +241,11 @@ gate rules (§5).
 
 - **Console C0–C5** (Console spec §5): each phase closes with its section
   live and its operator journeys demonstrable; C0 is a **G1 exit
-  requirement**, not a side project — the Console is born as the
-  experiment workbench because G1's evidence pack demands it.
+  requirement** in its stub-to-live scope (live against the oob-dac REST
+  adapter, #27), not a side project. The full experiment workbench follows
+  the E1 capture rig and is outside the G1 exit (Marshal, 2026-11-23). The
+  Console is still born with a live workbench because G1's evidence pack
+  demands one.
 - **Interconnect R0–R5** (Interconnect spec §8): R1 (loopback hub with
   netem) is its own mini-gate with the same evidence rules; R3 requires
   G3's V1 bench check first; R-gates open only after G6.

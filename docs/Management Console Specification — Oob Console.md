@@ -379,6 +379,23 @@ C0 is deliberately thin everywhere except the Lab: the worst outcome
 would be building a beautiful fleet manager before the first box
 connects. The Console earns sections as the headend earns milestones.
 
+**C0 scope: stub to live (Marshal's direction, 2026-11-23).** C0 ships in
+two steps.
+
+1. **For G1 (stub-to-live):** C0 is a minimal **live** workbench against the
+   oob-dac REST adapter (issue #27). It calls the real adapter and shows
+   real results; it is not mock data. This is the scope the G1 exit
+   requires (Milestones, G1 full tier).
+2. **Post-E1 (full workbench):** the experiment-workbench functionality in
+   §4.3 (typed runner with live camera-OCR and d-screen feedback, the
+   hypothesis backlog board, A/B injection) is deferred until the E1 capture
+   rig exists. Its scope follows the [Capture Rig Specification](Capture%20Rig%20Specification%20—%20mini-headend.md).
+   Because E1 is a G1 entry criterion, this full scope lands after G1 entry
+   and is not a G1 exit criterion.
+
+Every C0 operation still goes through the WireLink-verb admin API (§2). The
+stub does not add logic that the API does not expose.
+
 ## 6. Non-goals
 
 - **Not a SEM-EM replacement** (§4.7 boundary).
