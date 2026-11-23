@@ -40,7 +40,8 @@ impl Event {
     /// that migration's number here, so an older build meets the newer file
     /// as [`StoreError::SchemaTooNew`] instead of an undecodable event. The
     /// test `event_kinds_are_pinned_to_schema_versions` keeps the
-    /// [`EVENT_KINDS`] table and this match in step.
+    /// [`EVENT_KINDS`] table and this match in step, and freezes the kinds
+    /// of every released schema version (QA-9).
     pub fn introduced_in(&self) -> u32 {
         match self {
             Self::TerminalCreated { .. } => 1,

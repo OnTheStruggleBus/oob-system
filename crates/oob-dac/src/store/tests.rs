@@ -776,12 +776,87 @@ fn undecodable_event_does_not_brick_open() {
     assert_eq!(count(&store.conn, "terminal"), 2);
 }
 
+/// Event kinds per **released** schema version (QA-9). Append a row when a
+/// version ships; never edit an existing row. Version 1 ships with #21.
+const RELEASED_EVENT_KINDS: &[(u32, &[&str])] = &[(1, &["TerminalCreated"])];
+
+/// One sample of every `Event` variant. The exhaustive `match` (crate-local,
+/// so `#[non_exhaustive]` does not apply) stops a new variant compiling until
+/// it gets an arm here; the arm is where its sample goes.
+fn all_event_samples() -> Vec<Event> {
+    let samples = vec![Event::TerminalCreated { terminal_id: 1 }];
+    for ev in &samples {
+        match ev {
+            Event::TerminalCreated { .. } => {}
+        }
+    }
+    samples
+}
+
+/// The variant names serde accepts for `Event`, read from its
+/// unknown-variant error ("expected `A`" / "expected one of `A`, `B`").
+fn serde_variant_names() -> BTreeSet<&'static str> {
+    let err = serde_json::from_str::<Event>(r#"{"kind":"__no_such_kind__"}"#)
+        .unwrap_err()
+        .to_string();
+    let expected = err
+        .split_once("expected")
+        .unwrap_or_else(|| panic!("unexpected serde error: {err}"))
+        .1;
+    let names: BTreeSet<&'static str> = expected
+        .split('`')
+        .skip(1)
+        .step_by(2)
+        .map(|s| &*Box::leak(s.to_string().into_boxed_str()))
+        .collect();
+    assert!(!names.is_empty(), "no variant names in: {err}");
+    names
+}
+
 #[test]
 fn event_kinds_are_pinned_to_schema_versions() {
-    // QA-3: every Event variant names the migration that introduced it, and
-    // EVENT_KINDS lists exactly those kinds. A new variant without a new
-    // schema version fails here.
-    let samples = [Event::TerminalCreated { terminal_id: 1 }];
+    // QA-3 / QA-9: every Event variant names the migration that introduced
+    // it, EVENT_KINDS lists exactly those kinds, and kinds of a released
+    // schema version are frozen. A new variant without a new schema version
+    // fails here (or fails to compile in `all_event_samples`).
+    let samples = all_event_samples();
+
+    // Every variant serde knows has a sample: a variant added without one
+    // is caught even if its `match` arm was written.
+    assert_eq!(
+        samples.iter().map(Event::kind).collect::<BTreeSet<_>>(),
+        serde_variant_names(),
+        "all_event_samples must cover every Event variant"
+    );
+
+    // Frozen: a version's kinds never change once it is released.
+    let frozen_max = RELEASED_EVENT_KINDS.last().map_or(0, |(v, _)| *v);
+    for (version, frozen) in RELEASED_EVENT_KINDS {
+        let now: BTreeSet<&str> = samples
+            .iter()
+            .filter(|e| e.introduced_in() == *version)
+            .map(Event::kind)
+            .collect();
+        assert_eq!(
+            now,
+            frozen.iter().copied().collect::<BTreeSet<_>>(),
+            "schema version {version} is released; its event kinds are frozen — \
+             a new kind needs a new migration"
+        );
+    }
+    // Anything outside the frozen list is new in the current, unreleased
+    // schema version.
+    for ev in &samples {
+        if ev.introduced_in() > frozen_max {
+            assert_eq!(ev.introduced_in(), SCHEMA_VERSION, "{}", ev.kind());
+            assert!(
+                SCHEMA_VERSION > frozen_max,
+                "{} needs a new schema version",
+                ev.kind()
+            );
+        }
+    }
+
     let mut listed = BTreeSet::new();
     let mut last_version = 0;
     for (version, kinds) in EVENT_KINDS {
@@ -805,6 +880,32 @@ fn event_kinds_are_pinned_to_schema_versions() {
         let json = serde_json::to_string(ev).unwrap();
         assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), *ev);
     }
+}
+
+#[test]
+fn writes_begin_immediate() {
+    // QA-4 follow-up: the write lock is taken at BEGIN, so a busy database
+    // fails the write before the closure runs (a DEFERRED transaction would
+    // run the closure and fail at its first write instead).
+    let dir = TempDir::new();
+    let opts = StoreOptions {
+        busy_timeout: std::time::Duration::from_millis(50),
+    };
+    let mut store = Store::open(&dir.db(), &opts).unwrap();
+    let other = Connection::open(dir.db()).unwrap();
+    other.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let mut ran = false;
+    let result = store.write(|_tx| {
+        ran = true;
+        Ok(())
+    });
+    assert!(
+        result.is_err(),
+        "write must fail while another writer holds the lock"
+    );
+    assert!(!ran, "closure ran: the transaction did not begin IMMEDIATE");
+    other.execute_batch("ROLLBACK").unwrap();
+    store.write(|_tx| Ok(())).unwrap();
 }
 
 // --- AC: derived tables can be dropped and rebuilt from precious ones ---
