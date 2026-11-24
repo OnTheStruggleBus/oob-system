@@ -72,7 +72,7 @@ in every class on each dequeue.
 | `nulls_emitted` | Null fill on shortfall. Normal operation, not an error. |
 | `packets_served` | Non-null packets released (also per class). |
 | `late_pulls` | A pull took longer than `pull_budget`. |
-| `puller_underruns` | **Seam counter (#15), not a pacer counter.** The flowgraph timed out and inserted nulls itself; it reports the cumulative value in every seam request, and the seam's stats keep the last reported value. The G0.5 evidence counter. |
+| `puller_underruns` | **Seam counter (#15), not a pacer counter.** The flowgraph timed out and inserted nulls itself; it reports the cumulative value in every seam request, and the seam's stats keep the last reported value ([`SeamStats`](seam.md#counters)). The G0.5 evidence counter. |
 | `expired`, `stamper_panics`, `outcomes_lost`, `oversized_pulls` | Deadline drops, contained stamper panics, outcome-channel overflow, refused pulls above `max_pull`. |
 
 All but `puller_underruns` live in `PacerStats`. Exposure as `/metrics` is
@@ -80,8 +80,8 @@ All but `puller_underruns` live in `PacerStats`. Exposure as `/metrics` is
 
 ## Not here yet
 
-The seam transport (#15: AF_UNIX stream socket to a custom GR block),
-class floors and caps (#16; today classes are served in strict order C0
-first, then priority, then arrival), and the PSI assemblers (#17) arrive as
-sibling modules or replace the placeholders named above. Nothing in this
+The seam transport is built (#15): see [the pull seam](seam.md). Class
+floors and caps (#16; today classes are served in strict order C0 first,
+then priority, then arrival) and the PSI assemblers (#17) arrive as sibling
+modules or replace the placeholders named above. Nothing in this
 crate is hub-specific (AGENTS.md §9).
