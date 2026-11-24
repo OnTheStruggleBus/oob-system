@@ -10,7 +10,10 @@ use rusqlite::Connection;
 use super::StoreError;
 
 /// `(number, sql)`, contiguous from 1. Released entries never change.
-pub(crate) const MIGRATIONS: &[(u32, &str)] = &[(1, include_str!("migrations/0001_initial.sql"))];
+pub(crate) const MIGRATIONS: &[(u32, &str)] = &[
+    (1, include_str!("migrations/0001_initial.sql")),
+    (2, include_str!("migrations/0002_policy.sql")),
+];
 
 /// The schema version this build migrates to (the head migration).
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;

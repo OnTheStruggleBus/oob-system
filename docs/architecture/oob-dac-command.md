@@ -20,7 +20,7 @@ path into the `oob-mux` scheduler.
 | `target` | All / Terminal-ID range / Single plus the Plan §2 filters, over a `TerminalDirectory` (store-backed or in-memory fake) |
 | `lifecycle` | the operation status state machine |
 | `campaign` | release-time planning: delay of at least 250 ms, Repeat-Every |
-| `policy` | the hook #23 implements |
+| `policy` | the hook; `policy::StorePolicy` ([the policy layer](oob-dac-policy.md)) implements it |
 | `exec` | encoding under `catch_unwind` |
 | `sink` (private) | the one place a scheduler handle is held |
 
@@ -169,8 +169,8 @@ the state machine is tested by driving it directly. Cancellation is a
 status. Cancel stops the feed: no further PDU is handed to the scheduler.
 PDUs already handed over (at most one release window's worth) cannot be
 recalled and will be emitted. Closing a destructive operation early still
-sends those few; #23 decides whether destructive operations need extra
-care, and exposing Cancel from REST (#27) or WireLink (#28) should wait on
+sends those few; destructive operations need owner and a token
+([the policy layer](oob-dac-policy.md)), and exposing Cancel from REST (#27) or WireLink (#28) should wait on
 a one-shot withdraw in `oob-mux` (a #16-side follow-up).
 
 ## Catalog and support status
@@ -203,14 +203,15 @@ neither yet.
 
 `Policy::check` runs after validation and target resolution and before
 anything is created; `Policy::audit` receives the outcome of every command,
-including refusals. #23 implements both: owner role, the confirmation token
-bound to (operation, serial), the sacrificial-only CDL lock, the dry-run
-default and guest refusal (r6 F6-10).
+including refusals. `policy::StorePolicy` (#23, [the policy layer](oob-dac-policy.md))
+implements both: owner role, the confirmation token bound to (operation,
+terminal), the sacrificial-only CDL lock, the dry-run default and guest
+refusal (r6 F6-10).
 
-`AllowAllPolicy` is a **test double**. ADR-002 action item 5 lets this hook
-land with it only because #23 follows before any adapter. `CommandBus::new`
-has no default policy, so an adapter must pass one, and none may ship with
-the double.
+`AllowAllPolicy` is a **test double**. `CommandBus::new` has no default
+policy, so an adapter must pass one, and none may ship with the double: an
+adapter passes a `StorePolicy`. `DefineOperation::new` builds a dry run, and
+`DryRunReport::plan_digest` is what a destructive bulk token is bound to.
 
 ## The non-PDU seam (#25)
 
@@ -241,8 +242,8 @@ show it.
 
 - **Persistence and restart-resume.** Operations are tracked in memory. The
   precious `operation` ledger table (F6-5), audit rows and resume after a
-  restart need a store migration and land with #23 and the daemon (#29).
-  Until then a restart forgets in-flight operations.
+  restart need the ledger migration and land with the daemon (#29); #23's
+  audit rows already exist. Until then a restart forgets in-flight operations.
 - **One-shot withdrawal.** `oob-mux` can withdraw carousels but not queued
   one-shot PDUs. The command layer keeps future-dated PDUs itself and
   releases them just in time, so cancel, failure and end time stop the feed;

@@ -54,6 +54,13 @@ The first tables (migration `0001_initial`):
 | `derive_watermark` | DerivedFromEvents | How far each deriver has folded `event_log` |
 | `audit_log` | Precious, append-only | The bsilog equivalent (DAC Reference §8): actor, role, front door, command, target, outcome, before and after |
 
+Migration `0002_policy` (#23) adds the policy layer's two tables:
+
+| Table | Class | Content |
+| --- | --- | --- |
+| `confirmation_token` | DerivedObserved | Short-lived F6-10 confirmation tokens, stored as a SHA-256 only; worthless after a restart, so losing them on a restore is correct |
+| `install_setting` | Precious | Per-install owner settings: the sacrificial-only CDL lock (seeded ON) and the random install ID. See [the policy layer](oob-dac-policy.md) |
+
 Append-only is enforced by the schema. On both journals, `BEFORE UPDATE`
 and `BEFORE DELETE` triggers abort the statement, and a `BEFORE INSERT`
 trigger aborts any insert that targets an existing sequence number. The
