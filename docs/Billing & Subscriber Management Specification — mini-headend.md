@@ -256,6 +256,25 @@ The Console shows both sides.
 
 ### 3.8 PPV purchases on the statement
 
+**Source note — WireLink v3.0 (VOD & PPV spec O15).** GI/Motorola DAC 6000 WireLink documentation v3.0 — third-party OCR scan (ocrmypdf/Tesseract, July 2025) of a paper original; part number not preserved in scan. Cite by printed
+page only; everything below is `hypothesized` until a box capture confirms it.
+
+- **Purchases ledger reconciliation:** 720 / 721 / 722 (Upload / Return /
+  Received IPPV Purchases; WireLink v3.0 contents listing, printed pp.4-1,
+  4-2, 4-3) are the wire-level basis. The scan's body ends at p.3-31, so
+  their fields are not yet citable; only 684 Action_Code 2 (Poll Purchases,
+  WireLink v3.0 §3, p.3-21) is, and it points at the 620/720/724 series for
+  the upload to the business system.
+- **Fleet-diagnostics pull behind dunning:** 684 Collect Settop
+  Services/Purchases (p.3-20) and its 685 Return Message (p.3-21; Query
+  Service / Features / Package / Program Authorizations, Action_Code 1, 3,
+  4, 5, pp.3-21..3-24) read a terminal's current entitlements, which is
+  what the soft/hard disconnect and reconnect ops (§2.3) compare against.
+- **Disconnect itself:** 666 Change Settop Activation (p.3-18) is the
+  period non-pay de-activate/re-activate verb; it disables video and audio
+  while authorizations can still be changed, which matches the soft-disconnect
+  stage's intent.
+
 The VOD/PPV purchase ledger (call-ahead bookings, impulse uploads,
 orphans) is the source: each settled purchase becomes a `ppv_charge`
 ledger entry on the terminal's account — event title, epoch, price,
