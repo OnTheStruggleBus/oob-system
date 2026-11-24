@@ -267,6 +267,7 @@ dependencies = [
 name = "oob-dac"
 version = "0.1.0"
 dependencies = [
+ "oob-mux",
  "rusqlite",
  "serde",
  "serde_json",
