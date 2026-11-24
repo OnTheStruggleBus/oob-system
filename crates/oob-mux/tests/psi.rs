@@ -17,7 +17,7 @@ use oob_mux::pid_plan::{
     CaRef, EmmProviderId, EmmStream, EsPlan, PidPlan, PidPlanViolation, ProgramPlan, validate,
 };
 use oob_mux::psi::dcii::{CaSystem, GI_CA_SYSTEM_ID};
-use oob_mux::psi::{TableKind, TableVersions, build_all, statuses};
+use oob_mux::psi::{TableKind, TableVersionEntry, TableVersions, build_all, statuses};
 use oob_mux::{Pid, Status, Submission};
 
 fn pid(v: u16) -> Pid {
@@ -444,8 +444,14 @@ fn version_snapshot_round_trips_and_keeps_numbering() {
     assert_eq!(v.version(TableKind::Pmt { program_number: 1 }), Some(1));
 
     let mut restored = TableVersions::from_parts(v.snapshot());
-    assert!(v.snapshot().iter().all(|e| !e.3));
+    assert!(v.snapshot().iter().all(|e| !e.retired()));
     assert_eq!(restored.snapshot(), v.snapshot());
+    // A cross-crate persister reads the getters and rebuilds with new().
+    let rebuilt =
+        TableVersions::from_parts(v.snapshot().iter().map(|e| {
+            TableVersionEntry::new(e.kind(), e.version(), e.bytes().clone(), e.retired())
+        }));
+    assert_eq!(rebuilt.snapshot(), v.snapshot());
     // Unchanged plan after a restart: identical bytes, versions kept.
     let after = build_all(&validate(&p).unwrap(), &mut restored);
     for (a, b) in before.submissions.iter().zip(&after.submissions) {

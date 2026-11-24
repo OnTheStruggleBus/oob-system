@@ -141,6 +141,56 @@ pub fn statuses() -> &'static [StatusRow] {
     STATUS_ROWS
 }
 
+/// One table's persisted version state: what oob-dac (#25) stores and
+/// restores through [`TableVersions::snapshot`] and
+/// [`TableVersions::from_parts`]. `#[non_exhaustive]`, so build it with
+/// [`TableVersionEntry::new`] and read it with the getters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TableVersionEntry {
+    /// Which table.
+    pub kind: TableKind,
+    /// Its 5-bit version_number (0..32).
+    pub version: u8,
+    /// The section bytes last emitted at that version.
+    pub bytes: Arc<[u8]>,
+    /// The table left the plan; its version is kept so a re-add continues
+    /// the count.
+    pub retired: bool,
+}
+
+impl TableVersionEntry {
+    /// Builds an entry; `version` is taken mod 32.
+    pub fn new(kind: TableKind, version: u8, bytes: Arc<[u8]>, retired: bool) -> Self {
+        Self {
+            kind,
+            version: version % 32,
+            bytes,
+            retired,
+        }
+    }
+
+    /// Which table.
+    pub const fn kind(&self) -> TableKind {
+        self.kind
+    }
+
+    /// The version_number.
+    pub const fn version(&self) -> u8 {
+        self.version
+    }
+
+    /// The last-emitted section bytes.
+    pub fn bytes(&self) -> &Arc<[u8]> {
+        &self.bytes
+    }
+
+    /// Whether the table is out of the plan.
+    pub const fn retired(&self) -> bool {
+        self.retired
+    }
+}
+
 /// The per-table version counters and last-emitted bytes. Owned by the
 /// caller so it can persist across restarts.
 #[derive(Debug, Default, Clone)]
@@ -164,25 +214,25 @@ impl TableVersions {
     /// until #25 lands, persistence is the caller's job. Without a restore a
     /// restart would re-emit a changed table at version 0, which a box that
     /// cached that version could ignore.
-    pub fn snapshot(&self) -> Vec<(TableKind, u8, Arc<[u8]>, bool)> {
+    pub fn snapshot(&self) -> Vec<TableVersionEntry> {
         let mut v: Vec<_> = self
             .last
             .iter()
-            .map(|(k, (ver, b))| (*k, *ver, Arc::clone(b), self.retired.contains(k)))
+            .map(|(k, (ver, b))| {
+                TableVersionEntry::new(*k, *ver, Arc::clone(b), self.retired.contains(k))
+            })
             .collect();
-        v.sort_by_key(|(k, _, _, _)| *k);
+        v.sort_by_key(|e| e.kind);
         v
     }
 
-    /// Restores a set from a [`TableVersions::snapshot`] (the last field is
-    /// "retired": the table is out of the plan but its version is kept).
-    /// Versions are taken mod 32.
-    pub fn from_parts(parts: impl IntoIterator<Item = (TableKind, u8, Arc<[u8]>, bool)>) -> Self {
+    /// Restores a set from a [`TableVersions::snapshot`].
+    pub fn from_parts(parts: impl IntoIterator<Item = TableVersionEntry>) -> Self {
         let mut out = Self::default();
-        for (k, v, b, retired) in parts {
-            out.last.insert(k, (v % 32, b));
-            if retired {
-                out.retired.insert(k);
+        for e in parts {
+            out.last.insert(e.kind, (e.version, e.bytes));
+            if e.retired {
+                out.retired.insert(e.kind);
             }
         }
         out

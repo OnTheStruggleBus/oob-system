@@ -89,7 +89,13 @@ conformance evidence.
 
 A table's 5-bit `version_number` advances (mod 32) only when its bytes
 change, and the counters live in a caller-owned `TableVersions` so oob-dac
-can persist them: `TableVersions::snapshot` and `from_parts` round-trip the set, and oob-dac #25 wires the actual persistence. A program that leaves the plan keeps its last version and bytes (withdrawn once), so re-adding it continues the count: changed bytes advance the version rather than reusing 0, identical bytes keep it. `build_all` returns one cyclic C0 submission per table
+can persist them. `TableVersions::snapshot` returns one
+`TableVersionEntry` per table (kind, version, last bytes, retired) and
+`from_parts` restores from them; oob-dac #25 wires the actual persistence.
+A program that leaves the plan keeps its last version and bytes (withdrawn
+once), so re-adding it continues the count: changed bytes advance the
+version rather than reusing 0, identical bytes keep it.
+`build_all` returns one cyclic C0 submission per table
 plus the carousel ids of tables that left the plan; re-submitting an
 unchanged plan repeats identical bytes, which the scheduler keeps on its
 schedule. Continuity counters are the packetizer's, per PID; the test
