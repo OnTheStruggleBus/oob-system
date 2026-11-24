@@ -332,12 +332,10 @@ pub fn validate(plan: &PidPlan) -> Result<ValidatedPidPlan, Vec<PidPlanViolation
             v.push(PidPlanViolation::DuplicatePid { pid, uses: all });
         }
     }
-    if v.is_empty() {
-        // Size checks: build each table at version 0.
-        for kind in crate::psi::kinds(plan) {
-            if let Err(e) = build_one_for_validation(plan, kind) {
-                v.push(e);
-            }
+    // Size checks run regardless of other violations, so all are reported.
+    for kind in crate::psi::kinds(plan) {
+        if let Err(e) = build_one_for_validation(plan, kind) {
+            v.push(e);
         }
     }
     if v.is_empty() {

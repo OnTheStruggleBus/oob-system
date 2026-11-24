@@ -371,20 +371,86 @@ fn ecm_pid_may_be_shared_across_services() {
     assert!(validate(&plan(vec![a, b], vec![])).is_ok());
 }
 
+fn reserved(p: &PidPlan) -> bool {
+    has(validate(p), |v| {
+        matches!(v, PidPlanViolation::ReservedPid { .. })
+    })
+}
+
 #[test]
 fn violation_reserved_pids() {
     for bad in [0x0000u16, 0x0001, 0x000F, 0x1FFB] {
-        let p = plan(vec![program(1, bad, 0x101)], vec![]);
+        // PMT role.
         assert!(
-            has(validate(&p), |v| matches!(
-                v,
-                PidPlanViolation::ReservedPid { .. }
-            )),
-            "{bad:#x}"
+            reserved(&plan(vec![program(1, bad, 0x101)], vec![])),
+            "pmt {bad:#x}"
         );
+        // ES role (PCR sits on the same ES).
+        let mut pr = program(1, 0x100, 0x101);
+        pr.streams[1].pid = pid(bad);
+        assert!(reserved(&plan(vec![pr], vec![])), "es {bad:#x}");
+        // PCR-only role.
+        let mut pr = program(1, 0x100, 0x101);
+        pr.pcr_pid = pid(bad);
+        assert!(reserved(&plan(vec![pr], vec![])), "pcr {bad:#x}");
+        // EMM role.
+        assert!(reserved(&plan(vec![], vec![emm(bad, 0)])), "emm {bad:#x}");
+        // ECM role.
+        let mut pr = program(1, 0x100, 0x101);
+        pr.ca = vec![ca(bad)];
+        assert!(reserved(&plan(vec![pr], vec![])), "ecm {bad:#x}");
     }
     // 0x0010 is the first allocatable PID.
     assert!(validate(&plan(vec![program(1, 0x0010, 0x101)], vec![])).is_ok());
+}
+
+#[test]
+fn all_violations_are_reported_together() {
+    // A duplicate PID and an oversize PAT in one plan: both are reported.
+    let mut p = plan(
+        (0..260u16)
+            .map(|i| program(i + 1, 0x100 + i, 0x1000 + i))
+            .collect(),
+        vec![],
+    );
+    p.programs[1].pmt_pid = p.programs[0].pmt_pid;
+    let v = validate(&p).unwrap_err();
+    assert!(
+        v.iter()
+            .any(|x| matches!(x, PidPlanViolation::DuplicatePid { .. }))
+    );
+    assert!(
+        v.iter()
+            .any(|x| matches!(x, PidPlanViolation::SectionTooLong { .. }))
+    );
+}
+
+#[test]
+fn version_snapshot_round_trips_and_keeps_numbering() {
+    let mut v = TableVersions::new();
+    let mut p = plan(vec![program(1, 0x100, 0x101)], vec![emm(0x200, 0)]);
+    build_all(&validate(&p).unwrap(), &mut v);
+    p.programs[0].streams = vec![es(0x02, 0x101)];
+    let before = build_all(&validate(&p).unwrap(), &mut v);
+    assert_eq!(v.version(TableKind::Pmt { program_number: 1 }), Some(1));
+
+    let mut restored = TableVersions::from_parts(v.snapshot());
+    assert_eq!(restored.snapshot(), v.snapshot());
+    // Unchanged plan after a restart: identical bytes, versions kept.
+    let after = build_all(&validate(&p).unwrap(), &mut restored);
+    for (a, b) in before.submissions.iter().zip(&after.submissions) {
+        let (Submission::Cyclic { pdu: x, .. }, Submission::Cyclic { pdu: y, .. }) = (a, b) else {
+            panic!("not cyclic")
+        };
+        assert_eq!(x.payload.as_bytes(), y.payload.as_bytes());
+    }
+    // A change after a restart continues from the restored version, not 0.
+    p.programs[0].streams = vec![es(0x02, 0x101), es(0x81, 0x102)];
+    build_all(&validate(&p).unwrap(), &mut restored);
+    assert_eq!(
+        restored.version(TableKind::Pmt { program_number: 1 }),
+        Some(2)
+    );
 }
 
 #[test]

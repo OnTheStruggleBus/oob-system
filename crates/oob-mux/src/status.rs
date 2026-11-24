@@ -2,8 +2,13 @@
 
 use core::fmt;
 
-/// How far a wire-format claim is established. Same three labels as the
-/// message layer (`oob-msg`); promotion needs the evidence the label names.
+/// How far a wire-format claim is established: the AGENTS.md §2 labels.
+/// Promotion needs the evidence the label names.
+///
+/// This is the one definition of the enum. `oob-msg` is still an empty
+/// stub; when Slice C seeds it, it must `pub use oob_mux::Status` and not
+/// define a second enum (oob-msg builds mux submissions, so it depends on
+/// oob-mux, never the reverse).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum Status {

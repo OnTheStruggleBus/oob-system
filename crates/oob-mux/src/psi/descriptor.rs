@@ -13,8 +13,9 @@ use crate::pid_plan::{CaRef, EmmStream};
 /// MPEG-2 CA_descriptor tag.
 pub const CA_DESCRIPTOR_TAG: u8 = 0x09;
 
-/// One CA_descriptor.
-pub fn ca_descriptor(system: CaSystem, ca_pid: u16, private: &[u8]) -> Vec<u8> {
+/// One CA_descriptor. Crate-private: `validate` bounds `private` to 251
+/// bytes, so only plan-driven callers reach it with a sound length.
+pub(crate) fn ca_descriptor(system: CaSystem, ca_pid: u16, private: &[u8]) -> Vec<u8> {
     let mut p = Vec::with_capacity(4 + private.len());
     p.extend_from_slice(&system.id().to_be_bytes());
     p.extend_from_slice(&pid_field(ca_pid));

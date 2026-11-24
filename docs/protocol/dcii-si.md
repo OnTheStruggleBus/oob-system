@@ -1,4 +1,4 @@
-# DCII PSI/SI: PAT, PMT, CAT and the GI CA descriptors
+# DCII PSI/SI: PAT, PMT, CAT and the GI CA descriptors (generic MPEG-2 so far)
 
 The O4 "DCII PSI/SI conformance set" row. Source of truth: the `oob_mux::psi`
 and `oob_mux::pid_plan` module docs (`cargo doc -p oob-mux`); this page
@@ -13,6 +13,11 @@ from `lab/captures/`, every row is `documented` or `hypothesized`, and in
 fact all are `hypothesized`.
 
 ## Scope
+
+The tables are structurally generic MPEG-2 plus the GI CA descriptor;
+"DCII-flavored" names the target, not yet the bytes. The DCII deltas (F4-6
+PMT conventions, the master guide table on PID 8187, VCT/VCN) are **not
+emitted** and are the next step toward d 15 / d 16.
 
 `oob_mux::psi` is one builder library for the OOB stream now and the
 in-band path later (Marshal, 2026-11-23). It emits PAT, PMT and CAT as
@@ -31,7 +36,7 @@ the d 16 check is a later issue. NIT, the DCII master guide table (PID
 | PMT layout (no DCII extras emitted) | `hypothesized` | ISO/IEC 13818-1; DCII PMT conventions (F4-6) are not emitted |
 | CAT layout | `hypothesized` | ISO/IEC 13818-1; as above |
 | CA_descriptor (tag 0x09) layout | `hypothesized` | ISO/IEC 13818-1; as above |
-| GI/Motorola CA_system_id (0x0700) | `hypothesized` | DVB CA_System_ID registry as commonly reported; no DAC/SEM manual or d 16 value in hand |
+| GI/Motorola CA_system_id (0x0700) | `hypothesized` | DVB CA_System_ID registry as commonly reported; no DAC/SEM manual or d 16 value in hand. Sourcing is tracked in issue #56 (the value must match the real SEM's CA system) |
 | CA descriptor private bytes (PMT) | `hypothesized` | F4-6; empty by default |
 | EMM provider ID as CAT descriptor private bytes | `hypothesized` | Oob construction; the 0x0000/0x0001 value is the AGENTS.md §8 guardrail, the placement is not documented |
 | PID 8187 (0x1FFB) reserved for the DCII MGT | `hypothesized` | r5 F5-6, single source; enforced anyway |
@@ -84,7 +89,7 @@ conformance evidence.
 
 A table's 5-bit `version_number` advances (mod 32) only when its bytes
 change, and the counters live in a caller-owned `TableVersions` so oob-dac
-can persist them. `build_all` returns one cyclic C0 submission per table
+can persist them: `TableVersions::snapshot` and `from_parts` round-trip the set, and oob-dac #25 wires the actual persistence. `build_all` returns one cyclic C0 submission per table
 plus the carousel ids of tables that left the plan; re-submitting an
 unchanged plan repeats identical bytes, which the scheduler keeps on its
 schedule. Continuity counters are the packetizer's, per PID; the test

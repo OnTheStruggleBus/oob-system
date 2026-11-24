@@ -154,6 +154,33 @@ impl TableVersions {
         Self::default()
     }
 
+    /// Everything needed to restore this set after a restart: each table
+    /// with its version and last-emitted section bytes, in table order.
+    /// oob-dac (#25) stores this and feeds it to [`TableVersions::from_parts`];
+    /// until #25 lands, persistence is the caller's job. Without a restore a
+    /// restart would re-emit a changed table at version 0, which a box that
+    /// cached that version could ignore.
+    pub fn snapshot(&self) -> Vec<(TableKind, u8, Arc<[u8]>)> {
+        let mut v: Vec<_> = self
+            .last
+            .iter()
+            .map(|(k, (ver, b))| (*k, *ver, Arc::clone(b)))
+            .collect();
+        v.sort_by_key(|(k, _, _)| *k);
+        v
+    }
+
+    /// Restores a set from a [`TableVersions::snapshot`]. Versions are
+    /// taken mod 32.
+    pub fn from_parts(parts: impl IntoIterator<Item = (TableKind, u8, Arc<[u8]>)>) -> Self {
+        Self {
+            last: parts
+                .into_iter()
+                .map(|(k, v, b)| (k, (v % 32, b)))
+                .collect(),
+        }
+    }
+
     /// The current version of a table, if it has been built.
     pub fn version(&self, kind: TableKind) -> Option<u8> {
         self.last.get(&kind).map(|(v, _)| *v)
