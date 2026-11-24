@@ -21,7 +21,7 @@
 //!        ▼
 //!  [pacer]      PullSource::pull(n ≤ max_pull) → exactly n packets, nulls on shortfall
 //!        ▲
-//!        │ the pull seam (#15): the flowgraph asks, the flowgraph's clock rules
+//!        │ the pull seam ([`seam`], #15): the flowgraph asks, the flowgraph's clock rules
 //! ```
 //!
 //! - [`scheduler`]: [`Pdu`]s with class, priority, release time and
@@ -47,8 +47,9 @@
 //! verifies it. SCTE 55-1 coding, interleaving and randomization are the
 //! flowgraph's job, not this crate's (r6 F6-2).
 //!
-//! The seam transport (#15) and the PSI assemblers (#17) arrive as sibling
-//! modules. Nothing here is hub-specific (AGENTS.md §9).
+//! The seam endpoint ([`seam`], #15) serves the pull over a Unix socket:
+//! see `protocol/seam.md` in the book. The PSI assemblers (#17) arrive as
+//! a sibling module. Nothing here is hub-specific (AGENTS.md §9).
 
 pub mod clock;
 pub mod config;
@@ -59,6 +60,7 @@ pub mod pdu;
 pub mod pid;
 pub mod rate;
 pub mod scheduler;
+pub mod seam;
 
 pub use clock::{Clock, ManualClock, MonoTime, SystemClock, UtcTime};
 pub use config::ConfigError;
@@ -73,3 +75,4 @@ pub use pdu::{
 pub use pid::{Pid, PidError};
 pub use rate::PacketRate;
 pub use scheduler::{OutcomeReceiver, Scheduler, SchedulerConfig, SchedulerHandle, SubmitError};
+pub use seam::{SeamConfig, SeamError, SeamStats, SeamStatsSnapshot, ShutdownFlag};

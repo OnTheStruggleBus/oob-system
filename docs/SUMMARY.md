@@ -22,6 +22,7 @@
 - [ADR-003 — Configuration, Extensibility and Distribution Model](ADR-003%20—%20Configuration,%20Extensibility%20and%20Distribution%20Model.md)
 - [Protocol](protocol/README.md)
   - [oob-mux-pipeline](protocol/oob-mux-pipeline.md)
+  - [seam](protocol/seam.md)
 - [Architecture](architecture/README.md)
   - [oob-dac-store](architecture/oob-dac-store.md)
 - [Runbook](runbook/README.md)
