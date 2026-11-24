@@ -247,6 +247,11 @@ added" question directly — and rules out a whole class of guesses:
   the box-as-oracle loop, now with the d 05 addressing taxonomy (§3.1) as
   the address-field guide.
 
+**BSI endpoint wire format (W2, `oob-dac`).** The WireLink 600/700 listener's
+packet framing, sequence rules and the 760 / Business System Owner hooks are
+sourced from the WireLink v3.0 guide (acquired as O15, `hypothesized` until
+captured; cited by printed page in the VOD & PPV spec §6): GI/Motorola DAC 6000 WireLink documentation v3.0 — third-party OCR scan (ocrmypdf/Tesseract, July 2025) of a paper original; part number not preserved in scan.
+
 
 ## 4. Workstreams and build order
 

@@ -398,6 +398,31 @@ keeps the Console's purchase ledger and the WireLink dialect testable
 independently of any box, and gives the nightly canary a software-only
 transaction path (§8).
 
+**Source note — WireLink v3.0 as the BSI endpoint's wire format (O15).**
+GI/Motorola DAC 6000 WireLink documentation v3.0 — third-party OCR scan (ocrmypdf/Tesseract, July 2025) of a paper original; part number not preserved in scan. Cite by printed page only; all of it is `hypothesized` until a box
+capture confirms it (the BSI is DAC-to-business-system, so the box is only
+a downstream referee for what the endpoint causes).
+
+- **Framing for the listener:** WireLink v3.0 §2, pp.2-1..2-6: STX (02h) and
+  CR (0Dh) delimit a packet and are never nibble-encoded; a 16-bit Packet
+  Size, a 16-bit Sequence Number (1..32767; Synchronization 001 resets it to
+  0 and the next command is 0001; the DAC answers every command with Return
+  Status 001 echoing the sequence), a 16-bit Record Type, packet data, and an
+  8-bit checksum (sum of the unencoded bytes, excluding STX, checksum and
+  CR; p.2-3). Every value is Character Nibble encoded as printable ASCII
+  hex (p.2-4); bitmapped and bitmask fields p.2-5; unused bits and fields
+  zero, command repeats at least two seconds apart, timeouts of at least two
+  minutes, error codes 001/220/226/231/232 (p.2-6).
+- **V2.45 multi-operator and interconnect hooks:** 760 Terminal Request
+  (pp.3-25..3-26) with its Identifier, Plant, State, Feature, Status and
+  Business System Owner components (pp.3-26..3-31; the Status Component is
+  read-only, returned by 770/771, and the Business System Owner Component,
+  p.3-31, transfers a settop between business systems, an alternative to
+  delete-then-add). This is the basis for per-BSI ownership and for
+  interconnect hand-off of a unit between operators (Interconnect spec).
+  The 770 / 771 pair is listed in the contents at p.3-33 but its body is not
+  in the scan, so 770/771 fields are uncited and remain open under O15.
+
 ## 7. Gate and milestone mapping — PROPOSED (Marshal dispositions)
 
 | Tier | Proposed host gate | Proposed exit-text addition |
