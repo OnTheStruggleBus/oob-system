@@ -12,3 +12,10 @@ the box is the referee (AGENTS.md §2). The first chapter, the oob-mux
 pipeline, describes how the stream is produced and labels its framing
 `hypothesized`; wire-format chapters arrive with the G0.5 PHY work and
 the G1 connect experiments.
+
+The second chapter, [the pull seam](seam.md), is the contract
+between the flowgraph (the clock master) and oob-mux's pacer: a framed
+request/response over a Unix socket, with the null-stuffing handoff and the
+F6-2 box-free loopback harness. It is Oob's own protocol, not a box wire
+format, so it carries no verification status beyond the `hypothesized`
+188-byte packet size it inherits.
