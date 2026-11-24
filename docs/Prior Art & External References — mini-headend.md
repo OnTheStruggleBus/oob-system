@@ -76,6 +76,20 @@ NXP TDA10026HN (<https://www.nxp.com/products/TDA10026HN>) — period silicon: "
 
 **Out of scope, deliberately.** The page's live-network actions are not adopted: running diagnostics against a live cable service and trying to scan, ping or traceroute the box's address on the cable drop. They are live-plant actions, prohibited under AGENTS.md §7 (closed plant) and §11 (never touch live cable plant, licensed services or anyone's content). Oob does this only on a closed bench with no live cable. The page's "Root password" footer link is unrelated to the DCT 2000 content and was not followed.
 
+### 3.3 drew1440.com "Motorola Cable" — secondary historical index, lowest authority
+
+<https://drew1440.com/motorola/> — a personal WordPress blog page on GI/Motorola DCT set-tops, compiled mostly from archived 1999–2006 GI, Motorola, Pace and Sony product pages, with the author's editorial asides. **Trust level: community-tier, secondary, and the lowest authority of §3.1–§3.3.** Unlike §3.1 and §3.2 it carries **no** usable hardware, flash, JTAG, serial, d-screen, E-code, PID or protocol detail, and no headend, DAC, OM or SEM content: it is a historical index only, to be checked against primary material. Nothing below is `verified`; the page itself is internally inconsistent in places (for example on whether the DCT5000 shipped).
+
+| Topic | Claim | Label | Where it lands |
+| --- | --- | --- | --- |
+| Model lineage | DCT1000/1200 (1997); DCT2000 (1999, "Motorola 68xxx" CPU, 2 MB VRAM); DCT2500 (Broadcom single chip: CPU, MPEG-2 decoder, transport); cost-reduced DCT700, DCT1700, DCT1800; HD and DVR line DCT5100/5200, DCT6200/6208, DCT6400/6412/6416. DCT5000 announced then cancelled ("vapourware", the author's word; the page also says one version reached operators) | archived product pages; the cancellation is editorial and speculative | Context for the box-type catalog (#30) and the census framing; the 68k basis agrees with §3.2's MC68331 claim (also unverified) |
+| Modulation | J.83 Annex B, 64/256-QAM; DCT1000 64-QAM only, DCT1200 adds 256-QAM; other models listed as 64/256 generally | archived product pages | Consistent with AGENTS.md §8 (J.83 Annex B, 64/256-QAM) |
+| CA lineage (historical, descriptive only) | DigiCipher, later MediaCipher; descrambles earlier GI/Jerrold scrambling | archived product pages | Context for the encrypted tier (M3/G3). Descriptive only: no keys and no bypass |
+| Return path | STARFONE (built-in dial-up modem); STARLINK (two-way data, "similar to DAVIC") | archived product pages | W7 context (STARVUE/STARFONE return path) |
+| Middleware and guide stacks named | Prevue (IPG on DCT1000-series); Pioneer Passport (later IPG, DCT1000 and DCT2000); Liberate, Wink, OpenTV (ported to DCT2000); Worldgate and Microsoft TV (announced or tested, not deployed); Rovi iGuide appears as a heading with no content | archived pages and the author's notes | Guide residency (W8) and the R12 Navigator/Passport fallback; the stack a given fleet box runs still comes from the census |
+
+**Scope.** The page is historical and descriptive: no CA-defeat steps, no live-plant instructions and no credential links, so beyond the standard closed-plant stance (AGENTS.md §7, §11) there is nothing to exclude.
+
 ## 4. Adjacent scenes (technique donors, not attempts)
 
 - gr-qam (Clayton Smith; merged into GNU Radio 3.7.10: <https://github.com/argilo/gr-qam>) — SCTE 07 64/256-QAM transmitter, HackRF-based, webcam-to-QAM example. Precedent for the Interconnect hub-fallback "GNU Radio QAM on a second SDR" (Appendix A of the Hardware Acquisition List).
@@ -105,6 +119,7 @@ As far as the public record shows, Oob is the first attempt at any of these — 
 - Standards purchase: SCTE 55-1 2019 (R2024) — optional buy, decision deferred to M0.5; escalate to required only if PHY bring-up stalls on coding/framing unknowns the box can't teach us.
 - Research desk: DCT 2000 FAQ (§3.1) logged as community-tier, structural facts only; the d-screen entry sequence goes to the capture-rig bring-up as an item to confirm on the box, and the board-revision storage hints go to #30 and #33 as unverified. CA-defeat content is out of scope (§7, §11).
 - Research desk: cromwell-intl write-up (§3.2) logged as community-tier. Its Message Types PIDs and message IDs are hypothesized leads for #19 and #17, to be cross-checked per Reproduction Plan §3; the 19-screen list is to be checked against the Capture Rig d-screen map. Live-network actions are out of scope (§7, §11).
+- Research desk: drew1440 index (§3.3) logged as secondary and lowest authority; model lineage and middleware names are context for #30 and W8, to be verified against primary material.
 - Citations into oob-msg: CableLabs R-OOB Appendix I (§2.3) is citable corroboration for the stream inventory and RF plan when the protocol document grows its references section.
 
 Cross-references: Oob Reproduction Plan (methodology), Milestones & Stage Gates (G0.5 research-desk duties), Hardware Acquisition List (standards/textbook purchases are not on it — see item 4 above), Sci-Atlanta Ecosystem Specification (the 55-2 world §2.1 lives in).
