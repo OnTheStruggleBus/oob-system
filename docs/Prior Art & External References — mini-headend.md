@@ -90,6 +90,21 @@ NXP TDA10026HN (<https://www.nxp.com/products/TDA10026HN>) — period silicon: "
 
 **Scope.** The page is historical and descriptive: no CA-defeat steps, no live-plant instructions and no credential links, so beyond the standard closed-plant stance (AGENTS.md §7, §11) there is nothing to exclude.
 
+### 3.4 usbjtag.com DCT700 device page — vendor tier, unverified
+
+<https://www.usbjtag.com/jtagdevices/dct700.php> — a vendor device page for a USB BDM/JTAG tool (last updated 2016-12-31), describing the Motorola/GI DCT700 as similar to the DCT2500 design but digital only. **Trust level: vendor-stated, community-tier, lower authority than §3.2; every value is unverified** and must be confirmed on our own unit before anything relies on it (AGENTS.md §2).
+
+| Topic | Claim | Label | Where it lands |
+| --- | --- | --- | --- |
+| Platform | Debug is EJTAG (MIPS), 14-pin with a reset pin, non-DMA. Read with §3.3's note that the DCT2500 uses a Broadcom single chip, this marks the DCT700 and DCT2500 as a **Broadcom MIPS** family, in contrast to the 68k/BDM DCT2000 (§3.2, §3.3). The page states the CPU as "Motorola 17500QK", which matches no part we know; likely a mislabel, since EJTAG implies a MIPS SoC | vendor-stated; inference ours; CPU name unverified | Box-type catalog (#30): platform variation across the family. No design change |
+| Flash and memory map | One Intel 28F320J3 (4 MB). RAM 16 MB at 0x80000000, firmware 4 MB at 0x90000000, NVRAM 256 KB at 0x98000000 | vendor-stated, unverified | Firmware-import tooling (#33) and D0 planning, only as hints to check against our own unit |
+| Flash partitions | boot 0x90000000 (0x20000); plat 0x90020000 (0x160000); app1 0x90180000 (0x80000); app2 0x90200000, app3 0x90220000, app4 0x90240000 (0x20000 each); rsvd 0x90260000 (0x1A0000) | vendor-stated, unverified | Same as above; partition names are a lead for the d 10 module vocabulary (§3), not a spec |
+| Recovery workflow | The tool offers NVRAM backup and restore, full firmware dump and programming, platform-only programming, and a rescue path for a box that does not boot (boot partition first, programmed slowly, then the platform) | vendor-stated, community reference | Informs the **D0 flash-recovery** requirement (r3 F3-3, r4 F4-3) and #33. Described at a high level only; no runnable steps and no tool init values are reproduced |
+
+**Destructive operations stay Oob's doctrine.** In Oob, flash write-back and rescue are destructive operations (AGENTS.md §7): sacrificial unit first, a verified D0 recovery path (two routes) before any fleet box, and Marshal's typed confirmation. This entry is reference for building that recovery capability on the closed bench, not an endorsement to flash boxes.
+
+**Scope.** The page has no CA-defeat, PID or OOB content. Its note about removing the CATV cable to program reliably concerns programming reliability, not live-plant use; Oob's closed-plant stance (§7, §11) means no live plant regardless. Social and credential links were not followed.
+
 ## 4. Adjacent scenes (technique donors, not attempts)
 
 - gr-qam (Clayton Smith; merged into GNU Radio 3.7.10: <https://github.com/argilo/gr-qam>) — SCTE 07 64/256-QAM transmitter, HackRF-based, webcam-to-QAM example. Precedent for the Interconnect hub-fallback "GNU Radio QAM on a second SDR" (Appendix A of the Hardware Acquisition List).
@@ -120,6 +135,7 @@ As far as the public record shows, Oob is the first attempt at any of these — 
 - Research desk: DCT 2000 FAQ (§3.1) logged as community-tier, structural facts only; the d-screen entry sequence goes to the capture-rig bring-up as an item to confirm on the box, and the board-revision storage hints go to #30 and #33 as unverified. CA-defeat content is out of scope (§7, §11).
 - Research desk: cromwell-intl write-up (§3.2) logged as community-tier. Its Message Types PIDs and message IDs are hypothesized leads for #19 and #17, to be cross-checked per Reproduction Plan §3; the 19-screen list is to be checked against the Capture Rig d-screen map. Live-network actions are out of scope (§7, §11).
 - Research desk: drew1440 index (§3.3) logged as secondary and lowest authority; model lineage and middleware names are context for #30 and W8, to be verified against primary material.
+- Research desk: usbjtag DCT700 page (§3.4) logged as vendor-stated and unverified; it hints at a Broadcom MIPS family and informs D0 recovery planning and #33. Flash write-back stays a destructive operation under §7.
 - Citations into oob-msg: CableLabs R-OOB Appendix I (§2.3) is citable corroboration for the stream inventory and RF plan when the protocol document grows its references section.
 
 Cross-references: Oob Reproduction Plan (methodology), Milestones & Stage Gates (G0.5 research-desk duties), Hardware Acquisition List (standards/textbook purchases are not on it — see item 4 above), Sci-Atlanta Ecosystem Specification (the 55-2 world §2.1 lives in).
