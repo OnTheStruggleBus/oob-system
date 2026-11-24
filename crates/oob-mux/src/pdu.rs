@@ -14,10 +14,11 @@ use crate::pid::Pid;
 
 /// Traffic classes sharing the insertion budget (r6 F6-3, ADR-002).
 ///
-/// The class *set* and its semantics are code (ADR-003 Layer 3). Budgets,
-/// floors and caps per class are runtime settings and arrive with #16;
-/// until then the scheduler serves classes in strict declaration order
-/// (C0 first), a placeholder #16 replaces.
+/// The class *set* and its semantics are code (ADR-003 Layer 3). Floors,
+/// caps and bursts per class are runtime settings
+/// ([`BudgetConfig`](crate::scheduler::BudgetConfig)); the scheduler
+/// serves them by floor, C2 preemption and excess (see the `scheduler`
+/// module).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum TrafficClass {
@@ -36,7 +37,8 @@ pub enum TrafficClass {
 }
 
 impl TrafficClass {
-    /// Every class, in the scheduler's current service order.
+    /// Every class, in class order (C0 first), the order of the excess
+    /// phase.
     pub const ALL: [Self; 6] = [
         Self::C0System,
         Self::C1Addressed,
@@ -158,7 +160,10 @@ pub enum Submission {
     /// boundary. When it is due depends on what changed:
     ///
     /// - **anything changed** (section bytes, PID, class, priority or
-    ///   period; for example a new PSI version): due at once;
+    ///   period; for example a new PSI version): due at once, but a
+    ///   change may jump the schedule at most once per period, so a
+    ///   producer that keeps changing a carousel cannot emit faster than
+    ///   the period (C0 demand stays exact, #16);
     /// - **nothing changed** (an idempotent re-submit, such as oob-dac
     ///   reconciling from its store): keeps the old schedule, so
     ///   re-submitting never raises the carousel's rate (QA-5, QA-9).
@@ -199,6 +204,8 @@ pub enum Outcome {
 pub enum DropReason {
     /// The PDU's [`TimeStamper`] panicked.
     StamperPanicked,
+    /// Lab mode was switched off while a C5 PDU was queued.
+    LabModeOff,
 }
 
 /// One entry on the outcome channel.

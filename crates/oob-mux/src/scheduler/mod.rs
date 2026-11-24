@@ -5,14 +5,25 @@
 //! pacer owns the consuming [`Scheduler`] and takes one PDU at a time, only
 //! when a pull needs one. Nothing is packetized ahead of a pull.
 //!
-//! Selection today is strict class order (C0 first), then priority within
-//! the class, then arrival. Class budgets, floors and caps are #16's scope
-//! and replace the strict order; they will be counted in packet slots.
+//! Selection is by class budget (#16, r6 F6-3): per-class floors and caps
+//! as token buckets in packet slots, C2 preempting C3–C5 within its cap, C1
+//! honouring release times, C5 off outside lab mode. See
+//! [`BudgetConfig`], [`validate`] and the selection order in the private
+//! `queue` module; the book page `protocol/oob-mux-pipeline.md` has the
+//! class table.
 //!
 //! The scheduler persists nothing: oob-dac rebuilds the queues and the
 //! carousel registry from its store on daemon start.
 
+mod bucket;
+mod budget;
+mod class;
 mod queue;
+
+pub use budget::{
+    BudgetConfig, BudgetViolation, ClassBudget, ClassMap, StreamParams, ValidatedBudget, validate,
+};
+pub use class::{LAB_GATED, PREEMPTOR, requires_cap};
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel};
@@ -26,10 +37,11 @@ use crate::pdu::{
     CarouselId, MAX_SECTION_LEN, Outcome, OutcomeEvent, Pdu, PduId, Submission, TrafficClass,
 };
 use crate::rate::PacketRate;
-use queue::{CarouselEntry, OnceEntry, Pick, Queues};
+use queue::{CarouselEntry, OnceEntry, Pick, Queues, Reaped};
 
-/// Bounded queue sizes and class switches. Runtime configuration (ADR-003
-/// Layer 1): the values come from oob-dac's store, so there is no default.
+/// Bounded queue sizes and the class budget. Runtime configuration
+/// (ADR-003 Layer 1): the values come from oob-dac's store, so there is no
+/// default.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchedulerConfig {
     /// Maximum one-shot PDUs waiting per class; at least 1.
@@ -40,8 +52,10 @@ pub struct SchedulerConfig {
     /// Capacity of the outcome channel; at least 1. When it is full,
     /// outcomes are counted as lost rather than blocking the pull path.
     pub outcome_capacity: usize,
-    /// Classes that refuse submissions.
-    pub disabled_classes: Vec<TrafficClass>,
+    /// Per-class floors and caps, and the lab-mode switch that is the one
+    /// input that disables a class (C5). Replaced at run time by
+    /// [`SchedulerHandle::apply_budget`].
+    pub budget: BudgetConfig,
 }
 
 impl SchedulerConfig {
@@ -52,7 +66,9 @@ impl SchedulerConfig {
     /// # Errors
     ///
     /// [`ConfigError`] for a zero `queue_depth` or `outcome_capacity`
-    /// (QA-7).
+    /// (QA-7), or the first violation of the budget's own rules. The
+    /// budget's fit to the stream rate is checked when the pacer binds the
+    /// rate; use [`validate`] to check both at once.
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.queue_depth == 0 {
             return Err(ConfigError::ZeroQueueDepth);
@@ -60,6 +76,7 @@ impl SchedulerConfig {
         if self.outcome_capacity == 0 {
             return Err(ConfigError::ZeroOutcomeCapacity);
         }
+        budget::validate_inner(&self.budget, None).map_err(|v| ConfigError::Budget(v[0]))?;
         Ok(())
     }
 }
@@ -75,8 +92,17 @@ pub enum SubmitError {
         /// Its configured depth.
         depth: usize,
     },
-    /// The class is disabled by configuration.
+    /// The class is disabled: C5 while lab mode is off.
     ClassDisabled(TrafficClass),
+    /// A C0 carousel that would push the registered C0 demand above C0's
+    /// floor (kbps, rounded up). Starvation of C0 is unreachable through
+    /// registration as it is through [`SchedulerHandle::apply_budget`].
+    C0DemandExceedsFloor {
+        /// C0's floor in force.
+        floor_kbps: u32,
+        /// The demand with this carousel registered.
+        demand_kbps: u32,
+    },
     /// The section exceeds [`MAX_SECTION_LEN`].
     PayloadTooLarge {
         /// The offered length.
@@ -109,6 +135,13 @@ impl core::fmt::Display for SubmitError {
         match self {
             Self::QueueFull { class, depth } => write!(f, "{class:?} queue full ({depth})"),
             Self::ClassDisabled(c) => write!(f, "{c:?} is disabled"),
+            Self::C0DemandExceedsFloor {
+                floor_kbps,
+                demand_kbps,
+            } => write!(
+                f,
+                "C0 carousel demand {demand_kbps} kbps would exceed the C0 floor {floor_kbps} kbps"
+            ),
             Self::PayloadTooLarge { len } => {
                 write!(f, "section of {len} bytes exceeds {MAX_SECTION_LEN}")
             }
@@ -132,6 +165,8 @@ struct Shared {
     queues: Mutex<Queues>,
     closed: AtomicBool,
     next_id: AtomicU64,
+    /// The stream rate in bits/s once the pacer has bound it; 0 before.
+    stream_bps: AtomicU64,
     config: SchedulerConfig,
 }
 
@@ -162,7 +197,7 @@ fn same_content(a: &Pdu, b: &Pdu) -> bool {
         && a.payload.as_bytes() == b.payload.as_bytes()
 }
 
-fn validate(pdu: &Pdu) -> Result<(), SubmitError> {
+fn validate_pdu(pdu: &Pdu) -> Result<(), SubmitError> {
     let b = pdu.payload.as_bytes();
     let len = b.len();
     if len > MAX_SECTION_LEN {
@@ -190,12 +225,12 @@ impl SchedulerHandle {
         let pdu = match &submission {
             Submission::Once(p) | Submission::Cyclic { pdu: p, .. } => p,
         };
-        if s.config.disabled_classes.contains(&pdu.class) {
+        validate_pdu(pdu)?;
+        let mut q = s.lock();
+        if !q.buckets.enabled(pdu.class) {
             return Err(SubmitError::ClassDisabled(pdu.class));
         }
-        validate(pdu)?;
         let id = PduId(s.next_id.fetch_add(1, Ordering::Relaxed));
-        let mut q = s.lock();
         match submission {
             Submission::Once(pdu) => {
                 let depth = s.config.queue_depth;
@@ -204,6 +239,7 @@ impl SchedulerHandle {
                     return Err(SubmitError::QueueFull { class, depth });
                 }
                 let seq = q.next_seq();
+                q.note_deadline(pdu.deadline);
                 q.once[class.index()].push(OnceEntry { id, seq, pdu });
             }
             Submission::Cyclic {
@@ -217,6 +253,14 @@ impl SchedulerHandle {
                 if period == Duration::ZERO {
                     return Err(SubmitError::ZeroPeriod);
                 }
+                let demand = q.c0_demand_kbps(Some(carousel), Some((&pdu, period)));
+                let floor = q.buckets.config().classes[TrafficClass::C0System].floor_kbps;
+                if pdu.class == TrafficClass::C0System && demand > floor {
+                    return Err(SubmitError::C0DemandExceedsFloor {
+                        floor_kbps: floor,
+                        demand_kbps: demand,
+                    });
+                }
                 let seq = q.next_seq();
                 let entry = CarouselEntry {
                     id: carousel,
@@ -225,19 +269,28 @@ impl SchedulerHandle {
                     pdu,
                     period,
                     next_due_slot: 0,
+                    urgent: false,
+                    last_early: None,
                 };
                 if let Some(slot) = q.carousels.iter_mut().find(|c| c.id == carousel) {
                     // Same content and period keep the schedule, so
-                    // idempotent re-submits never raise the rate; any
-                    // change, the period included, is due at once (QA-5,
-                    // QA-9, see `Submission::Cyclic`).
+                    // idempotent re-submits never raise the rate. Any
+                    // change, the period included, may jump the schedule
+                    // (QA-5, QA-9, see `Submission::Cyclic`), but only once
+                    // per period: that keeps C0 demand exact, because a
+                    // producer that keeps changing a carousel cannot emit
+                    // faster than its period (#14 amendment 4).
                     let unchanged =
                         slot.period == entry.period && same_content(&slot.pdu, &entry.pdu);
-                    let (old_due, old_seq) = (slot.next_due_slot, slot.seq);
+                    let (old_due, old_seq, old_early) =
+                        (slot.next_due_slot, slot.seq, slot.last_early);
                     *slot = entry;
+                    slot.next_due_slot = old_due;
+                    slot.last_early = old_early;
                     if unchanged {
-                        slot.next_due_slot = old_due;
                         slot.seq = old_seq;
+                    } else {
+                        slot.urgent = true;
                     }
                 } else if q.carousels.len() >= s.config.max_carousels {
                     return Err(SubmitError::CarouselLimit {
@@ -265,6 +318,93 @@ impl SchedulerHandle {
         }
         Ok(())
     }
+
+    /// Validates `cfg` against the stream rate (once the pacer has bound
+    /// it) and the live C0 carousel demand, then swaps it in at the next
+    /// pull boundary: the swap takes the queue lock the pull path takes
+    /// for each dequeue. Bucket fills are clamped to the new depths, so
+    /// no class gets a burst from the change.
+    ///
+    /// Lab mode off drops queued C5 work: each one-shot is reported
+    /// `Dropped(LabModeOff)`, and each C5 **carousel** is removed, with no
+    /// outcome event, and counted in `dropped_by_class`. A later
+    /// [`withdraw`](Self::withdraw) of a removed carousel returns
+    /// [`SubmitError::UnknownCarousel`], and switching lab mode back on
+    /// does not restore it: the producer must register it again.
+    ///
+    /// # Errors
+    ///
+    /// Every [`BudgetViolation`], [`C0FloorBelowDemand`] included; the old
+    /// budget then stays in force.
+    ///
+    /// [`C0FloorBelowDemand`]: BudgetViolation::C0FloorBelowDemand
+    pub fn apply_budget(&self, cfg: BudgetConfig) -> Result<(), Vec<BudgetViolation>> {
+        let mut q = self.shared.lock();
+        let violations = self.violations(&q, &cfg);
+        if !violations.is_empty() {
+            return Err(violations);
+        }
+        q.apply_budget(cfg);
+        Ok(())
+    }
+
+    /// The dry run of [`apply_budget`](Self::apply_budget): the same checks
+    /// (the budget's own rules, the stream rate once bound, and the live
+    /// C0 carousel demand), and nothing is changed. oob-dac's save path
+    /// (#26) calls this before committing its store row, so a config the
+    /// scheduler would refuse is never persisted (ADR-003 section 5).
+    ///
+    /// # Errors
+    ///
+    /// The same violations `apply_budget` would return.
+    pub fn check_budget(&self, cfg: &BudgetConfig) -> Result<(), Vec<BudgetViolation>> {
+        let q = self.shared.lock();
+        let violations = self.violations(&q, cfg);
+        if violations.is_empty() {
+            Ok(())
+        } else {
+            Err(violations)
+        }
+    }
+
+    /// The registered C0 carousels' demand in kbps, rounded up: what C0's
+    /// floor must cover.
+    pub fn c0_demand_kbps(&self) -> u32 {
+        self.shared.lock().c0_demand_kbps(None, None)
+    }
+
+    fn violations(&self, q: &Queues, cfg: &BudgetConfig) -> Vec<BudgetViolation> {
+        let stream = u64_to_rate(self.shared.stream_bps.load(Ordering::Acquire));
+        let mut violations =
+            budget::validate_inner(cfg, stream.map(|packet_rate| StreamParams { packet_rate }))
+                .err()
+                .unwrap_or_default();
+        let demand = q.c0_demand_kbps(None, None);
+        let floor = cfg.classes[TrafficClass::C0System].floor_kbps;
+        if demand > floor {
+            violations.push(BudgetViolation::C0FloorBelowDemand {
+                floor_kbps: floor,
+                demand_kbps: demand,
+            });
+        }
+        violations
+    }
+
+    /// The budget in force.
+    pub fn budget(&self) -> BudgetConfig {
+        self.shared.lock().buckets.config().clone()
+    }
+
+    /// One-shot PDUs waiting per class, indexed by [`TrafficClass::index`]
+    /// (a gauge for #29).
+    pub fn queue_depths(&self) -> [usize; 6] {
+        let q = self.shared.lock();
+        core::array::from_fn(|i| q.once[i].len())
+    }
+}
+
+fn u64_to_rate(bps: u64) -> Option<PacketRate> {
+    PacketRate::from_bits_per_second(bps)
 }
 
 /// A PDU handed from the scheduler to the packetizer.
@@ -301,9 +441,14 @@ impl Scheduler {
         config.validate()?;
         let (tx, rx) = sync_channel(config.outcome_capacity);
         let shared = Arc::new(Shared {
-            queues: Mutex::new(Queues::new(config.queue_depth, config.max_carousels)),
+            queues: Mutex::new(Queues::new(
+                config.queue_depth,
+                config.max_carousels,
+                config.budget.clone(),
+            )),
             closed: AtomicBool::new(false),
             next_id: AtomicU64::new(0),
+            stream_bps: AtomicU64::new(0),
             config,
         });
         let scheduler = Self {
@@ -316,6 +461,22 @@ impl Scheduler {
 
     pub(crate) fn set_stats(&mut self, stats: Arc<PacerStats>) {
         self.stats = stats;
+    }
+
+    /// Checks the budget in force against a stream rate, so the pacer can
+    /// refuse a rate the budget does not fit (`BudgetExceedsStream`).
+    pub(crate) fn check_rate(&self, rate: PacketRate) -> Result<(), ConfigError> {
+        let q = self.shared.lock();
+        budget::validate(q.buckets.config(), StreamParams { packet_rate: rate })
+            .map(drop)
+            .map_err(|v| ConfigError::Budget(v[0]))
+    }
+
+    /// Records the bound stream rate for [`SchedulerHandle::apply_budget`].
+    pub(crate) fn bind_rate(&self, rate: PacketRate) {
+        self.shared
+            .stream_bps
+            .store(rate.bits_per_second(), Ordering::Release);
     }
 
     /// Reports an outcome without blocking; a full channel counts as lost.
@@ -339,9 +500,22 @@ impl Scheduler {
     ) -> Result<Scheduled, Option<u64>> {
         let pick = {
             let mut q = self.shared.lock();
-            q.pick(now, slot, rate, |id| {
-                self.stats.add_expired();
-                self.report(id, Outcome::Expired);
+            q.pick(now, slot, rate, |r| match r {
+                Reaped::Expired(id, class) => {
+                    self.stats.add_expired(class);
+                    self.report(id, Outcome::Expired);
+                }
+                Reaped::Dropped {
+                    id,
+                    class,
+                    reason,
+                    reports,
+                } => {
+                    self.stats.add_dropped(class);
+                    if reports {
+                        self.report(id, Outcome::Dropped(reason));
+                    }
+                }
             })
         }?;
         Ok(match pick {

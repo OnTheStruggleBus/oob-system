@@ -16,6 +16,9 @@ pub enum ConfigError {
     ZeroMaxPull,
     /// `PacerConfig::pull_budget` is 0: every pull would be late.
     ZeroPullBudget,
+    /// The class budget is refused (the first violation; use
+    /// `oob_mux::scheduler::validate` for all of them).
+    Budget(crate::scheduler::BudgetViolation),
 }
 
 impl core::fmt::Display for ConfigError {
@@ -25,8 +28,16 @@ impl core::fmt::Display for ConfigError {
             Self::ZeroOutcomeCapacity => "outcome_capacity must be at least 1",
             Self::ZeroMaxPull => "max_pull must be at least 1",
             Self::ZeroPullBudget => "pull_budget must be non-zero",
+            Self::Budget(_) => "class budget refused",
         })
     }
 }
 
-impl std::error::Error for ConfigError {}
+impl std::error::Error for ConfigError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Budget(v) => Some(v),
+            _ => None,
+        }
+    }
+}

@@ -20,10 +20,21 @@
 //! ```
 //! use std::sync::Arc;
 //! use std::time::Duration;
-//! use oob_mux::{Pacer, PacerConfig, PacketRate, PullSource, Scheduler, SchedulerConfig, SystemClock};
+//! use oob_mux::scheduler::{BudgetConfig, ClassBudget, ClassMap};
+//! use oob_mux::{Pacer, PacerConfig, PacketRate, PullSource, Scheduler, SchedulerConfig, SystemClock, TrafficClass};
 //!
+//! // Illustrative numbers for the doctest only.
+//! let budget = BudgetConfig {
+//!     insertion_kbps: 1000,
+//!     classes: ClassMap::from_fn(|c| ClassBudget {
+//!         floor_kbps: if c == TrafficClass::C0System { 100 } else { 0 },
+//!         cap_kbps: Some(200),
+//!         burst_packets: 4,
+//!     }),
+//!     lab_mode: false,
+//! };
 //! let (scheduler, _handle, _outcomes) = Scheduler::new(SchedulerConfig {
-//!     queue_depth: 4, max_carousels: 4, outcome_capacity: 4, disabled_classes: vec![],
+//!     queue_depth: 4, max_carousels: 4, outcome_capacity: 4, budget,
 //! })?;
 //! let config = PacerConfig {
 //!     packet_rate: PacketRate::from_bits_per_second(1504 * 1000).unwrap_or_else(|| unreachable!()),
@@ -63,8 +74,8 @@
 //! for each dequeue. It times itself on the monotonic clock: a pull that
 //! takes longer than `pull_budget` is reported `late` and counted in
 //! `late_pulls`. The worst case is `n <= max_pull` packet constructions
-//! plus at most one dequeue per PDU started; #16's criterion bench sets
-//! the documented number. A request for more than `max_pull` packets is
+//! plus at most one dequeue per PDU started; the criterion bench
+//! `benches/scheduler.rs` (#16) measures it under saturation. A request for more than `max_pull` packets is
 //! refused with [`PullError::Oversized`], `out` untouched, and counted in
 //! `oversized_pulls` (QA-1): a garbled request from the seam cannot make
 //! the mux allocate without bound.
@@ -194,13 +205,16 @@ impl Pacer {
     ///
     /// # Errors
     ///
-    /// [`ConfigError`] for a zero `max_pull` or `pull_budget`.
+    /// [`ConfigError`] for a zero `max_pull` or `pull_budget`, or a class
+    /// budget that exceeds the stream rate.
     pub fn new(
         config: PacerConfig,
         mut scheduler: Scheduler,
         clock: Arc<dyn Clock>,
     ) -> Result<Self, ConfigError> {
         config.validate()?;
+        scheduler.check_rate(config.packet_rate)?;
+        scheduler.bind_rate(config.packet_rate);
         let stats = Arc::new(PacerStats::default());
         scheduler.set_stats(Arc::clone(&stats));
         Ok(Self {
@@ -232,10 +246,12 @@ impl Pacer {
     ///
     /// # Errors
     ///
-    /// [`ConfigError`] for a zero `max_pull` or `pull_budget`; the old
-    /// settings then stay in force.
+    /// [`ConfigError`] for a zero `max_pull` or `pull_budget`, or a rate
+    /// the class budget does not fit; the old settings then stay in force.
     pub fn apply_config(&mut self, config: PacerConfig) -> Result<(), ConfigError> {
         config.validate()?;
+        self.scheduler.check_rate(config.packet_rate)?;
+        self.scheduler.bind_rate(config.packet_rate);
         self.base_time = self.stream_time();
         self.base_slot = self.slot;
         self.config = config;
