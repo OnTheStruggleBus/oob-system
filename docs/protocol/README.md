@@ -19,3 +19,8 @@ request/response over a Unix socket, with the null-stuffing handoff and the
 F6-2 box-free loopback harness. It is Oob's own protocol, not a box wire
 format, so it carries no verification status beyond the `hypothesized`
 188-byte packet size it inherits.
+
+The third chapter, [DCII PSI/SI](dcii-si.md), is the O4 "DCII PSI/SI
+conformance set" row: the PAT, PMT and CAT assemblers, the runtime PID plan
+and the GI CA descriptors, each with its status. Every row is `hypothesized`;
+nothing is claimed accepted by a box.

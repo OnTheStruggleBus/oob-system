@@ -21,6 +21,7 @@
 - [ADR-002 — Oob Runtime Architecture](ADR-002%20—%20Oob%20Runtime%20Architecture.md)
 - [ADR-003 — Configuration, Extensibility and Distribution Model](ADR-003%20—%20Configuration,%20Extensibility%20and%20Distribution%20Model.md)
 - [Protocol](protocol/README.md)
+  - [dcii-si](protocol/dcii-si.md)
   - [oob-mux-pipeline](protocol/oob-mux-pipeline.md)
   - [seam](protocol/seam.md)
 - [Architecture](architecture/README.md)
