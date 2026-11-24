@@ -24,6 +24,7 @@
   - [oob-mux-pipeline](protocol/oob-mux-pipeline.md)
   - [seam](protocol/seam.md)
 - [Architecture](architecture/README.md)
+  - [oob-dac-command](architecture/oob-dac-command.md)
   - [oob-dac-store](architecture/oob-dac-store.md)
 - [Runbook](runbook/README.md)
   - [2026-11-22-docs-build-scaffold](runbook/2026-11-22-docs-build-scaffold.md)

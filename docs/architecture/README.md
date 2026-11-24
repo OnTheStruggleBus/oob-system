@@ -18,3 +18,6 @@ sub-chapter automatically.
 
 - `oob-dac-store.md`: the oob-dac sqlite store (one file, per-table
   durability classes, the outbox, migrations).
+- `oob-dac-command.md`: the oob-dac command layer (the §11 catalog and Define
+  Operations, targeting, the status lifecycle, campaign pacing as per-PDU
+  release times, the sole path to the scheduler).

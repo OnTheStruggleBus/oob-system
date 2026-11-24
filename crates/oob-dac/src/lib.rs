@@ -18,6 +18,13 @@
 //! [`store::TABLES`]. This replaces the r5 F5-12 wording that called the
 //! whole unit DB derived state; r6 F6-5 and ADR-003 §6 amended it.
 //!
-//! Slice D lands the admin API on top of this store in later issues.
+//! # The command layer (r6 F6-11, ADR-002 decision 1)
+//!
+//! Every operation enters through one internal command layer
+//! ([`command`]): the §11 catalog and Define Operations, targeting, the
+//! status lifecycle, campaign pacing as per-PDU release times, and the only
+//! path into the `oob-mux` scheduler. The admin API and every other front
+//! door are adapters over it, in later issues.
 
+pub mod command;
 pub mod store;
