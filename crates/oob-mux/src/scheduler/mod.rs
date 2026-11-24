@@ -95,7 +95,7 @@ pub enum SubmitError {
     /// The class is disabled: C5 while lab mode is off.
     ClassDisabled(TrafficClass),
     /// A C0 carousel that would push the registered C0 demand above C0's
-    /// floor (kbps, truncated). Starvation of C0 is unreachable through
+    /// floor (kbps, rounded up). Starvation of C0 is unreachable through
     /// registration as it is through [`SchedulerHandle::apply_budget`].
     C0DemandExceedsFloor {
         /// C0's floor in force.
@@ -323,8 +323,14 @@ impl SchedulerHandle {
     /// it) and the live C0 carousel demand, then swaps it in at the next
     /// pull boundary: the swap takes the queue lock the pull path takes
     /// for each dequeue. Bucket fills are clamped to the new depths, so
-    /// no class gets a burst from the change. Lab mode off drops queued C5
-    /// work, reporting each one-shot as `Dropped(LabModeOff)`.
+    /// no class gets a burst from the change.
+    ///
+    /// Lab mode off drops queued C5 work: each one-shot is reported
+    /// `Dropped(LabModeOff)`, and each C5 **carousel** is removed, with no
+    /// outcome event, and counted in `dropped_by_class`. A later
+    /// [`withdraw`](Self::withdraw) of a removed carousel returns
+    /// [`SubmitError::UnknownCarousel`], and switching lab mode back on
+    /// does not restore it: the producer must register it again.
     ///
     /// # Errors
     ///
@@ -333,16 +339,46 @@ impl SchedulerHandle {
     ///
     /// [`C0FloorBelowDemand`]: BudgetViolation::C0FloorBelowDemand
     pub fn apply_budget(&self, cfg: BudgetConfig) -> Result<(), Vec<BudgetViolation>> {
-        let s = &self.shared;
-        let stream = u64_to_rate(s.stream_bps.load(Ordering::Acquire));
-        let mut violations = match budget::validate_inner(
-            &cfg,
-            stream.map(|packet_rate| StreamParams { packet_rate }),
-        ) {
-            Ok(_) => Vec::new(),
-            Err(v) => v,
-        };
-        let mut q = s.lock();
+        let mut q = self.shared.lock();
+        let violations = self.violations(&q, &cfg);
+        if !violations.is_empty() {
+            return Err(violations);
+        }
+        q.apply_budget(cfg);
+        Ok(())
+    }
+
+    /// The dry run of [`apply_budget`](Self::apply_budget): the same checks
+    /// (the budget's own rules, the stream rate once bound, and the live
+    /// C0 carousel demand), and nothing is changed. oob-dac's save path
+    /// (#26) calls this before committing its store row, so a config the
+    /// scheduler would refuse is never persisted (ADR-003 section 5).
+    ///
+    /// # Errors
+    ///
+    /// The same violations `apply_budget` would return.
+    pub fn check_budget(&self, cfg: &BudgetConfig) -> Result<(), Vec<BudgetViolation>> {
+        let q = self.shared.lock();
+        let violations = self.violations(&q, cfg);
+        if violations.is_empty() {
+            Ok(())
+        } else {
+            Err(violations)
+        }
+    }
+
+    /// The registered C0 carousels' demand in kbps, rounded up: what C0's
+    /// floor must cover.
+    pub fn c0_demand_kbps(&self) -> u32 {
+        self.shared.lock().c0_demand_kbps(None, None)
+    }
+
+    fn violations(&self, q: &Queues, cfg: &BudgetConfig) -> Vec<BudgetViolation> {
+        let stream = u64_to_rate(self.shared.stream_bps.load(Ordering::Acquire));
+        let mut violations =
+            budget::validate_inner(cfg, stream.map(|packet_rate| StreamParams { packet_rate }))
+                .err()
+                .unwrap_or_default();
         let demand = q.c0_demand_kbps(None, None);
         let floor = cfg.classes[TrafficClass::C0System].floor_kbps;
         if demand > floor {
@@ -351,11 +387,7 @@ impl SchedulerHandle {
                 demand_kbps: demand,
             });
         }
-        if !violations.is_empty() {
-            return Err(violations);
-        }
-        q.apply_budget(cfg);
-        Ok(())
+        violations
     }
 
     /// The budget in force.
@@ -473,9 +505,16 @@ impl Scheduler {
                     self.stats.add_expired(class);
                     self.report(id, Outcome::Expired);
                 }
-                Reaped::Dropped(id, class, reason) => {
+                Reaped::Dropped {
+                    id,
+                    class,
+                    reason,
+                    reports,
+                } => {
                     self.stats.add_dropped(class);
-                    self.report(id, Outcome::Dropped(reason));
+                    if reports {
+                        self.report(id, Outcome::Dropped(reason));
+                    }
                 }
             })
         }?;

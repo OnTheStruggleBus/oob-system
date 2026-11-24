@@ -34,19 +34,16 @@ const GRID_SLOTS: u64 = 100;
 const SECTION_LEN: usize = 40;
 const FIRST_PID: u16 = 0x0100;
 
-/// The stub's budget: the whole stream for C0, because the stub's filler
-/// carousels are C0 and the null ratio is set by how many there are. A
-/// fixture for this stub only; real budgets are runtime configuration.
+/// The stub's budget: the whole stream for its filler carousels, which are
+/// C1 (uncapped) so the stub never trips the C0 demand guardrail whatever
+/// the rate; C0 holds the one-kbps floor `validate` requires. A fixture for
+/// this stub only; real budgets are runtime configuration.
 fn stub_budget(rate: PacketRate) -> BudgetConfig {
     BudgetConfig {
         insertion_kbps: u32::try_from(rate.bits_per_second() / 1000).unwrap_or(u32::MAX),
         classes: ClassMap::from_fn(|c| ClassBudget {
-            floor_kbps: if c == TrafficClass::C0System {
-                u32::try_from(rate.bits_per_second() / 1000).unwrap_or(u32::MAX)
-            } else {
-                0
-            },
-            cap_kbps: if c == TrafficClass::C0System {
+            floor_kbps: u32::from(c == TrafficClass::C0System),
+            cap_kbps: if matches!(c, TrafficClass::C0System | TrafficClass::C1Addressed) {
                 None
             } else {
                 Some(0)
@@ -150,7 +147,7 @@ impl StubSource {
             let submit = handle.submit(Submission::Cyclic {
                 id: CarouselId(u32::try_from(i).unwrap_or(0)),
                 pdu: Pdu {
-                    class: TrafficClass::C0System,
+                    class: TrafficClass::C1Addressed,
                     priority: 0,
                     pid,
                     release_at: None,

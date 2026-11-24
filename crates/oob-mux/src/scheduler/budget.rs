@@ -48,11 +48,12 @@ impl<T> IndexMut<TrafficClass> for ClassMap<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClassBudget {
     /// Reserved rate in kbps; the class is served at least this fast when
-    /// it has work (C2 excepted: it preempts up to its cap, see
-    /// [`PREEMPTOR`]).
+    /// it has work. Must be 0 for C2, which is served by preemption up to
+    /// its cap instead (see [`PREEMPTOR`]); a C2 floor is refused.
     pub floor_kbps: u32,
     /// Ceiling in kbps; `None` is "up to the insertion budget". C2, C4 and
-    /// C5 must carry one.
+    /// C5 must carry one. A cap of 0 is accepted and means the class is
+    /// never served (for C2, no alerts).
     pub cap_kbps: Option<u32>,
     /// Bucket depth in packets (at least 1): how far ahead of its rate a
     /// class may run after idling.
@@ -126,6 +127,10 @@ pub enum BudgetViolation {
     },
     /// C2 has no cap.
     C2Uncapped,
+    /// C2 carries a floor. C2 is served by preemption within its cap,
+    /// never by a floor, so a floor would reserve budget and guarantee
+    /// nothing.
+    C2FloorUnsupported,
     /// C4 has no cap.
     C4Uncapped,
     /// C5 has no cap.
@@ -148,6 +153,7 @@ impl BudgetViolation {
             Self::CapBelowFloor { .. } => "cap_below_floor",
             Self::BudgetExceedsStream { .. } => "budget_exceeds_stream",
             Self::C2Uncapped => "c2_uncapped",
+            Self::C2FloorUnsupported => "c2_floor_unsupported",
             Self::C4Uncapped => "c4_uncapped",
             Self::C5Uncapped => "c5_uncapped",
             Self::ZeroBurst { .. } => "zero_burst",
@@ -192,6 +198,9 @@ impl core::fmt::Display for BudgetViolation {
                 "budget {budget_kbps} kbps exceeds the stream's {stream_kbps} kbps"
             ),
             Self::C2Uncapped => f.write_str("C2 must carry a cap"),
+            Self::C2FloorUnsupported => {
+                f.write_str("C2 is served by preemption within its cap; its floor must be 0")
+            }
             Self::C4Uncapped => f.write_str("C4 must carry a cap"),
             Self::C5Uncapped => f.write_str("C5 must carry a cap"),
             Self::ZeroBurst { class } => write!(f, "{class:?} burst_packets must be at least 1"),
@@ -268,6 +277,9 @@ pub(crate) fn validate_inner(
 
     if b(C0System).floor_kbps == 0 {
         v.push(BudgetViolation::C0FloorZero);
+    }
+    if b(C2Eas).floor_kbps != 0 {
+        v.push(BudgetViolation::C2FloorUnsupported);
     }
     let sum: u64 = cfg
         .classes
@@ -447,6 +459,22 @@ mod tests {
     }
 
     #[test]
+    fn c2_floor_is_refused() {
+        let mut c = fixture();
+        c.classes[C2Eas].floor_kbps = 50;
+        assert_eq!(violations(&c), vec![BudgetViolation::C2FloorUnsupported]);
+    }
+
+    #[test]
+    fn a_zero_c2_cap_is_accepted_and_means_no_alerts() {
+        // Deliberate (QA-3): cap 0 is a legal way to switch C2 off, and
+        // fixtures rely on cap 0 for classes they do not exercise.
+        let mut c = fixture();
+        c.classes[C2Eas].cap_kbps = Some(0);
+        assert!(validate(&c, stream()).is_ok());
+    }
+
+    #[test]
     fn zero_burst() {
         let mut c = fixture();
         c.classes[C4Cdl].burst_packets = 0;
@@ -480,6 +508,7 @@ mod tests {
                 stream_kbps: 0,
             },
             BudgetViolation::C2Uncapped,
+            BudgetViolation::C2FloorUnsupported,
             BudgetViolation::C4Uncapped,
             BudgetViolation::C5Uncapped,
             BudgetViolation::ZeroBurst { class: C3Guide },

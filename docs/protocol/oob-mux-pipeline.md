@@ -78,7 +78,7 @@ the crate outside test fixtures. All rates are kbps of 188-byte packets.
 | --- | --- | --- | --- | --- |
 | C0 system | time, connect/config carousel | floor, highest priority | optional | The floor must cover the registered C0 carousels' demand |
 | C1 addressed | lifecycle operations, EMMs, polls | floor | optional | A PDU is never released before its `release_at`; the scheduler infers no spacing (F6-11) |
-| C2 EAS | emergency alerts | none | **required** | Preempts the C3–C5 floors, bounded by its cap; never touches C0/C1 floors |
+| C2 EAS | emergency alerts | none: a C2 floor is refused | **required** | Preempts the C3–C5 floors, bounded by its cap; never touches C0/C1 floors. A cap of 0 is accepted and means no alerts are served |
 | C3 guide | listings carousel | floor | optional | Can dip below its floor only while C2 runs, by at most C2's cap (Marshal, 2026-11-23) |
 | C4 CDL | code download | none | **required** | Best effort |
 | C5 lab | Discovery Lab injection | none | **required** | Isolated: off outside lab mode |
@@ -93,7 +93,11 @@ follows the flowgraph's clock.
 
 **Lab mode** is the only class gate. With `lab_mode = false`, `submit`
 refuses C5 (`ClassDisabled`) and `apply_budget` drops queued C5 work,
-reporting each one-shot `Dropped(LabModeOff)`.
+reporting each one-shot `Dropped(LabModeOff)`. Registered C5 **carousels**
+are removed too, with no outcome event, and each is counted in
+`dropped_by_class`. oob-dac's later `withdraw(id)` of one returns
+`UnknownCarousel`, and switching lab mode back on does not restore it:
+producers must register their C5 carousels again.
 
 **Validation.** `oob_mux::scheduler::validate(&BudgetConfig, StreamParams)`
 is pure and exported for oob-dac's save path (#26). It reports every
@@ -106,19 +110,26 @@ violation with a stable name:
 | `preemptor_can_starve_c0` | C0 floor + C1 floor + C2 cap exceed the budget |
 | `cap_below_floor` | A class's cap is under its floor |
 | `budget_exceeds_stream` | The budget is above the stream rate |
+| `c2_floor_unsupported` | C2 has a floor; it is served by preemption within its cap, so a floor would reserve budget and guarantee nothing |
 | `c2_uncapped`, `c4_uncapped`, `c5_uncapped` | A required cap is missing |
 | `zero_burst` | A class's bucket depth is 0 |
 | `c0_floor_below_demand` | (apply only) C0's floor is under the registered C0 carousel demand |
 
 `SchedulerHandle::apply_budget` runs `validate` plus the demand check and
-swaps at the next pull boundary with no burst granted. The reverse door
+swaps at the next pull boundary with no burst granted.
+`SchedulerHandle::check_budget` is its non-mutating dry run, so oob-dac's
+save path (#26) can refuse a config before it commits the store row, and
+`c0_demand_kbps()` reads the demand the floor must cover. The reverse door
 is closed too: registering a C0 carousel that would push demand above the
 floor fails with `SubmitError::C0DemandExceedsFloor`, and a changed
 replacement of a carousel may jump its schedule at most once per period,
 so churn cannot raise the demand (#14 amendment 4). Demand is compared at
-kbps resolution, truncated.
+kbps resolution, rounded up, so a floor a fraction of a kbps under the
+true demand is refused.
 
-**Tolerance.** A bucket is `burst_packets` plus one slot of refill deep and
+**Tolerance.** A bucket is `burst_packets` plus one slot of refill deep (a floor
+bucket one packet deeper, so it keeps accruing while it waits for a
+budget token) and
 may go into debt by the tail of a multi-packet PDU, so over any window a
 class gets `rate × window ± (burst + longest PDU)` packets.
 
@@ -134,7 +145,11 @@ that every random config `validate` accepts keeps C0 at its floor.
 classes saturated. On the development machine (Apple silicon, release),
 `Pacer::pull(64)` costs about 44 µs with 24 PDUs queued per class and
 about 1.8 ms with 1000 queued per class: a pick scans its class's queue,
-so the cost grows linearly with queue depth. Both are far inside the
+so the cost grows linearly with queue depth, bounded by the
+operator-set `queue_depth` and `max_carousels` (the candidate scan also
+filters the carousel registry once per class). Producers wait on the queue
+lock for each scan. A heap or index is a tracked follow-up to #16, to be
+done if depth or `max_carousels` grows. Both are far inside the
 ~47 ms a 64-slot pull covers at 2.048 Mb/s; set `pull_budget` from the
 deployment's own bench run, not from this one.
 

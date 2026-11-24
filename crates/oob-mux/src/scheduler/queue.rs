@@ -62,7 +62,13 @@ pub(super) enum Pick {
 /// A PDU taken off a queue without being served.
 pub(super) enum Reaped {
     Expired(PduId, TrafficClass),
-    Dropped(PduId, TrafficClass, DropReason),
+    Dropped {
+        id: PduId,
+        class: TrafficClass,
+        reason: DropReason,
+        /// One-shots report an outcome; carousels are only counted.
+        reports: bool,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -88,7 +94,7 @@ pub(super) struct Queues {
     pub(super) seq: u64,
     pub(super) buckets: Buckets,
     /// One-shots dropped by a budget swap, reported at the next pick.
-    pending_drops: Vec<(PduId, TrafficClass)>,
+    pending_drops: Vec<(PduId, TrafficClass, bool)>,
     /// A lower bound on the earliest queued one-shot deadline, so the
     /// expiry sweep runs only when something can have expired.
     earliest_deadline: Option<MonoTime>,
@@ -97,7 +103,7 @@ pub(super) struct Queues {
 /// The wire cost of a carousel in bits per second.
 fn carousel_bps(pdu: &Pdu, period: Duration) -> u128 {
     let bits = (packets_for(pdu.payload.as_bytes().len()) * PACKET_LEN * 8) as u128;
-    bits * 1_000_000_000 / period.as_nanos().max(1)
+    (bits * 1_000_000_000).div_ceil(period.as_nanos().max(1))
 }
 
 impl Queues {
@@ -128,7 +134,7 @@ impl Queues {
         self.seq
     }
 
-    /// The demand of the registered C0 carousels in kbps, truncated, with
+    /// The demand of the registered C0 carousels in kbps, rounded up, with
     /// carousel `replacing` left out and `adding` counted instead.
     pub(super) fn c0_demand_kbps(
         &self,
@@ -144,7 +150,9 @@ impl Queues {
         if let Some((p, period)) = adding.filter(|(p, _)| p.class == TrafficClass::C0System) {
             bps += carousel_bps(p, period);
         }
-        u32::try_from(bps / 1000).unwrap_or(u32::MAX)
+        // Rounded up: a floor a fraction of a kbps under the true demand
+        // must not pass (QA-2).
+        u32::try_from(bps.div_ceil(1000)).unwrap_or(u32::MAX)
     }
 
     /// Swaps the budget in. Lab mode off drops queued C5 work: one-shots
@@ -155,9 +163,20 @@ impl Queues {
         if !lab {
             let c5 = TrafficClass::C5Lab;
             for e in self.once[c5.index()].drain(..) {
-                self.pending_drops.push((e.id, c5));
+                self.pending_drops.push((e.id, c5, true));
             }
-            self.carousels.retain(|c| c.pdu.class != c5);
+            // Carousels have no outcome channel: each removed one is
+            // counted in the class's dropped counter, and a later
+            // `withdraw` of its id reports `UnknownCarousel`.
+            let mut i = 0;
+            while i < self.carousels.len() {
+                if self.carousels[i].pdu.class == c5 {
+                    let c = self.carousels.swap_remove(i);
+                    self.pending_drops.push((c.pdu_id, c5, false));
+                } else {
+                    i += 1;
+                }
+            }
         }
     }
 
@@ -272,8 +291,13 @@ impl Queues {
         rate: PacketRate,
         mut reaped: impl FnMut(Reaped),
     ) -> Result<Pick, Option<u64>> {
-        for (id, class) in self.pending_drops.drain(..) {
-            reaped(Reaped::Dropped(id, class, DropReason::LabModeOff));
+        for (id, class, reports) in self.pending_drops.drain(..) {
+            reaped(Reaped::Dropped {
+                id,
+                class,
+                reason: DropReason::LabModeOff,
+                reports,
+            });
         }
         if self.earliest_deadline.is_some_and(|d| d < now) {
             let mut earliest: Option<MonoTime> = None;

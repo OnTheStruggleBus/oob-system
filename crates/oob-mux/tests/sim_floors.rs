@@ -314,7 +314,7 @@ fn registering_c0_demand_above_the_floor_is_refused_and_so_is_lowering_the_floor
             demand_kbps: 376
         })
     );
-    // One packet per 10 ms = 150 kbps: fits.
+    // One packet per 10 ms = 150.4 kbps: fits.
     let ok = |period_ms| Submission::Cyclic {
         id: CarouselId(1),
         pdu: c0_carousel(40, 1),
@@ -335,7 +335,7 @@ fn registering_c0_demand_above_the_floor_is_refused_and_so_is_lowering_the_floor
         errs,
         vec![BudgetViolation::C0FloorBelowDemand {
             floor_kbps: 100,
-            demand_kbps: 150
+            demand_kbps: 151
         }]
     );
     assert_eq!(r.handle.budget(), roomy(true), "the old budget stays");
@@ -439,7 +439,11 @@ fn every_config_validate_accepts_keeps_c0_at_its_floor_under_saturation() {
         let insertion = rng.range(300, 1500);
         let mut rows: [Row; 6] = [(0, None); 6];
         for (i, row) in rows.iter_mut().enumerate() {
-            let floor = rng.range(0, insertion / 4);
+            let floor = if i == 2 {
+                0
+            } else {
+                rng.range(0, insertion / 4)
+            };
             let cap = if rng.range(0, 3) == 0 && i != 2 && i != 4 && i != 5 {
                 None
             } else {
@@ -471,4 +475,89 @@ fn every_config_validate_accepts_keeps_c0_at_its_floor_under_saturation() {
         }
     }
     assert!(accepted >= 10 && rejected >= 10, "{accepted}/{rejected}");
+}
+
+#[test]
+fn lab_mode_off_removes_and_counts_c5_carousels() {
+    // QA-1 / AD-3: no outcome event, but counted, and a later withdraw
+    // reports UnknownCarousel; re-enabling lab mode does not restore it.
+    let mut r = rig(roomy(true));
+    r.handle
+        .submit(Submission::Cyclic {
+            id: CarouselId(7),
+            pdu: one_packet(C5Lab, 0, 1),
+            period: Duration::from_millis(10),
+        })
+        .unwrap();
+    r.handle
+        .submit(Submission::Once(one_packet(C5Lab, 0, 2)))
+        .unwrap();
+    r.handle.apply_budget(roomy(false)).unwrap();
+    pull(&mut r.pacer, 4);
+    assert_eq!(
+        r.pacer.stats().snapshot().dropped_by_class[C5Lab.index()],
+        2,
+        "one one-shot and one carousel"
+    );
+    let events = std::iter::from_fn(|| r.outcomes.try_recv().ok()).count();
+    assert_eq!(events, 1, "only the one-shot reports an outcome");
+    assert_eq!(
+        r.handle.withdraw(CarouselId(7)),
+        Err(SubmitError::UnknownCarousel(CarouselId(7)))
+    );
+    r.handle.apply_budget(roomy(true)).unwrap();
+    assert!(
+        pull(&mut r.pacer, 64)
+            .iter()
+            .all(oob_mux::TsPacket::is_null)
+    );
+}
+
+#[test]
+fn c0_demand_is_rounded_up_so_a_sub_kbps_shortfall_is_refused() {
+    // QA-2: 1504 bits every 7_520_000 ns is exactly 200 kbps (the floor);
+    // 7_519_999 ns is a fraction of a bit/s over it and must be refused.
+    let r = rig(roomy(true)); // C0 floor 200 kbps
+    let at = |ns| Submission::Cyclic {
+        id: CarouselId(1),
+        pdu: c0_carousel(40, 1),
+        period: Duration::from_nanos(ns),
+    };
+    r.handle.submit(at(7_520_000)).unwrap();
+    assert_eq!(r.handle.c0_demand_kbps(), 200);
+    assert!(matches!(
+        r.handle.submit(at(7_519_999)),
+        Err(SubmitError::C0DemandExceedsFloor {
+            floor_kbps: 200,
+            demand_kbps: 201
+        })
+    ));
+}
+
+#[test]
+fn check_budget_is_a_dry_run_of_apply_budget() {
+    let r = rig(roomy(true));
+    r.handle
+        .submit(Submission::Cyclic {
+            id: CarouselId(1),
+            pdu: c0_carousel(40, 1),
+            period: Duration::from_millis(10), // 150.4 kbps, 151 rounded up
+        })
+        .unwrap();
+    let mut low = roomy(true);
+    low.classes[C0System].floor_kbps = 100;
+    low.classes[C0System].cap_kbps = Some(250);
+    let want = vec![BudgetViolation::C0FloorBelowDemand {
+        floor_kbps: 100,
+        demand_kbps: 151,
+    }];
+    assert_eq!(r.handle.check_budget(&low), Err(want.clone()));
+    assert_eq!(r.handle.apply_budget(low.clone()), Err(want));
+    // A budget that passes is not applied by the check.
+    let mut ok = roomy(true);
+    ok.classes[C3Guide].floor_kbps = 240;
+    assert_eq!(r.handle.check_budget(&ok), Ok(()));
+    assert_eq!(r.handle.budget(), roomy(true), "unchanged");
+    assert_eq!(r.handle.apply_budget(ok.clone()), Ok(()));
+    assert_eq!(r.handle.budget(), ok);
 }

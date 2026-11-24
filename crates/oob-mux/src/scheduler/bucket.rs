@@ -9,7 +9,8 @@
 //! eligible while the bucket holds one packet's worth, and is charged its
 //! whole length, so the long-run rate stays exact. The bound on any
 //! window is therefore `rate × window ± (burst + the longest PDU)`. A
-//! bucket is `burst` packets plus one slot of refill deep.
+//! bucket is `burst` packets plus one slot of refill deep, and a floor
+//! bucket one packet deeper still.
 
 use crate::pdu::TrafficClass;
 
@@ -93,6 +94,14 @@ impl Bucket {
     }
 }
 
+/// A floor bucket is one packet deeper than its burst: while a floor class
+/// waits for a budget or cap token, its floor keeps accruing, and a bucket
+/// that clamped that accrual would run the floor slow (found by the
+/// validator-soundness test at `burst_packets` 1).
+fn floor_burst(burst: u16) -> u16 {
+    burst.saturating_add(1)
+}
+
 /// How a class was served; decides which buckets are charged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Phase {
@@ -142,7 +151,11 @@ impl Buckets {
         for class in TrafficClass::ALL {
             let i = class.index();
             let cb: ClassBudget = self.cfg.classes[class];
-            let mut f = Bucket::new(Self::rate_of(cb.floor_kbps), cb.burst_packets, stream_bps);
+            let mut f = Bucket::new(
+                Self::rate_of(cb.floor_kbps),
+                floor_burst(cb.burst_packets),
+                stream_bps,
+            );
             let mut c = cb
                 .cap_kbps
                 .map(|cap| Bucket::new(Self::rate_of(cap), cb.burst_packets, stream_bps));
@@ -194,7 +207,12 @@ impl Buckets {
             for class in TrafficClass::ALL {
                 let i = class.index();
                 let cb = self.cfg.classes[class];
-                self.floor[i].rescale(old, new, cb.burst_packets, Self::rate_of(cb.floor_kbps));
+                self.floor[i].rescale(
+                    old,
+                    new,
+                    floor_burst(cb.burst_packets),
+                    Self::rate_of(cb.floor_kbps),
+                );
                 if let (Some(b), Some(cap)) = (self.cap[i].as_mut(), cb.cap_kbps) {
                     b.rescale(old, new, cb.burst_packets, Self::rate_of(cap));
                 }
