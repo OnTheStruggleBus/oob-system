@@ -42,6 +42,19 @@ NXP TDA10026HN (<https://www.nxp.com/products/TDA10026HN>) — period silicon: "
 - Forum hearsay — "Motorola DCT 2XXX series cable boxes have been hacked and cloned" (digitalhome.ca, unattributed, no artifacts): treat as noise; nothing public backs it.
 - The demand exists — e.g. r/Comcast_Xfinity, "Is it still possible to activate a legacy cable box such as a Motorola DCT…" (<https://www.reddit.com/r/Comcast_Xfinity/comments/194ca5y/>). Every such thread ends at "only the cable company can." No one answered with a headend.
 
+### 3.1 DCT 2000 FAQ (usbjtag.com) — community tier, structural facts only
+
+<https://www.usbjtag.com/dct2000/faq.php> — a user-contributed FAQ on DCT-family set-tops (about Dec 2016, no named author). **Trust level: community-tier** (ADR-001 §4 discovery order: community captures are the last and lowest-authority tier). Nothing below is `verified`; each item needs a box capture under `lab/captures/` before it can inform `oob-msg` or the box-type catalog (AGENTS.md §2). We take only structural and diagnostic facts.
+
+| Fact | Source claim | Trust | Where it lands |
+| --- | --- | --- | --- |
+| Diagnostic-menu entry | With the box on, power it off (front button or remote), then press SELECT (front) or OK (remote) within about 3 s. One diagnostic field noted: Memory Config, "EEPROM Ver.NO." | community, unverified | Capture Rig Specification §3.1 and §4: the route that drives the box into the d-screens for OCR and scrape. Confirm on the sacrificial unit; compare against the cromwell-intl walkthrough (§3) |
+| E-codes | E00 no error; E01 not connected; E08 POST error; E09 NVRAM corrupted; E11 invalid unit address. E02–E07 and E10 carry no text on the page | community; corroborates our own manual-sourced E-code remedies | Enrollment path (Reproduction Plan, r4 F4-4): E09 → factory-init, E01 → connect, E11 → unit-creation. Corroboration only; the manual stays the authority |
+| Config storage by board revision | PH6 and older: 24LC01 (128-byte) config EEPROM. PH7/8: config held in flash at $404000. Checksum selection logic reported (data block $23ceec, checksum $23cf6c, address reference $0022269A). Revisions named PH6, PH7/8, PH7/8/9 | **unverified** (addresses relayed to the desk; a re-read of the page did not return them) | Hint for the E09 / dead-NVRAM factory-init path (r4 F4-4), firmware-import tooling (#33), and platform variation in the box-type catalog (#30). No design change |
+| SPI-log serial capture | SPILog.exe over COM1 writes SPI0E000log.txt, SPI07000log.txt and auth.bin; SPICommand.exe (v0.3) replays | community technique reference only | **Not adopted.** Third-party tool; auth.bin and replay touch the auth tier. Our serial capture is the RS-232 scrape in the Capture Rig Specification §3.2 |
+
+**Out of scope, deliberately.** The FAQ's main purpose is authorizing premium channels and PPV on a box, and it advises connecting or re-enabling a box on a local cable system. That is conditional-access defeat and service theft on a real plant. It is prohibited here under AGENTS.md §7 (closed plant) and §11 (never touch live cable plant, licensed services or anyone's content). None of those steps, values or tool usages are reproduced or adopted. Oob reproduces a closed lab plant with self-authored content; the E-code, diagnostic-entry and board-structure facts above are the only things taken. Relevance to O10 and O13: none directly. This is not a patent or wire-format source, so it moves no `oob-msg` status.
+
 ## 4. Adjacent scenes (technique donors, not attempts)
 
 - gr-qam (Clayton Smith; merged into GNU Radio 3.7.10: <https://github.com/argilo/gr-qam>) — SCTE 07 64/256-QAM transmitter, HackRF-based, webcam-to-QAM example. Precedent for the Interconnect hub-fallback "GNU Radio QAM on a second SDR" (Appendix A of the Hardware Acquisition List).
@@ -69,6 +82,7 @@ As far as the public record shows, Oob is the first attempt at any of these — 
 - D0/O13: Gerlinsky's talk (and slides) are required viewing before the sacrificial-box teardown; decap/optical-ROM/glitching is the deepest escalation rung and one we expect never to need.
 - G5 consideration: the oobscte55 author is a natural correspondent if the far-future S-A second front (Sci-Atlanta Ecosystem spec) ever activates — logged, no outreach now.
 - Standards purchase: SCTE 55-1 2019 (R2024) — optional buy, decision deferred to M0.5; escalate to required only if PHY bring-up stalls on coding/framing unknowns the box can't teach us.
+- Research desk: DCT 2000 FAQ (§3.1) logged as community-tier, structural facts only; the d-screen entry sequence goes to the capture-rig bring-up as an item to confirm on the box, and the board-revision storage hints go to #30 and #33 as unverified. CA-defeat content is out of scope (§7, §11).
 - Citations into oob-msg: CableLabs R-OOB Appendix I (§2.3) is citable corroboration for the stream inventory and RF plan when the protocol document grows its references section.
 
 Cross-references: Oob Reproduction Plan (methodology), Milestones & Stage Gates (G0.5 research-desk duties), Hardware Acquisition List (standards/textbook purchases are not on it — see item 4 above), Sci-Atlanta Ecosystem Specification (the 55-2 world §2.1 lives in).
