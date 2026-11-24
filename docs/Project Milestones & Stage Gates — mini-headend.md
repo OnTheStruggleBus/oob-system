@@ -350,6 +350,13 @@ AGENTS.md §14), and adding the F5-10 CI jobs `mdbook (link check)`,
 `docs facts` and `openapi drift` to the `main` ruleset's required checks
 once they have reported green (AGENTS.md §6.6).*
 
+**Corpus acquisitions (O15, 2026-11-24):** the *Digital WireLink Protocol
+Reference Guide*, Version 3.0 ("WireLink Documentation") is acquired and
+registered as source evidence. Provenance: GI/Motorola DAC 6000 WireLink documentation v3.0 — third-party OCR scan (ocrmypdf/Tesseract, July 2025) of a paper original; part number not preserved in scan. Its §1 names the GI Technical
+Response Center and a Horsham, PA switchboard, and scopes the guide to DAC
+V2.10 through V2.45. Cite by **printed page** (e.g. WireLink v3.0 §3, p.3-17), never the PDF page index. The scan's body text ends at printed p.3-31: §4 (720/721/722, printed pp.4-1..4-3), §5 field descriptions, the Authorization Component (p.3-32) and 770/771 (p.3-33) appear only in the table of contents (whose dot-leaders are garbled) and are **not citable from the body**. All WireLink-derived behavior is `hypothesized` until a box capture confirms it; the document is referenced by path/provenance only and is never copied into the repository (AGENTS.md §5). Citing specs: VOD & PPV §2.2/§6/§10, Billing §2.1/§3.1,
+Reproduction Plan (W2 oob-dac BSI endpoint).
+
 **Release tags (r5 F5-13):** tags use the collision-safe format
 `rel/<carrier>` — hunt-table carriers in the box's d 02 scroll order:
 `rel/75.25`, `rel/104.20`, `rel/72.75`, `rel/92.25`, `rel/98.25`,

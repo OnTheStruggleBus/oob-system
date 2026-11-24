@@ -227,6 +227,9 @@ get folded in at the next revision.
 
 - Documentation base: **done** (M0). Two manuals mined in full (DAC 6000
   V3.1, SEM V8 7.1.x), DCT2000 Installation Manual in hand and folded in.
+- WireLink reference: **acquired** (O15, 2026-11-24) — GI/Motorola DAC 6000 WireLink documentation v3.0 — third-party OCR scan (ocrmypdf/Tesseract, July 2025) of a paper original; part number not preserved in scan. Cite by printed page; the
+  scan's body ends at p.3-31; all derived behavior is `hypothesized` until a box
+  capture (see Milestones & Stage Gates §7, Corpus acquisitions).
 - Tech stack: **decided** — Rust workspace, Docker deployment, GNU Radio
   PHY, ffmpeg/tsp playout, SEM for QAM + encryption. Development tool
   stack (build, discovery, capture, RE, CI) documented in the
