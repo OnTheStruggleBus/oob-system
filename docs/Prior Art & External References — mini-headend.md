@@ -55,6 +55,27 @@ NXP TDA10026HN (<https://www.nxp.com/products/TDA10026HN>) — period silicon: "
 
 **Out of scope, deliberately.** The FAQ's main purpose is authorizing premium channels and PPV on a box, and it advises connecting or re-enabling a box on a local cable system. That is conditional-access defeat and service theft on a real plant. It is prohibited here under AGENTS.md §7 (closed plant) and §11 (never touch live cable plant, licensed services or anyone's content). None of those steps, values or tool usages are reproduced or adopted. Oob reproduces a closed lab plant with self-authored content; the E-code, diagnostic-entry and board-structure facts above are the only things taken. Relevance to O10 and O13: none directly. This is not a patent or wire-format source, so it moves no `oob-msg` status.
 
+### 3.2 cromwell-intl.com "Motorola DCT 2000 Diagnostics" — community tier, one unit
+
+<https://cromwell-intl.com/technical/dct-2000.html> (Bob Cromwell; the one-line mention in §3 is expanded here). A personal, secondary write-up of **one unit on a live cable service**. **Trust level: community-tier**; nothing below is `verified`. Each fact is labelled **page** (the author's own screen observation) or **quoted** (forum-quoted, inferred or speculative). Entries need a box capture under `lab/captures/` before they inform `oob-msg`, the PID plan or the box-type catalog (AGENTS.md §2).
+
+| Topic | Claim | Label | Where it lands |
+| --- | --- | --- | --- |
+| Platform | MC68331 CPU (forum post, with a second DSP/possibly-crypto chip); VxWorks OS (author citing a Wind River release, not reproduced); modem named STARVUE II (author's inference from the "STARVUE II DIAGNOSTICS" screen header) | quoted | W7 return-path context only; no design change |
+| Diagnostic entry | Tap Power, then press Select repeatedly (author says it takes experimentation) | page | Corroborates §3.1's entry sequence (power off, then SELECT or OK within about 3 s); the two differ in detail, so the Capture Rig harness must confirm on the sacrificial unit |
+| The 19 screens | 01 General Status, 02 OOB Status, 03 In Band Status, 04 Audio/Video Status, 05 Unit Address, 06 Firmware Version, 07 Current Channel Status, 08 Renewable Security, 09 Upstream Modem, 10 App Code Modules, 11 Memory Config, 12 Interactive Info, 13 MAC Frequency Table, 14 Message Types, 15 In Band PAT, 16 In Band PMT, 17 Task Status, 18 IB MCA Status, 19 Keyboard/LED | page (menu order as listed) | Names the real screens behind the d-screen map in Capture Rig Specification §4; check its d-number assignments against this order on our boxes |
+| Box-type sample (General Status) | Platform ID 0x0011, Family ID 0x00b, Model ID 0x00f2, Tuner V860DL; author reads these as distinguishing models in identical cases (interpretation) | page / quoted | One community-observed sample for the box-type catalog (#30); unverified |
+| Message Types screen | OOB PIDs 0001, 1C0A, 0777, 150c, 0FB0 (and 0000) with counts; in-band PIDs 0000, 0037, 0984, 0983 with Lost and DRAM columns; message-ID table with counts for IDs 0, 1, 2, 80–8F, 90–91, 9A, A0–A2, B0–B1, C0–C5, D8, E0, E3; counter wrap widths are the author's guess | page (values); quoted (interpretation) | **Hypothesized leads only.** Candidates for the oob-msg catalog (#19) and the PID plan (#17), to be cross-checked against SCTE 55-1 and the box-as-oracle loop (feeds O10). Not a protocol spec; no status promotion |
+| In Band PAT / PMT | Menu items exist; the page does not describe their contents | page (existence only) | Box shows its own PSI: cross-reference #17 and the d 15/d 16 validation in AGENTS.md §8 |
+| App Code Modules | 00082000, Tv_Guide, osc2000s, MACGclnt; "programs" is the author's guess | page / quoted | Guide residency and CDL module names for W8 and the d 10 state machine (§3); unverified |
+| Memory Config | EEPROM version, NVMEM, DRAM, FLASH, ROM pools in platform and application columns; a system-heap page table | page | Names fields the capture rig can scrape; example values are one unit's and carry no design weight |
+| Unit Address | Format nnn-nnnnn-nnnnn-nnn, base 10; author sees no relation to the IP address | page | Format hint for unit-creation data; **no address is recorded here** |
+| MAC Frequency Table | 08672000 and 06480000 with power readings; author does not know the meaning | page (values); meaning unknown | Read loosely. 867.2 MHz would exceed our 860 MHz ceiling, so treat as unverified and possibly a different unit encoding |
+
+**Observations only, no keys or bypass.** The Renewable Security screen showed little on the author's unit, and the "crypto core" idea is forum speculation. We record them as observations; nothing about keys, subscription data or defeating security is taken or adopted.
+
+**Out of scope, deliberately.** The page's live-network actions are not adopted: running diagnostics against a live cable service and trying to scan, ping or traceroute the box's address on the cable drop. They are live-plant actions, prohibited under AGENTS.md §7 (closed plant) and §11 (never touch live cable plant, licensed services or anyone's content). Oob does this only on a closed bench with no live cable. An unrelated footer link on the page is ignored.
+
 ## 4. Adjacent scenes (technique donors, not attempts)
 
 - gr-qam (Clayton Smith; merged into GNU Radio 3.7.10: <https://github.com/argilo/gr-qam>) — SCTE 07 64/256-QAM transmitter, HackRF-based, webcam-to-QAM example. Precedent for the Interconnect hub-fallback "GNU Radio QAM on a second SDR" (Appendix A of the Hardware Acquisition List).
@@ -83,6 +104,7 @@ As far as the public record shows, Oob is the first attempt at any of these — 
 - G5 consideration: the oobscte55 author is a natural correspondent if the far-future S-A second front (Sci-Atlanta Ecosystem spec) ever activates — logged, no outreach now.
 - Standards purchase: SCTE 55-1 2019 (R2024) — optional buy, decision deferred to M0.5; escalate to required only if PHY bring-up stalls on coding/framing unknowns the box can't teach us.
 - Research desk: DCT 2000 FAQ (§3.1) logged as community-tier, structural facts only; the d-screen entry sequence goes to the capture-rig bring-up as an item to confirm on the box, and the board-revision storage hints go to #30 and #33 as unverified. CA-defeat content is out of scope (§7, §11).
+- Research desk: cromwell-intl write-up (§3.2) logged as community-tier. Its Message Types PIDs and message IDs are hypothesized leads for #19, #17 and O10; the 19-screen list is to be checked against the Capture Rig d-screen map. Live-network actions are out of scope (§7, §11).
 - Citations into oob-msg: CableLabs R-OOB Appendix I (§2.3) is citable corroboration for the stream inventory and RF plan when the protocol document grows its references section.
 
 Cross-references: Oob Reproduction Plan (methodology), Milestones & Stage Gates (G0.5 research-desk duties), Hardware Acquisition List (standards/textbook purchases are not on it — see item 4 above), Sci-Atlanta Ecosystem Specification (the 55-2 world §2.1 lives in).
