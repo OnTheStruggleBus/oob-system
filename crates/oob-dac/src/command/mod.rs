@@ -290,7 +290,8 @@ impl Command {
 /// }
 ///
 /// let (_sched, handle, _outcomes) = Scheduler::new(SchedulerConfig {
-///     queue_depth: 8, max_carousels: 1, outcome_capacity: 8, disabled_classes: vec![],
+///     queue_depth: 8, max_carousels: 1, outcome_capacity: 8,
+///     budget: oob_mux::scheduler::BudgetConfig::permissive(1000),
 /// }).unwrap();
 /// let bus = CommandBus::new(
 ///     handle,

@@ -71,6 +71,40 @@ pub struct BudgetConfig {
     pub lab_mode: bool,
 }
 
+impl BudgetConfig {
+    /// A valid budget with no opinions, for consumers that build a
+    /// [`Scheduler`](super::Scheduler) without serving a stream: oob-dac's
+    /// command-layer tests and doctests, which only submit. C0 holds the
+    /// 1 kbps floor [`validate`] requires, C1 and C3 are uncapped, C2, C4
+    /// and C5 are capped at the budget (C2 at one kbps less, so it cannot
+    /// starve C0), and lab mode is on. Not a seed default: a real
+    /// deployment's numbers come from oob-dac's store.
+    ///
+    /// ```
+    /// use oob_mux::scheduler::{BudgetConfig, StreamParams, validate};
+    /// use oob_mux::PacketRate;
+    ///
+    /// let rate = PacketRate::from_bits_per_second(2_048_000).unwrap_or_else(|| unreachable!());
+    /// let cfg = BudgetConfig::permissive(1000);
+    /// assert!(validate(&cfg, StreamParams { packet_rate: rate }).is_ok());
+    /// ```
+    pub fn permissive(insertion_kbps: u32) -> Self {
+        Self {
+            insertion_kbps,
+            classes: ClassMap::from_fn(|c| ClassBudget {
+                floor_kbps: u32::from(c == TrafficClass::C0System),
+                cap_kbps: match c {
+                    TrafficClass::C2Eas => Some(insertion_kbps.saturating_sub(1)),
+                    TrafficClass::C4Cdl | TrafficClass::C5Lab => Some(insertion_kbps),
+                    _ => None,
+                },
+                burst_packets: 8,
+            }),
+            lab_mode: true,
+        }
+    }
+}
+
 /// The stream the budget is checked against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StreamParams {

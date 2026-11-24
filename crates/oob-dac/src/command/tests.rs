@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use oob_mux::scheduler::BudgetConfig;
 use oob_mux::{
     CarouselId, Clock, ManualClock, MonoTime, Outcome, OutcomeEvent, Payload, Pdu, PduId, Pid,
     Scheduler, SchedulerConfig, Submission, SubmitError, TrafficClass, UtcTime,
@@ -169,7 +170,7 @@ fn fix_cfg(n: u32, policy: Arc<dyn Policy>, cfg: BusConfig) -> Fix {
             queue_depth: 10_000,
             max_carousels: 4,
             outcome_capacity: 1024,
-            disabled_classes: vec![],
+            budget: BudgetConfig::permissive(1000),
         },
     )
 }
@@ -1508,7 +1509,7 @@ fn a_campaign_larger_than_the_scheduler_queue_is_accepted_and_a_stalled_queue_st
             queue_depth: 4,
             max_carousels: 1,
             outcome_capacity: 8,
-            disabled_classes: vec![],
+            budget: BudgetConfig::permissive(1000),
         },
     );
     let id = queued(f.bus.submit(
