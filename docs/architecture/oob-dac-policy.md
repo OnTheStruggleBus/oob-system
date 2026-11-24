@@ -84,9 +84,21 @@ spent by the check that accepts it, in one store transaction on the single
 writer, so of two racing spends exactly one wins. A refused attempt does not
 spend it.
 
-Binding is to the **terminal ID**, the store-allocated handle for the unit;
-serials and unit addresses never leave the store (ADR-003 section 4), and the
-command layer does not carry them.
+Binding is to the **terminal ID** (or, for a bulk set, the plan digest), the
+store-allocated handle for the unit. This deliberately differs from the
+"target serial" wording of ADR-003 section 5 and r6 F6-10: serials and unit
+addresses never leave the store (ADR-003 section 4), and a serial-bound token
+would put them into the command layer, the token table, the audit log and the
+typed phrase. The ADR wording will be clarified by a separate note.
+
+**What a token binds, exactly.** The operation name and the target: the
+terminal ID, or the plan digest (SHA-256 of the operation name and the sorted
+terminal IDs), or the install ID. It does **not** bind parameters: not
+`delay_between` (pacing only). A destructive bulk operation may not repeat or
+run for a period at all: `repeat_every` or `run_for` on it is refused
+(`destructive-bulk-no-repeat`) before the token is touched, so one token
+authorizes one send to the planned set and no more. A non-destructive bulk may
+still repeat.
 
 Where the design note says the token is consumed in the same transaction that
 persists the operation, that waits for the `operation` ledger (with the daemon,
@@ -110,13 +122,20 @@ Every refusal names its rule; the code is the `reason` of the
 | `token-op-mismatch` | a token issued for another operation |
 | `token-target-mismatch` | a token issued for another terminal, or a target kind the class cannot take |
 | `token-plan-changed` | a bulk token whose resolved set is no longer the planned one |
+| `destructive-bulk-no-repeat` | a destructive bulk operation with `repeat_every` or `run_for` |
 | `confirm-text-mismatch` | a typed phrase that is not the required one |
 | `cdl-lock-non-sacrificial` | a CDL class while the lock is on and a target is not sacrificial |
 | `unknown-terminal` | marking a terminal that does not exist |
 | `policy-store-error` | any store failure (fail closed) |
 
-The order of checks is: guest, then owner and door, then the CDL lock, then
-the token, so a lock refusal never spends a token.
+The order of checks is: guest, then owner and door, then the repeat refusal,
+then the CDL lock, then the token, so a lock or repeat refusal never spends a
+token.
+
+**A spent token is not refunded.** The token is spent by the policy check, and
+the operation can still fail afterwards (an encode error or a scheduler
+refusal). The token is then gone and the user requests a new one. That errs
+safe: a failure can burn a token, never the reverse.
 
 ## The sacrificial-only CDL lock (QA-7)
 
@@ -141,16 +160,33 @@ This governs the product's CDL campaigns only. AGENTS.md section 7
 agents, and ADR-003 section 4's write-back precondition for firmware import is
 unchanged.
 
+**Net effect today: no CDL campaign can succeed through the bus** until the
+encoders (#19) and the CDL builder exist. An auto or timer caller gets
+`system-cannot-originate`. An owner submitting `Command::Auto(CodeDownload)`
+resolves no terminals, so while the lock is ON it hits the empty-set
+fail-closed `cdl-lock-non-sacrificial`; with the lock OFF the class then needs
+a token bound to the (empty) plan digest. The lock logic itself is tested on
+hand-built target sets through `Policy::check`.
+
 ## Audit
 
 Every outcome is appended to the precious, append-only `audit_log` with who,
-role, front door, when, command, target (a count of terminals, never a serial)
-and outcome. The bus reports each command through `Policy::audit`: `ok`,
+role, front door, when, command (the **operation name**, such as
+`cold-initialize`), target (`terminal:<id>`, or `plan:<digest>` for a bulk, Lab
+or CDL set; a terminal ID, never a serial) and outcome. The bus reports each
+command through `Policy::audit`: `ok`,
 `dry-run`, or the refusing rule or error code. Token issuance (and its
 refusals) and setting changes write their own rows; a setting change shares its
 transaction with the change and records before and after. A token is never
-written to the log. `Policy::audit` cannot return an error, so a failed audit
-write is counted in `StorePolicy::audit_failures` for the health check.
+written to the log.
+
+A destructive command also writes an `authorized` row **in the same
+transaction that spends its token**, so a destructive operation cannot run with
+its token spent and no audit row: if that row cannot be written the token is
+not spent and the command is refused. The outcome row the bus reports after
+dispatch is still best-effort, because `Policy::audit` cannot return an error:
+a failed write is counted in `StorePolicy::audit_failures` for the health
+check.
 
 ## Configuration layer (ADR-003)
 

@@ -104,6 +104,8 @@ pub enum RuleId {
     TokenPlanChanged,
     /// The typed confirmation phrase did not match.
     ConfirmTextMismatch,
+    /// A destructive bulk operation asked to repeat or run for a period.
+    DestructiveBulkRepeat,
     /// The CDL lock is on and a target is not the sacrificial unit.
     CdlLockNonSacrificial,
     /// No such terminal.
@@ -127,6 +129,7 @@ impl RuleId {
             Self::TokenTargetMismatch => "token-target-mismatch",
             Self::TokenPlanChanged => "token-plan-changed",
             Self::ConfirmTextMismatch => "confirm-text-mismatch",
+            Self::DestructiveBulkRepeat => "destructive-bulk-no-repeat",
             Self::CdlLockNonSacrificial => "cdl-lock-non-sacrificial",
             Self::UnknownTerminal => "unknown-terminal",
             Self::StoreUnavailable => "policy-store-error",
@@ -134,7 +137,7 @@ impl RuleId {
     }
 
     /// Every rule, for the docs drift test.
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::OwnerRequired,
         Self::GuestReadOnly,
         Self::SystemCannotOriginate,
@@ -146,6 +149,7 @@ impl RuleId {
         Self::TokenTargetMismatch,
         Self::TokenPlanChanged,
         Self::ConfirmTextMismatch,
+        Self::DestructiveBulkRepeat,
         Self::CdlLockNonSacrificial,
         Self::UnknownTerminal,
         Self::StoreUnavailable,
@@ -175,6 +179,9 @@ impl RuleId {
                 "the target set changed since the token was issued; run the dry run again"
             }
             Self::ConfirmTextMismatch => "the typed confirmation phrase does not match",
+            Self::DestructiveBulkRepeat => {
+                "a destructive bulk operation runs once: no repeat-every and no run-for"
+            }
             Self::CdlLockNonSacrificial => {
                 "the sacrificial-only CDL lock is on and a target is not sacrificial"
             }
@@ -401,18 +408,29 @@ impl StorePolicy {
         }
     }
 
-    /// Spends `token` for (`op`, `target`) in its own transaction.
+    /// Spends `token` for (`op`, `target`) in its own transaction. The
+    /// `authorized` audit row is written in that same transaction, so a
+    /// hard-destructive operation cannot run with its token spent and no
+    /// audit row (QA-3): if the row cannot be written, the token is not
+    /// spent and the command is refused.
     fn spend(
         &self,
+        ctx: &CommandContext,
         token: &ConfirmationToken,
         op: DestructiveOp,
         target: TokenTarget,
     ) -> Result<(), PolicyDenied> {
         let (now, tok) = (self.now_ms(), token.0.clone());
-        match self
-            .store
-            .call_blocking(move |s| s.write(|tx| token::consume(tx, &tok, op, &target, now)))
-        {
+        let row = Self::entry(ctx, op.name(), Some(target.key()), "authorized");
+        match self.store.call_blocking(move |s| {
+            s.write(|tx| {
+                let c = token::consume(tx, &tok, op, &target, now)?;
+                if c.is_none() {
+                    tx.append_audit(&row)?;
+                }
+                Ok(c)
+            })
+        }) {
             Ok(None) => Ok(()),
             Ok(Some(rule)) => Err(rule.deny_default()),
             Err(e) => Err(store_denied(&e)),
@@ -468,22 +486,23 @@ impl StorePolicy {
                 )));
             }
             if op.is_cdl() {
-                let TokenTarget::Terminal(id) = &target else {
-                    return Err(RuleId::CdlLockNonSacrificial
-                        .deny("the CDL lock needs a resolved terminal; failing closed"));
-                };
-                let sac = self.sacrificial(*id)?;
-                self.check_cdl_lock(&[{
+                if let TokenTarget::Terminal(id) = &target {
+                    let sac = self.sacrificial(*id)?;
                     let mut t = TerminalRef::new(*id, crate::store::TerminalType::OneWay);
                     t.sacrificial = sac;
-                    t
-                }])?;
+                    self.check_cdl_lock(&[t])?;
+                } else {
+                    // A plan carries no terminals here: refused while the
+                    // lock is on (fails closed), allowed through to the
+                    // token check while it is off.
+                    self.check_cdl_lock(&[])?;
+                }
             }
             let t = ctx
                 .confirmation
                 .as_ref()
                 .ok_or_else(|| RuleId::TokenMissing.deny_default())?;
-            self.spend(t, op, target.clone())
+            self.spend(ctx, t, op, target.clone())
         };
         match run() {
             Ok(()) => {
@@ -738,6 +757,11 @@ impl Policy for StorePolicy {
             return Ok(Grant::new());
         };
         Self::gate_destructive(ctx)?;
+        if let Command::Operation(def) = cmd
+            && (def.repeat_every.is_some() || def.run_for.is_some())
+        {
+            return Err(RuleId::DestructiveBulkRepeat.deny_default());
+        }
         if need.op.is_cdl() {
             self.check_cdl_lock(resolved)?;
         }
@@ -745,12 +769,16 @@ impl Policy for StorePolicy {
             .confirmation
             .as_ref()
             .ok_or_else(|| RuleId::TokenMissing.deny_default())?;
-        self.spend(token, need.op, need.target)?;
+        self.spend(ctx, token, need.op, need.target)?;
         Ok(Grant::new())
     }
 
     fn audit(&self, ctx: &CommandContext, note: &AuditNote) {
-        let target = (note.terminals > 0).then(|| format!("{} terminal(s)", note.terminals));
-        self.write_audit(Self::entry(ctx, note.command, target, note.outcome));
+        self.write_audit(Self::entry(
+            ctx,
+            note.operation,
+            note.target.clone(),
+            note.outcome,
+        ));
     }
 }

@@ -265,7 +265,32 @@ pub enum Command {
     Control(ControlCommand),
 }
 
+/// What the bus learned about a command while dispatching it, for the audit
+/// row: how many terminals it resolved to and its target (a terminal ID or
+/// a plan digest; never a serial).
+#[derive(Default)]
+struct Seen {
+    terminals: usize,
+    target: Option<String>,
+}
+
 impl Command {
+    /// The operation's stable name for audit rows (`cold-initialize`,
+    /// `refresh`, `code-download`, ...), where [`kind_name`](Self::kind_name)
+    /// is only the command's kind.
+    pub fn operation_name(&self) -> &'static str {
+        match self {
+            Self::Terminal { op, .. } => op.name(),
+            Self::Operation(def) => def.kind.name(),
+            Self::Auto(op) => op.name(),
+            Self::Lab(_) => "lab",
+            Self::Control(ControlCommand::Ping) => "ping",
+            Self::Control(ControlCommand::Cancel(_)) => "cancel",
+            #[allow(unreachable_patterns)]
+            _ => "non-pdu",
+        }
+    }
+
     /// A stable kind name for audit rows.
     pub fn kind_name(&self) -> &'static str {
         match self {
@@ -787,8 +812,8 @@ impl CommandBus {
     /// Failed or Timeout, logged, and named by
     /// [`CommandError::OperationFailed`]. The process is unaffected.
     pub fn submit(&self, ctx: &CommandContext, cmd: Command) -> Result<Submitted, CommandError> {
-        let mut resolved = 0;
-        let result = self.dispatch(ctx, &cmd, &mut resolved);
+        let mut seen = Seen::default();
+        let result = self.dispatch(ctx, &cmd, &mut seen);
         let outcome = match &result {
             Ok(Submitted::DryRun(_)) => "dry-run",
             Ok(_) => "ok",
@@ -798,7 +823,9 @@ impl CommandBus {
             ctx,
             &AuditNote {
                 command: cmd.kind_name(),
-                terminals: resolved,
+                operation: cmd.operation_name(),
+                target: seen.target,
+                terminals: seen.terminals,
                 outcome,
             },
         );
@@ -836,13 +863,14 @@ impl CommandBus {
         &self,
         ctx: &CommandContext,
         cmd: &Command,
-        resolved_count: &mut usize,
+        seen: &mut Seen,
     ) -> Result<Submitted, CommandError> {
         match cmd {
             Command::Terminal { op, terminal } => {
+                seen.target = Some(format!("terminal:{}", terminal.get()));
                 require(op.name(), op.support())?;
                 let refs = self.resolve(&Target::Single(*terminal), &Filters::default())?;
-                *resolved_count = refs.len();
+                seen.terminals = refs.len();
                 self.admit(ctx, cmd, &refs)?;
                 self.run(Spec {
                     work: Work::Terminal(*op),
@@ -857,7 +885,11 @@ impl CommandBus {
                 require(def.kind.name(), def.kind.support())?;
                 validate_delay(def.delay_between)?;
                 let refs = self.resolve(&def.target, &def.filters)?;
-                *resolved_count = refs.len();
+                seen.terminals = refs.len();
+                seen.target = Some(format!(
+                    "plan:{}",
+                    crate::policy::plan_digest(def.kind.name(), &refs)
+                ));
                 validate_repeat(def.repeat_every, def.delay_between, refs.len())?;
                 self.admit(ctx, cmd, &refs)?;
                 let work = match def.kind {
@@ -886,6 +918,12 @@ impl CommandBus {
                 })
             }
             Command::Auto(op) => {
+                if *op == AutoOp::CodeDownload {
+                    seen.target = Some(format!(
+                        "plan:{}",
+                        crate::policy::plan_digest(op.name(), &[])
+                    ));
+                }
                 require(op.name(), op.support())?;
                 self.admit(ctx, cmd, &[])?;
                 self.run(Spec {
@@ -902,7 +940,8 @@ impl CommandBus {
                     return Err(CommandError::LabModeOff);
                 }
                 let refs = self.resolve(&inj.target, &inj.filters)?;
-                *resolved_count = refs.len();
+                seen.terminals = refs.len();
+                seen.target = Some(format!("plan:{}", crate::policy::plan_digest("lab", &refs)));
                 self.admit(ctx, cmd, &refs)?;
                 self.run(Spec {
                     work: Work::Lab(inj.template.0.clone()),

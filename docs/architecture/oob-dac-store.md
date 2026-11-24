@@ -42,7 +42,7 @@ any table is unclassified or if any registry entry has no table.
 | --- | --- | --- |
 | Precious | Nothing can regenerate it; it is backed up with the file | Never touched |
 | DerivedFromEvents | A pure fold of `event_log` | Dropped, recreated, replayed exactly |
-| DerivedObserved | A cache of what the plant reports | Recreated with no observations; polls and d-screen scrapes refill it |
+| DerivedObserved | A cache of what the plant reports, or ephemeral security state that is correct to lose (a confirmation token) | Recreated empty; polls and d-screen scrapes refill a plant cache, and a lost token is simply re-issued |
 
 The first tables (migration `0001_initial`):
 

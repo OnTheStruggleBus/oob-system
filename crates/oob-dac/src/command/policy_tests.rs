@@ -961,15 +961,14 @@ fn every_command_outcome_is_audited_including_refusals_and_dry_runs() {
         (owner(), term(TerminalOp::Refresh, 77)),              // unknown-terminal, before policy
         (owner(), Command::Control(ControlCommand::Ping)),     // ok
     ];
-    let before = f.rows("terminal").len() + f.rows("operation").len() + f.rows("control").len();
-    assert_eq!(before, 0);
     for (c, cmd) in &submitted {
         let _ = f.bus.submit(c, cmd.clone());
     }
+    // The in-transaction "authorized" row (QA-3) is not a command outcome.
     let rows: Vec<_> = f
         .audit()
         .into_iter()
-        .filter(|r| ["terminal", "operation", "control"].contains(&r.entry.command.as_str()))
+        .filter(|r| !r.entry.command.starts_with("issue-token") && r.entry.outcome != "authorized")
         .collect();
     assert_eq!(rows.len(), submitted.len(), "one row per command submitted");
     let outcomes: Vec<_> = rows.iter().map(|r| r.entry.outcome.as_str()).collect();
@@ -986,6 +985,41 @@ fn every_command_outcome_is_audited_including_refusals_and_dry_runs() {
             "ok"
         ]
     );
+    // QA-1: each row names the operation and the target (a terminal ID or a
+    // plan digest, never a serial).
+    let named: Vec<_> = rows
+        .iter()
+        .map(|r| (r.entry.command.as_str(), r.entry.target.as_deref()))
+        .collect();
+    let plan = format!(
+        "plan:{}",
+        plan_digest("op-refresh", &refs(&[1], &[1, 2, 3]))
+    );
+    assert_eq!(
+        named,
+        [
+            ("refresh", Some("terminal:2")),
+            ("op-refresh", Some(plan.as_str())),
+            ("refresh", Some("terminal:2")),
+            ("cold-initialize", Some("terminal:2")),
+            ("factory-init", Some("terminal:2")),
+            ("factory-init", Some("terminal:2")),
+            ("refresh", Some("terminal:77")),
+            ("ping", None),
+        ]
+    );
+    // The token spend is journaled in its own transaction (QA-3).
+    let auth: Vec<_> = f
+        .audit()
+        .into_iter()
+        .filter(|r| r.entry.outcome == "authorized")
+        .collect();
+    assert_eq!(auth.len(), 1);
+    assert_eq!(auth[0].entry.command, "factory-init");
+    for r in f.audit() {
+        let t = r.entry.target.unwrap_or_default();
+        assert!(!t.contains("GI0000"), "no serial in a target: {t}");
+    }
     // Who, role, front door, when.
     let r = &rows[2];
     assert_eq!(r.entry.actor, "tester");
@@ -1062,4 +1096,72 @@ fn a_store_failure_fails_closed() {
         rule(f.policy.check(&c, &term(TerminalOp::FactoryInit, 2), &[])),
         "policy-store-error"
     );
+}
+
+#[test]
+fn a_destructive_bulk_token_does_not_cover_repeat_or_run_for() {
+    let f = fix();
+    let kind = OperationKind::Terminal(TerminalOp::ColdInitialize);
+    let base = DefineOperation::new(kind, Target::All).execute();
+    let Submitted::DryRun(rep) = f
+        .bus
+        .submit(
+            &owner(),
+            Command::Operation(DefineOperation::new(kind, Target::All)),
+        )
+        .unwrap()
+    else {
+        panic!("dry run");
+    };
+    let t = f.issue(
+        DestructiveOp::ColdInitialize,
+        TokenTarget::Plan(rep.plan_digest),
+    );
+    let mut repeating = base.clone();
+    repeating.repeat_every = Some(Duration::from_secs(3600));
+    let mut bounded = base.clone();
+    bounded.run_for = Some(Duration::from_secs(3600));
+    for def in [repeating, bounded] {
+        assert_eq!(
+            bus_rule(f.bus.submit(&with(owner(), &t), Command::Operation(def))),
+            "destructive-bulk-no-repeat"
+        );
+    }
+    // Refused before the token was touched: the one-shot still executes.
+    assert!(
+        f.bus
+            .submit(&with(owner(), &t), Command::Operation(base))
+            .is_ok()
+    );
+    // A non-destructive bulk may still repeat.
+    let mut r = DefineOperation::new(OperationKind::Refresh, Target::All).execute();
+    r.repeat_every = Some(Duration::from_secs(3600));
+    assert!(f.bus.submit(&owner(), Command::Operation(r)).is_ok());
+}
+
+#[test]
+fn authorize_names_the_right_rule_for_a_cdl_plan_in_both_lock_states() {
+    let f = fix();
+    let plan = TokenTarget::Plan(plan_digest("cdl-campaign", &[]));
+    let t = f.issue(DestructiveOp::CdlCampaign, plan.clone());
+    assert_eq!(
+        rule(
+            f.policy
+                .authorize(&with(owner(), &t), DestructiveOp::CdlCampaign, plan.clone())
+        ),
+        "cdl-lock-non-sacrificial",
+        "lock on: fails closed"
+    );
+    f.lock_off();
+    assert_eq!(
+        rule(
+            f.policy
+                .authorize(&owner(), DestructiveOp::CdlCampaign, plan.clone())
+        ),
+        "token-missing",
+        "lock off: the lock is not the reason"
+    );
+    f.policy
+        .authorize(&with(owner(), &t), DestructiveOp::CdlCampaign, plan)
+        .unwrap();
 }

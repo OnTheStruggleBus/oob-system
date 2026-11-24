@@ -52,6 +52,11 @@ pub struct PolicyDenied {
 pub struct AuditNote {
     /// The command's kind name.
     pub command: &'static str,
+    /// The operation's stable name (`cold-initialize`, `refresh`, ...).
+    pub operation: &'static str,
+    /// What it targeted: `terminal:<id>`, or `plan:<digest>` for a bulk,
+    /// Lab or CDL set. A terminal ID, never a serial (ADR-003 section 4).
+    pub target: Option<String>,
     /// How many terminals it resolved to (0 for non-PDU commands).
     pub terminals: usize,
     /// `"ok"`, `"dry-run"`, or a [`CommandError::reason`](super::CommandError::reason).
