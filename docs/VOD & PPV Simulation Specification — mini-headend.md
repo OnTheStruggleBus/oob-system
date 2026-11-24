@@ -69,11 +69,24 @@ business system by **Table 4-1, PPV Configuration Mode/Zero Handle**:
 | Master BS + Zero Handle | By each BS or by the Master BS | Local, else Master handle | Local/Master handle, else zero handle (721/725); zero handle unavailable in 600-series |
 
 WireLink purchase/auth command IDs (Operations Reference §, from the DAC
-manual's BSI chapter): **694 PPV Authorization Update**; **720 Upload IPPV
+manual's BSI chapter; WireLink v3.0 adds the wire-level layer, see the
+source note at the end of this section): **694 PPV Authorization Update**; **720 Upload IPPV
 Purchases / 721 Return / 722 Receive**; **724/725/726** the single-terminal
 variants; **620 Collect Event Purchases / 621 Return / 622 Received**. A
 high-priority WireLink port can carry PPV authorization data; a third can
 carry IPPV purchase uploads.
+
+**Source note — WireLink v3.0 (O15 acquired).** *Digital WireLink Protocol
+Reference Guide* v3.0: GI/Motorola DAC 6000 WireLink documentation v3.0 — third-party OCR scan (ocrmypdf/Tesseract, July 2025) of a paper original; part number not preserved in scan. Cite by printed page only; every mapping below
+is `hypothesized` until a box capture confirms it.
+
+| WireLink command (printed page) | Maps to |
+| --- | --- |
+| 694 PPV Authorization Update (WireLink v3.0 §3, p.3-25): up to 20 blocks of Headend_Number / Equip_Type / Equip_Sub_Type / Serial_Number / Program_Handle; Program_Handle bit 30 = 1 authorizes, 0 de-authorizes; 660 does not authorize PPV, 694 does (p.3-12) | §3.1 **P1 PPV Window Auth** auto-op and call-ahead flow |
+| 720 / 721 / 722 Upload / Return / Received IPPV Purchases (WireLink v3.0 contents listing only, printed pp.4-1, 4-2, 4-3; **body not present in the scan, so no field-level citation**) | §3.2 **P2 IPPV ledger**; cancel-before-epoch rests on the PTCI Events Summary evidence in §2.4, not on WireLink |
+| 684 Collect Settop Services/Purchases (p.3-20), Action_Code 2 = Poll Purchases (p.3-21; collects box to DAC, answers with Return Status 001; the 620/720/724 series then uploads to the business system) | §3.2 Purchase Poll |
+| 660 / 662 / 663 / 664 / 665 / 666 settop lifecycle (WireLink v3.0 §3, pp.3-12, 3-14, 3-15, 3-15, 3-17, 3-18) | Console unit lifecycle ops |
+| 665 Clear Parental Lock (p.3-17): clears Parental_Control_Channel / Cost / Rating / Time; "The DAC does not store the parental lock values" | §3.2 Event-PIN fidelity and the §6 **Clear PIN** Console op: consistent with the DAC only clearing, never storing, PINs. 665 itself names only the four parental fields; the Event-PIN case stays DAC manual §9 plus box capture |
 
 ### 2.3 Authorization and the IPPV tier (DAC manual §9)
 
@@ -445,8 +458,9 @@ status in `oob-msg` is promoted only on capture (AGENTS.md §2).
 ## 10. Open items
 
 - **O14** — NC 1500 / session-VOD control plane (S4 research; far-future).
-- **O15** — Full WireLink 600/700 dialect reference: acquisition item
-  (restricted document; Marshal upload pattern). Until then the BSI
+- **O15** — Full WireLink 600/700 dialect reference: **partly acquired
+  2026-11-24** — v3.0 ({P} Body ends at printed p.3-31; §4 720/721/722 and
+  770/771 are not in the scan, so those remain open.) Until they are acquired the BSI
   endpoint implements the command IDs and semantics documented in the DAC
   manual and Operations Reference, marked `documented`-semantics /
   `hypothesized`-framing.
