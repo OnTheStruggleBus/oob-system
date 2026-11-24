@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use oob_mux::{
     CarouselId, Clock, ManualClock, MonoTime, Outcome, OutcomeEvent, Payload, Pdu, PduId, Pid,
-    Scheduler, SchedulerConfig, SchedulerHandle, Submission, SubmitError, TrafficClass, UtcTime,
+    Scheduler, SchedulerConfig, Submission, SubmitError, TrafficClass, UtcTime,
 };
 
 use crate::store::{NewTerminal, Store, StoreOptions, TerminalId, TerminalType, UnitAddress};
@@ -27,9 +27,9 @@ use super::target::{
     Filters, InMemoryDirectory, StoreDirectory, Target, TerminalDirectory, TerminalRef,
 };
 use super::{
-    Command, CommandBus, CommandContext, CommandError, ConfirmationToken, ControlCommand,
-    DefineOperation, FrontDoor, LabInjection, NonPduHandler, OperationId, Role, Submitted,
-    TemplateId,
+    BusConfig, Command, CommandBus, CommandContext, CommandError, ConfirmationToken,
+    ControlCommand, DefineOperation, FrontDoor, LabInjection, NonPduHandler, OperationId, Role,
+    Submitted, TemplateId,
 };
 
 fn ms(n: u64) -> Duration {
@@ -147,14 +147,39 @@ fn terminals(n: u32) -> Vec<TerminalRef> {
         .collect()
 }
 
+/// A release window wide enough that a whole campaign is handed over at
+/// once; the just-in-time tests use their own small window.
+fn wide() -> BusConfig {
+    BusConfig {
+        release_window: Duration::from_secs(3600),
+        ..BusConfig::default()
+    }
+}
+
 fn fix_with(n: u32, policy: Arc<dyn Policy>) -> Fix {
-    let (sched, handle, _rx) = Scheduler::new(SchedulerConfig {
-        queue_depth: 10_000,
-        max_carousels: 4,
-        outcome_capacity: 1024,
-        disabled_classes: vec![],
-    })
-    .unwrap();
+    fix_cfg(n, policy, wide())
+}
+
+fn fix_cfg(n: u32, policy: Arc<dyn Policy>, cfg: BusConfig) -> Fix {
+    fix_full(
+        n,
+        policy,
+        cfg,
+        SchedulerConfig {
+            queue_depth: 10_000,
+            max_carousels: 4,
+            outcome_capacity: 1024,
+            disabled_classes: vec![],
+        },
+    )
+}
+
+fn fix_sched(n: u32, cfg: BusConfig, sc: SchedulerConfig) -> Fix {
+    fix_full(n, Arc::new(AllowAllPolicy), cfg, sc)
+}
+
+fn fix_full(n: u32, policy: Arc<dyn Policy>, cfg: BusConfig, sc: SchedulerConfig) -> Fix {
+    let (sched, handle, _rx) = Scheduler::new(sc).unwrap();
     let clock = Arc::new(ManualClock::new(
         MonoTime::from_origin(ms(10_000)),
         UtcTime::from_unix(Duration::from_secs(1_000)),
@@ -170,7 +195,8 @@ fn fix_with(n: u32, policy: Arc<dyn Policy>) -> Fix {
         Arc::new(InMemoryDirectory::new(terminals(n))),
         Arc::new(TestEncoder),
         clock.clone(),
-    );
+    )
+    .with_config(cfg);
     Fix {
         bus,
         clock,
@@ -974,7 +1000,12 @@ fn an_encoder_panic_fails_that_command_is_logged_and_the_process_continues() {
             },
         )
         .unwrap_err();
-    assert!(matches!(&e, CommandError::EncoderPanic { work } if work == "phone"));
+    assert!(matches!(e.root(), CommandError::EncoderPanic { work } if work == "phone"));
+    assert_eq!(
+        e.operation(),
+        Some(f.bus.operations()[0].id),
+        "the failed id is carried"
+    );
     assert_eq!(e.reason(), "encoder-panic");
     assert_eq!(f.rec.count(), 0, "nothing reached the scheduler");
     let ops = f.bus.operations();
@@ -1009,7 +1040,10 @@ fn a_panicking_command_does_not_disturb_a_concurrent_one() {
                         terminal: tid(1),
                     },
                 );
-                assert!(matches!(r, Err(CommandError::EncoderPanic { .. })));
+                assert!(matches!(
+                    r.as_ref().map_err(CommandError::root),
+                    Err(CommandError::EncoderPanic { .. })
+                ));
             }
         });
         let good = s.spawn(|| {
@@ -1047,7 +1081,7 @@ fn an_encoder_error_is_request_sent_failed_and_named() {
         )
         .unwrap_err();
     assert!(
-        matches!(&e, CommandError::Encode { work, reason } if work == "general" && reason == "no template")
+        matches!(e.root(), CommandError::Encode { work, reason } if work == "general" && reason == "no template")
     );
     assert_eq!(f.bus.operations()[0].status, OpStatus::RequestSentFailed);
     assert!(f.bus.log().iter().any(|l| l.event == "encode-error"));
@@ -1331,7 +1365,10 @@ fn the_default_handler_answers_ping() {
 // ---- the scheduler is reachable only through the command layer --------
 
 #[test]
-fn the_scheduler_handle_appears_only_in_the_command_layer() {
+fn the_scheduler_is_named_only_in_the_command_layer() {
+    // `SchedulerHandle` is `Clone` and public in oob-mux, so this is a
+    // convention guarded by a source scan, not by the type: nothing outside
+    // `command/` may name oob-mux or a scheduler type.
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut stack = vec![src.clone()];
     let mut offenders = Vec::new();
@@ -1347,7 +1384,9 @@ fn the_scheduler_handle_appears_only_in_the_command_layer() {
                     .to_string_lossy()
                     .replace('\\', "/");
                 let text = std::fs::read_to_string(&p).unwrap();
-                if text.contains("SchedulerHandle") && !rel.starts_with("command/") {
+                if !rel.starts_with("command/")
+                    && (text.contains("oob_mux") || text.contains("Scheduler"))
+                {
                     offenders.push(rel);
                 }
             }
@@ -1355,71 +1394,247 @@ fn the_scheduler_handle_appears_only_in_the_command_layer() {
     }
     assert!(
         offenders.is_empty(),
-        "SchedulerHandle outside command/: {offenders:?}"
+        "oob_mux or Scheduler named outside command/: {offenders:?}"
     );
 }
 
-#[test]
-fn the_only_constructor_takes_the_handle_by_value() {
-    // A compile-time check: `new` moves the handle in, so the caller keeps none.
-    fn _assert(
-        h: SchedulerHandle,
-        p: Arc<dyn Policy>,
-        d: Arc<dyn TerminalDirectory>,
-        e: Arc<dyn Encoder>,
-        c: Arc<dyn Clock>,
-    ) -> CommandBus {
-        CommandBus::new(h, p, d, e, c)
+// ---- just-in-time release (QA-1, QA-2, QA-3) --------------------------
+
+fn jit() -> BusConfig {
+    BusConfig {
+        release_window: ms(500),
+        ..BusConfig::default()
+    }
+}
+
+impl Fix {
+    /// Advances the clock by `step` and ticks, `n` times.
+    fn run_ticks(&self, n: u32, step: Duration) {
+        for _ in 0..n {
+            self.clock.advance(step);
+            self.bus.tick();
+        }
     }
 }
 
 #[test]
-fn the_real_scheduler_path_accepts_a_campaign() {
-    let (sched, handle, _rx) = Scheduler::new(SchedulerConfig {
-        queue_depth: 4,
-        max_carousels: 1,
-        outcome_capacity: 8,
-        disabled_classes: vec![],
-    })
-    .unwrap();
-    let clock: Arc<dyn Clock> = Arc::new(ManualClock::new(MonoTime::default(), UtcTime::default()));
-    let bus = CommandBus::new(
-        handle,
-        Arc::new(AllowAllPolicy),
-        Arc::new(InMemoryDirectory::new(terminals(3))),
-        Arc::new(TestEncoder),
-        clock.clone(),
-    );
-    let id = queued(bus.submit(
+fn pdus_are_handed_to_the_scheduler_only_as_their_window_arrives() {
+    let f = fix_cfg(10, Arc::new(AllowAllPolicy), jit());
+    let t0 = f.clock.mono();
+    let id = queued(f.bus.submit(
         &ctx(),
         Command::Operation(op(OperationKind::Refresh, Target::All, 250)),
     ));
-    assert_eq!(bus.status(id).unwrap().status, OpStatus::Downloaded);
-    // Five more exceed the real queue depth of 4: Timeout, not a panic.
-    let mut d = op(OperationKind::Refresh, Target::All, 250);
-    d.filters.terminal_type = None;
-    let bus2 = CommandBus::new(
-        Scheduler::new(SchedulerConfig {
-            queue_depth: 2,
+    // Window 500 ms: releases at +0, +250, +500 only.
+    assert_eq!(f.rec.count(), 3);
+    assert_eq!(f.bus.status(id).unwrap().status, OpStatus::Downloaded);
+    f.run_ticks(1, ms(250));
+    assert_eq!(f.rec.count(), 4);
+    f.run_ticks(20, ms(250));
+    let times: Vec<_> = f
+        .rec
+        .pdus()
+        .iter()
+        .map(|(_, p)| p.release_at.unwrap())
+        .collect();
+    assert_eq!(times.len(), 10);
+    assert_eq!(times[0], t0);
+    for w in times.windows(2) {
+        assert_eq!(w[1].saturating_since(w[0]), ms(250));
+    }
+}
+
+#[test]
+fn a_50_unit_campaign_through_the_default_window_keeps_250_ms() {
+    let f = fix_cfg(50, Arc::new(AllowAllPolicy), BusConfig::default());
+    queued(f.bus.submit(
+        &ctx(),
+        Command::Operation(op(OperationKind::Refresh, Target::All, 250)),
+    ));
+    f.run_ticks(60, ms(250));
+    let times: Vec<_> = f
+        .rec
+        .pdus()
+        .iter()
+        .map(|(_, p)| p.release_at.unwrap())
+        .collect();
+    assert_eq!(times.len(), 50);
+    assert!(
+        times
+            .windows(2)
+            .all(|w| w[1].saturating_since(w[0]) >= ms(250))
+    );
+}
+
+#[test]
+fn a_late_tick_retimes_pdus_so_spacing_never_shrinks() {
+    let f = fix_cfg(10, Arc::new(AllowAllPolicy), jit());
+    queued(f.bus.submit(
+        &ctx(),
+        Command::Operation(op(OperationKind::Refresh, Target::All, 250)),
+    ));
+    f.clock.advance(Duration::from_secs(10)); // the daemon stalled
+    f.bus.tick();
+    let now = f.clock.mono();
+    let times: Vec<_> = f
+        .rec
+        .pdus()
+        .iter()
+        .map(|(_, p)| p.release_at.unwrap())
+        .collect();
+    assert_eq!(
+        times.len(),
+        10,
+        "every planned release is past, so all are handed over"
+    );
+    assert!(
+        times[3..].iter().all(|r| *r >= now),
+        "late PDUs are re-timed to now or later"
+    );
+    assert!(
+        times
+            .windows(2)
+            .all(|w| w[1].saturating_since(w[0]) >= ms(250))
+    );
+}
+
+#[test]
+fn a_campaign_larger_than_the_scheduler_queue_is_accepted_and_a_stalled_queue_stops_the_feed() {
+    // QA-1: real scheduler, queue_depth 4, 10 terminals, nothing drains it.
+    let f = fix_sched(
+        10,
+        jit(),
+        SchedulerConfig {
+            queue_depth: 4,
             max_carousels: 1,
             outcome_capacity: 8,
             disabled_classes: vec![],
-        })
-        .map(|(s, h, _)| {
-            std::mem::forget(s); // keep the scheduler open for the test's life
-            h
-        })
-        .unwrap(),
-        Arc::new(AllowAllPolicy),
-        Arc::new(InMemoryDirectory::new(terminals(3))),
-        Arc::new(TestEncoder),
-        clock,
+        },
     );
-    let e = bus2.submit(&ctx(), Command::Operation(d)).unwrap_err();
-    assert!(matches!(
-        e,
-        CommandError::Scheduler(SubmitError::QueueFull { .. })
+    let id = queued(f.bus.submit(
+        &ctx(),
+        Command::Operation(op(OperationKind::Refresh, Target::All, 250)),
     ));
-    assert_eq!(bus2.operations()[0].status, OpStatus::Timeout);
-    drop(sched);
+    assert_eq!(
+        f.rec.count(),
+        3,
+        "10 > depth 4, yet accepted: only the window is queued"
+    );
+    assert_eq!(f.bus.status(id).unwrap().status, OpStatus::Downloaded);
+    f.run_ticks(1, ms(250));
+    assert_eq!(f.rec.count(), 4, "the queue is now full");
+    // The queue never drains: after the bounded retries the operation fails...
+    f.run_ticks(6, ms(250));
+    let v = f.bus.status(id).unwrap();
+    assert_eq!(v.status, OpStatus::Failed);
+    assert!(v.failure.as_deref().unwrap().contains("full"));
+    // ...and the 6 PDUs still pending are never handed over.
+    let n = f.rec.count();
+    assert_eq!(n, 4);
+    f.run_ticks(40, ms(250));
+    assert_eq!(f.rec.count(), n, "nothing is submitted after the failure");
+}
+
+#[test]
+fn cancel_stops_the_feed() {
+    let f = fix_cfg(10, Arc::new(AllowAllPolicy), jit());
+    let id = queued(f.bus.submit(
+        &ctx(),
+        Command::Operation(op(OperationKind::Refresh, Target::All, 250)),
+    ));
+    let before = f.rec.count();
+    assert_eq!(before, 3);
+    f.bus.cancel(&ctx(), id).unwrap();
+    f.run_ticks(40, ms(250));
+    assert_eq!(f.rec.count(), before, "no PDU is submitted after cancel");
+    assert_eq!(f.bus.status(id).unwrap().status, OpStatus::Failed);
+}
+
+#[test]
+fn an_end_time_drops_the_pending_pdus() {
+    let f = fix_cfg(10, Arc::new(AllowAllPolicy), jit());
+    let mut d = op(OperationKind::Refresh, Target::All, 250);
+    d.run_for = Some(ms(750));
+    let id = queued(f.bus.submit(&ctx(), Command::Operation(d)));
+    f.bus.on_outcome(emitted(f.rec.pdus()[0].0));
+    f.run_ticks(3, ms(250)); // reaches the end time
+    assert_eq!(f.bus.status(id).unwrap().status, OpStatus::MarkedCompleted);
+    let n = f.rec.count();
+    f.run_ticks(40, ms(250));
+    assert_eq!(f.rec.count(), n, "the rest of the campaign is never sent");
+}
+
+#[test]
+fn a_lost_outcome_fails_the_operation_instead_of_wedging_it() {
+    // QA-3: deadline = release + 60 s, grace 5 s.
+    let f = fix(2);
+    let id = queued(f.bus.submit(
+        &ctx(),
+        Command::Terminal {
+            op: TerminalOp::Refresh,
+            terminal: tid(1),
+        },
+    ));
+    f.clock.advance(ms(64_999));
+    f.bus.tick();
+    assert_eq!(f.bus.status(id).unwrap().status, OpStatus::Downloaded);
+    f.clock.advance(ms(1));
+    f.bus.tick();
+    let v = f.bus.status(id).unwrap();
+    assert_eq!(v.status, OpStatus::Failed);
+    assert!(v.failure.as_deref().unwrap().contains("lost"));
+    assert!(f.bus.log().iter().any(|l| l.event == "outcome-lost"));
+    // A late real outcome for it changes nothing.
+    f.bus.on_outcome(emitted(f.rec.pdus()[0].0));
+    assert_eq!(f.bus.status(id).unwrap().status, OpStatus::Failed);
+}
+
+#[test]
+fn a_failed_command_names_its_operation() {
+    let f = fix(3);
+    let e = f
+        .bus
+        .submit(
+            &ctx(),
+            Command::Terminal {
+                op: TerminalOp::General,
+                terminal: tid(1),
+            },
+        )
+        .unwrap_err();
+    let id = e.operation().expect("the id is carried");
+    assert_eq!(
+        f.bus.status(id).unwrap().status,
+        OpStatus::RequestSentFailed
+    );
+    assert_eq!(
+        e.reason(),
+        "encode-failed",
+        "reason looks through the wrapper"
+    );
+    assert!(e.to_string().contains("failed"));
+}
+
+#[test]
+fn the_default_handler_fails_safe_on_what_it_does_not_know() {
+    // Anything routed to the seam that the handler does not recognise is
+    // refused by name (the stand-in for a variant #25 has not registered).
+    use super::DefaultHandler;
+    let r = DefaultHandler.handle(
+        &ctx(),
+        &Command::Control(ControlCommand::Cancel(OperationId(1))),
+    );
+    assert!(matches!(
+        r,
+        Err(CommandError::Unsupported {
+            what: "non-pdu-command",
+            ..
+        })
+    ));
+    assert_eq!(
+        DefaultHandler
+            .handle(&ctx(), &Command::Control(ControlCommand::Ping))
+            .unwrap(),
+        Submitted::Done
+    );
 }

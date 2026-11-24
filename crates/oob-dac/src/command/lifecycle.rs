@@ -44,8 +44,9 @@ pub enum OpStatus {
     RequestSentFailed,
     /// Initiated, no acknowledgement. Final.
     Timeout,
-    /// Accepted by the RADD: every PDU of the current repetition is
-    /// accepted by the scheduler (accepted, not yet sent).
+    /// Accepted by the RADD: the plan is held (the first release window is
+    /// handed to the scheduler, the rest waits in the command layer's
+    /// release queue); accepted, not yet sent.
     Downloaded,
     /// Currently executing: emission has begun.
     Active,
@@ -109,7 +110,9 @@ impl OpStatus {
                 "encoder error or panic, or the scheduler refused for a reason other than capacity"
             }
             Self::Timeout => "the scheduler did not accept the PDUs within the bound (queue full)",
-            Self::Downloaded => "every PDU of the current repetition is accepted by the scheduler",
+            Self::Downloaded => {
+                "the first release window is accepted by the scheduler; the rest is held for release"
+            }
             Self::Active => "the first PDU has been emitted; emission in progress",
             Self::Delayed => "waiting while a Category Epoch operation is active",
             Self::Completed => "the last PDU of the final repetition was emitted",

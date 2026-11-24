@@ -40,10 +40,17 @@ One path for every front door.
 4. **Plan** release times from the bus clock: terminal *i* of *n* releases
    at `t0 + i × delay_between`. A single-terminal operation releases at
    `t0`.
-5. **Encode** each PDU under `catch_unwind`, then **submit** it as a
-   one-shot `Submission` whose `Pdu.release_at` and `deadline` the command
-   layer sets.
-6. **Track.** The daemon (#29) drains the scheduler's outcome channel into
+5. **Encode** every PDU of the repetition under `catch_unwind` and keep
+   them in the operation's pending queue (an encode failure therefore never
+   leaves a half-submitted campaign).
+6. **Release just in time.** `CommandBus::tick` hands each PDU to the
+   scheduler as a one-shot `Submission`, with the `Pdu.release_at` and
+   `deadline` the command layer set, only when its release time comes
+   within `BusConfig::release_window` (default 1 s). The daemon ticks
+   at least that often. A campaign is never held in the scheduler's
+   per-class queue all at once, so its size is not capped by `queue_depth`,
+   and cancel, failure and end time stop the feed.
+7. **Track.** The daemon (#29) drains the scheduler's outcome channel into
    `CommandBus::on_outcome`, which drives the lifecycle.
 
 ### Spacing exists only as release times
@@ -60,30 +67,51 @@ A Repeat-Every period shorter than `terminals × delay` is rejected
 (`repeat-too-short`): a shorter period would let repetition *k + 1* start
 before repetition *k* finished and put PDUs for different terminals closer
 than the minimum. Each repetition re-plans the whole set from its slot
-(`rep start + period`), so a late `tick` does not change the spacing.
+(`rep start + period`). If a tick is late, a PDU whose release time has
+already passed is re-timed to keep at least `delay_between` after the
+previous one, so spacing never shrinks.
+
+**A full scheduler queue.** `QueueFull` is retried a few times at once and
+then once per tick, with the release time preserved. If the queue stays
+full, the operation fails (Timeout while still Request Sent, Failed
+afterwards) and its pending PDUs are dropped, so nothing more is submitted.
+At submit time a full queue is refused before anything is queued.
+
+**Lost outcomes.** The scheduler counts an outcome lost when its channel is
+full. Each handed-over PDU is therefore tracked with the time its outcome
+is overdue (its deadline plus `BusConfig::outcome_grace`); `tick` fails an
+operation whose outcome never arrived (`outcome-lost` in the log) instead
+of leaving it in Downloaded or Active forever.
 
 ### The scheduler is reachable only through the command layer
 
 - `CommandBus::new` takes the `SchedulerHandle` **by value**; the daemon
-  moves its handle in and keeps none. No other `oob-dac` module receives
-  one.
+  moves its handle in. No other `oob-dac` module receives one.
+  `SchedulerHandle` is `Clone` and public in `oob-mux`, so the guarantee
+  within `oob-dac` is a convention held by the source scan below, not by the
+  type. #25's budget apply and #17's assemblers also need a handle; #29
+  decides between a bus pass-through and a daemon-held clone.
 - The sink module and the encode guard are private. Two `compile_fail`
   doctests show an adapter cannot name them.
-- The test `the_scheduler_handle_appears_only_in_the_command_layer` scans
-  `crates/oob-dac/src` and fails if `SchedulerHandle` appears outside
+- The test `the_scheduler_is_named_only_in_the_command_layer` scans
+  `crates/oob-dac/src` and fails if `oob_mux` or `Scheduler` appears outside
   `command/`.
 
-### Panics are caught per command
+### Encoder panics are caught per command
 
-An encoder panic is caught around each encode (`exec::encode_guarded`),
+An **encoder** panic is caught around each encode (`exec::encode_guarded`),
 never per process (ADR-002 Consequences). The command fails with
 `encoder-panic`, its operation is left in Request Sent Failed, the event is
 logged (`CommandBus::log`) and the bus carries on; a test runs a panicking
-command concurrently with a good one. This relies on `panic = "unwind"`,
-the default; no Oob build profile may set `panic = "abort"`.
+command concurrently with a good one. Panics in a `Policy`, a
+`TerminalDirectory` or a `NonPduHandler` are not caught here.
 
-All of a repetition's PDUs are encoded **before** any is submitted, so an
-encode failure never leaves a half-submitted campaign.
+A command that becomes an operation and then fails returns
+`CommandError::OperationFailed`, which carries the operation's ID (and
+`reason()` looks through it), so the caller can read its status and log. A
+failure found by `tick` (a later repetition, a lost outcome) has no caller;
+it is recorded in the operation's status and the log. This relies on `panic = "unwind"`,
+the default; no Oob build profile may set `panic = "abort"`.
 
 ## Status lifecycle
 
@@ -104,7 +132,7 @@ changes the table and its tests, not the pipeline.
 | Request Sent | planning and encoding started; PDUs being handed to the scheduler | no |
 | Request Sent Failed | encoder error or panic, or the scheduler refused for a reason other than capacity | yes |
 | Timeout | the scheduler did not accept the PDUs within the bound (`QueueFull` retries exhausted) | yes |
-| Downloaded | every PDU of the current repetition is accepted by the scheduler (accepted, not yet sent) | no |
+| Downloaded | the plan is accepted: the first release window is handed to the scheduler and the rest waits in the command layer's release queue (accepted, not yet sent) | no |
 | Active | the first PDU has been emitted; emission in progress | no |
 | Delayed | waiting while a Category Epoch operation is active | no |
 | Completed | the last PDU of the final repetition was emitted | yes |
@@ -138,7 +166,12 @@ Terminal-side results belong to `terminal_status` (#21).
 Transition is supported (it is in the catalog as unsupported); until then
 the state machine is tested by driving it directly. Cancellation is a
 `ControlCommand::Cancel` and fails the operation with no more specific
-status.
+status. Cancel stops the feed: no further PDU is handed to the scheduler.
+PDUs already handed over (at most one release window's worth) cannot be
+recalled and will be emitted. Closing a destructive operation early still
+sends those few; #23 decides whether destructive operations need extra
+care, and exposing Cancel from REST (#27) or WireLink (#28) should wait on
+a one-shot withdraw in `oob-mux` (a #16-side follow-up).
 
 ## Catalog and support status
 
@@ -151,6 +184,11 @@ design decision for this slice, not a manual statement.
 | Terminal operations | Network (DVB): DVB only; Oob reproduces the GI/Motorola headend |
 | Define Operations (user-defined) | Category Epoch Transition: not implemented yet; Resource OCAM: needs the OCAM component; Synchronize CPMS: CPMS is a separate billing-side system |
 | Define Operations (auto-generated) | Analog Rekey, Analog Clear Service, Macrovision: the analog tier (S3) is unscoped; CableCARD SNT: outside the DCT2000-class fleet |
+
+`Authorize` is a plain variant (the design note's `AuthorizeWhat` sub-enum is
+deferred until its cases are sourced), and the eight unsupported entries
+above are rejected rather than omitted so that every refusal is
+explainable.
 
 *Supported* means the command layer accepts the entry and routes it to a
 family encoder (`oob-msg`, #19). Whether that family's wire format is
@@ -178,9 +216,15 @@ the double.
 
 `Command` and `CommandError` are `#[non_exhaustive]`. A command that
 produces no PDU is dispatched to a `NonPduHandler` after the same policy
-check. #25 adds `Command::Admin(AdminOp)` for configuration saves by adding
-the variant and registering its handler, so owner role, guest refusal and
-audit from #23 apply to config saves with no change to the bus.
+check. `#[non_exhaustive]` binds other crates; inside `oob-dac` matches stay
+exhaustive, so `dispatch` deliberately sends **every command it does not
+recognise as a PDU command** down the non-PDU route (a final wildcard arm),
+and the default handler refuses what it does not know. #25 adds
+`Command::Admin(AdminOp)` for configuration saves by adding the variant and
+registering a handler, so owner role, guest refusal and audit from #23 apply
+to config saves with no change to `dispatch`. There is one handler slot and
+registering replaces the built-in handler (which answers `Ping`), so #25's
+handler wraps or delegates to it.
 `ControlCommand` (`Ping`, `Cancel`) is the stub that proves the path today;
 a doctest and `a_non_pdu_command_is_dispatched_through_the_seam_after_policy`
 show it.
@@ -200,10 +244,16 @@ show it.
   restart need a store migration and land with #23 and the daemon (#29).
   Until then a restart forgets in-flight operations.
 - **One-shot withdrawal.** `oob-mux` can withdraw carousels but not queued
-  one-shot PDUs. Every addressed PDU carries a deadline
-  (`BusConfig::pdu_deadline`) after which the scheduler drops and reports
-  it, which bounds what a failed, cancelled or ended operation leaves
-  queued. Closing out an operation therefore ignores its late outcomes
-  rather than recalling its PDUs.
+  one-shot PDUs. The command layer keeps future-dated PDUs itself and
+  releases them just in time, so cancel, failure and end time stop the feed;
+  PDUs already handed over (at most one release window's worth) are emitted.
+  `BusConfig::pdu_deadline` only drops a PDU whose first packet is still
+  waiting after its release time; it does not recall anything. A one-shot
+  withdraw in `oob-mux` would close the remaining window (#16-side
+  follow-up).
+- **Operation IDs** come from an in-memory counter until the ledger lands;
+  they must come from the store then, or IDs repeat across restarts.
+  Targets are resolved once per operation, so Repeat-Every does not see
+  terminals added or removed later.
 - **Real encoders.** `oob-msg` (#19) supplies the family encoders behind
   the `Encoder` trait; the tests use doubles.

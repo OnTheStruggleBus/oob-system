@@ -5,7 +5,9 @@
 //! `oob_mux::SchedulerHandle` is held. The daemon (#29) builds oob-mux's
 //! `(Scheduler, SchedulerHandle, OutcomeReceiver)` and *moves* the handle
 //! into [`CommandBus::new`](super::CommandBus::new); no other oob-dac
-//! module receives one. Tests assert this (see the `sole_path` tests).
+//! module receives one. `SchedulerHandle` is `Clone` and public in oob-mux,
+//! so within oob-dac this is a convention held by the source-scan test
+//! `the_scheduler_is_named_only_in_the_command_layer`, not by the type.
 
 use oob_mux::{CarouselId, PduId, SchedulerHandle, Submission, SubmitError};
 
@@ -14,7 +16,7 @@ pub(super) trait PduSink: Send + Sync {
     /// Queues one submission.
     fn submit(&self, s: Submission) -> Result<PduId, SubmitError>;
     /// Withdraws a carousel.
-    #[allow(dead_code)] // carousel-backed auto ops arrive with #25
+    #[allow(dead_code)] // carousel-backed auto ops arrive with #19 (encoders) and #29 (daemon)
     fn withdraw(&self, id: CarouselId) -> Result<(), SubmitError>;
 }
 

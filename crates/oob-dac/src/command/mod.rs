@@ -27,29 +27,53 @@
 //! 3. **Policy** ([`Policy::check`]); a dry run stops after this and
 //!    returns a [`DryRunReport`], so nothing reaches `oob-mux`.
 //! 4. **Plan** release times, `t0 + i × delay`, from the bus clock.
-//! 5. **Encode** each PDU under `catch_unwind`, then **submit** it.
-//! 6. **Track**: scheduler [`OutcomeEvent`]s feed
+//! 5. **Encode** every PDU of the repetition under `catch_unwind` and keep
+//!    them in the operation's pending queue.
+//! 6. **Release just in time**: [`CommandBus::tick`] hands each PDU to the
+//!    scheduler only as its release time comes within
+//!    [`BusConfig::release_window`]. A campaign is therefore never held in
+//!    the scheduler's per-class queue all at once, and cancelling, failing
+//!    or ending an operation stops the feed.
+//! 7. **Track**: scheduler [`OutcomeEvent`]s feed
 //!    [`CommandBus::on_outcome`], which drives the lifecycle.
 //!
 //! # Non-PDU commands (the seam for #25)
 //!
-//! [`Command`] and [`CommandError`] are `#[non_exhaustive]`, and a command
-//! that produces no PDU is dispatched to a [`NonPduHandler`] after the same
-//! policy check. #25 adds `Command::Admin(AdminOp)` (configuration saves) by
-//! adding a variant and registering its handler: owner role, guest refusal
-//! and audit from #23 then apply to config saves with no change to the bus.
+//! [`Command`] and [`CommandError`] are `#[non_exhaustive]` (that binds
+//! other crates; inside this crate matches stay exhaustive, so the bus
+//! deliberately routes **every command it does not recognise as a PDU
+//! command** to a [`NonPduHandler`] after the same policy check, and the
+//! built-in handler refuses what it does not know). #25 adds
+//! `Command::Admin(AdminOp)` (configuration saves) by adding a variant and
+//! registering a handler that wraps or delegates to the previous one (the
+//! slot holds one handler, and the default answers
+//! [`ControlCommand::Ping`]). `dispatch` does not change: owner role, guest
+//! refusal and audit from #23 then apply to config saves.
 //! [`ControlCommand`] is the stub that proves the path today.
+//!
+//! # Failure containment
+//!
+//! An **encoder** panic is caught per encode and fails that one command
+//! (ADR-002 Consequences). Panics in a [`Policy`], a [`TerminalDirectory`]
+//! or a [`NonPduHandler`] are not caught here.
 //!
 //! # What is not here yet
 //!
 //! - **Persistence.** Operations are tracked in memory. The `operation`
 //!   ledger table (precious, F6-5), the audit rows and restart-resume need a
 //!   store migration and land with the policy layer (#23) and the daemon
-//!   (#29); until then a restart forgets in-flight operations.
+//!   (#29); until then a restart forgets in-flight operations. Targets are
+//!   resolved once per operation, so Repeat-Every does not see terminals
+//!   added or removed later.
 //! - **One-shot withdrawal.** `oob-mux` can withdraw carousels but not
-//!   queued one-shot PDUs. Every addressed PDU therefore carries a deadline
-//!   ([`BusConfig::pdu_deadline`]) after which the scheduler drops and
-//!   reports it, bounding what a failed or ended operation leaves queued.
+//!   queued one-shot PDUs. The command layer therefore keeps future-dated
+//!   PDUs itself and releases them just in time, so cancel, failure and end
+//!   time stop the feed. PDUs already handed to the scheduler (at most one
+//!   release window's worth) cannot be recalled and will be emitted; their
+//!   [`BusConfig::pdu_deadline`] only drops one whose first packet is still
+//!   waiting after its release time.
+//! - **Operation IDs** come from an in-memory counter until the ledger
+//!   lands.
 //!
 //! See `architecture/oob-dac-command.md` in the book.
 
@@ -62,7 +86,7 @@ pub mod target;
 
 mod sink;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -186,8 +210,10 @@ pub struct DefineOperation {
 pub enum ControlCommand {
     /// Answers `Done`; proves a command can cross the bus without a PDU.
     Ping,
-    /// Cancels a non-final operation (it fails, with no more specific
-    /// status). Handled by the bus itself.
+    /// Cancels a non-final operation: it fails (no more specific status)
+    /// and no further PDU is handed to the scheduler. PDUs already handed
+    /// over (at most one release window's worth) are **not** recalled.
+    /// Handled by the bus itself.
     Cancel(OperationId),
 }
 
@@ -221,13 +247,20 @@ impl Command {
             Self::Auto(_) => "auto",
             Self::Lab(_) => "lab",
             Self::Control(_) => "control",
+            // Same reasoning as the dispatch wildcard: a new non-PDU variant
+            // is audited under a generic name until it names itself.
+            #[allow(unreachable_patterns)]
+            _ => "non-pdu",
         }
     }
 }
 
 /// What a non-PDU command is dispatched to. #25 registers the handler for
 /// `Command::Admin`; the bus has already applied the policy check when
-/// [`handle`](Self::handle) runs.
+/// [`handle`](Self::handle) runs. There is one handler slot, and
+/// registering replaces the built-in one (which answers
+/// [`ControlCommand::Ping`] and refuses the rest), so a handler that wants
+/// to keep `Ping` must wrap or delegate.
 ///
 /// A non-PDU command crossing the bus (the stub `ControlCommand::Ping`):
 ///
@@ -392,6 +425,15 @@ pub enum CommandError {
     },
     /// No such operation.
     UnknownOperation(OperationId),
+    /// The command was accepted as an operation and then failed; `id` names
+    /// the failed operation (visible in [`CommandBus::status`] and the log).
+    /// `source` is the cause, and [`reason`](Self::reason) is its code.
+    OperationFailed {
+        /// The failed operation.
+        id: OperationId,
+        /// Why it failed.
+        source: Box<CommandError>,
+    },
 }
 
 impl CommandError {
@@ -412,6 +454,24 @@ impl CommandError {
             Self::IllegalTransition { .. } => "illegal-transition",
             Self::IllegalOverlay { .. } => "illegal-overlay",
             Self::UnknownOperation(_) => "unknown-operation",
+            Self::OperationFailed { source, .. } => source.reason(),
+        }
+    }
+
+    /// The underlying cause, looking through [`OperationFailed`](Self::OperationFailed).
+    pub fn root(&self) -> &CommandError {
+        match self {
+            Self::OperationFailed { source, .. } => source.root(),
+            e => e,
+        }
+    }
+
+    /// The failed operation's ID, when the command became an operation
+    /// before it failed.
+    pub fn operation(&self) -> Option<OperationId> {
+        match self {
+            Self::OperationFailed { id, .. } => Some(*id),
+            _ => None,
         }
     }
 }
@@ -447,6 +507,9 @@ impl fmt::Display for CommandError {
                 write!(f, "no overlay on a {} operation", status.label())
             }
             Self::UnknownOperation(id) => write!(f, "no operation {}", id.0),
+            Self::OperationFailed { id, source } => {
+                write!(f, "operation {} failed: {source}", id.0)
+            }
         }
     }
 }
@@ -456,11 +519,22 @@ impl std::error::Error for CommandError {}
 /// Bus tunables (runtime settings, #25).
 #[derive(Debug, Clone)]
 pub struct BusConfig {
-    /// How long after its release time a queued addressed PDU may wait
-    /// before the scheduler drops it as expired.
+    /// How long after its release time a PDU whose first packet has not been
+    /// released may wait before the scheduler drops it as expired. It does
+    /// not recall anything the scheduler could already emit.
     pub pdu_deadline: Duration,
-    /// Immediate retries after `QueueFull` before the operation times out.
+    /// Immediate retries after `QueueFull`, and then ticks that may find
+    /// the queue still full, before the operation times out.
     pub queue_full_retries: u32,
+    /// How far ahead of its release time a PDU is handed to the scheduler.
+    /// [`CommandBus::tick`] must run at least this often (the daemon ticks
+    /// well inside it); a late tick re-times the late PDUs so spacing never
+    /// shrinks below the operation's delay.
+    pub release_window: Duration,
+    /// How long past a PDU's deadline the bus waits for its outcome before
+    /// treating the outcome as lost (the scheduler counts outcomes lost when
+    /// its channel is full) and failing the operation.
+    pub outcome_grace: Duration,
 }
 
 impl Default for BusConfig {
@@ -468,6 +542,8 @@ impl Default for BusConfig {
         Self {
             pdu_deadline: Duration::from_secs(60),
             queue_full_retries: 3,
+            release_window: Duration::from_secs(1),
+            outcome_grace: Duration::from_secs(5),
         }
     }
 }
@@ -521,13 +597,28 @@ struct Record {
     rep_started: MonoTime,
     next_repeat_at: Option<MonoTime>,
     failure: Option<String>,
+    /// Encoded PDUs of the current repetition not yet handed to the
+    /// scheduler, in release order. Cancel, failure and end time clear it,
+    /// so nothing further is submitted (the scheduler cannot recall a
+    /// one-shot PDU already queued).
+    pending: VecDeque<Pdu>,
+    /// Release time of the last PDU handed over (spacing floor).
+    last_release: Option<MonoTime>,
+    /// Ticks that found the scheduler queue full.
+    full_ticks: u32,
+}
+
+/// An in-flight PDU: whose it is and when its outcome is overdue.
+struct InFlight {
+    op: OperationId,
+    lost_after: MonoTime,
 }
 
 #[derive(Default)]
 struct Inner {
     next_id: u64,
     ops: BTreeMap<OperationId, Record>,
-    pdus: HashMap<PduId, OperationId>,
+    pdus: HashMap<PduId, InFlight>,
     log: Vec<LogEntry>,
 }
 
@@ -659,9 +750,10 @@ impl CommandBus {
     ///
     /// # Errors
     ///
-    /// See [`CommandError`]. An encoder error or panic fails the command
-    /// (its operation is left in Request Sent Failed and logged) and
-    /// returns `Err`; the process is unaffected.
+    /// See [`CommandError`]. An encoder error or panic, or a scheduler
+    /// refusal, fails the command: its operation is left in Request Sent
+    /// Failed or Timeout, logged, and named by
+    /// [`CommandError::OperationFailed`]. The process is unaffected.
     pub fn submit(&self, ctx: &CommandContext, cmd: Command) -> Result<Submitted, CommandError> {
         let mut resolved = 0;
         let result = self.dispatch(ctx, &cmd, &mut resolved);
@@ -792,9 +884,14 @@ impl CommandBus {
                 self.admit(ctx, cmd, &[])?;
                 self.cancel_op(*id).map(|()| Submitted::Done)
             }
-            // The seam: every other command is non-PDU. A new `Command`
-            // variant (#25's `Admin`) must be routed above or lands here.
-            Command::Control(_) => {
+            // The seam: every command not matched above is non-PDU. It gets
+            // the same policy check and goes to the handler, so a new
+            // non-PDU variant (#25's `Admin`) needs no change here. Fail-safe:
+            // the default handler refuses what it does not know. (The lint
+            // fires only while every variant is matched above; `Command` is
+            // `#[non_exhaustive]` for other crates, not for this one.)
+            #[allow(unreachable_patterns)]
+            _ => {
                 self.admit(ctx, cmd, &[])?;
                 self.handler.handle(ctx, cmd)
             }
@@ -808,6 +905,9 @@ impl CommandBus {
             .get_mut(&id)
             .ok_or(CommandError::UnknownOperation(id))?;
         rec.state.transition(OpStatus::Failed)?;
+        // Nothing further is handed to the scheduler. PDUs already handed
+        // over (at most one release window's worth) cannot be recalled.
+        rec.pending.clear();
         rec.failure = Some("cancelled".to_owned());
         g.log(Some(id), "cancelled", String::new());
         Ok(())
@@ -840,6 +940,9 @@ impl CommandBus {
                     rep_started: now,
                     next_repeat_at: None,
                     failure: None,
+                    pending: VecDeque::new(),
+                    last_release: None,
+                    full_ticks: 0,
                 },
             );
             id
@@ -848,7 +951,12 @@ impl CommandBus {
         Ok(Submitted::Queued(id))
     }
 
-    /// Plans, encodes and submits one repetition of `id` starting at `t0`.
+    /// Plans and encodes one repetition of `id` starting at `t0`, then
+    /// hands its first release window to the scheduler.
+    ///
+    /// The whole repetition is encoded first (so an encode failure never
+    /// leaves a half-submitted campaign) and kept in the record's pending
+    /// queue; [`pump`](Self::pump) feeds the scheduler just in time.
     fn start_repetition(&self, id: OperationId, t0: MonoTime) -> Result<(), CommandError> {
         let (work, class, slots, delay) = {
             let mut g = self.lock();
@@ -869,7 +977,7 @@ impl CommandBus {
         let times = plan_release_times(t0, slots.len(), delay);
 
         // Encode everything first, outside the lock, each under catch_unwind.
-        let mut pdus: Vec<Pdu> = Vec::with_capacity(slots.len());
+        let mut pdus: VecDeque<Pdu> = VecDeque::with_capacity(slots.len());
         for (slot, release) in slots.iter().zip(&times) {
             match encode_guarded(&*self.encoder, &work, slot.as_ref()) {
                 Ok(mut pdu) => {
@@ -878,74 +986,119 @@ impl CommandBus {
                     pdu.release_at = (!broadcast).then_some(*release);
                     pdu.deadline =
                         (!broadcast).then(|| release.saturating_add(self.cfg.pdu_deadline));
-                    pdus.push(pdu);
+                    pdus.push_back(pdu);
                 }
                 Err(EncodeFailure::Error(r)) => {
-                    return self.fail_start(id, &work, StartFailure::Encode(r));
+                    return Err(self.fail_op(id, &work, StartFailure::Encode(r)));
                 }
                 Err(EncodeFailure::Panicked(m)) => {
-                    return self.fail_start(id, &work, StartFailure::Panic(m));
+                    return Err(self.fail_op(id, &work, StartFailure::Panic(m)));
                 }
             }
         }
 
-        // Submit under the lock so an outcome cannot overtake the index.
         let mut g = self.lock();
-        let mut failure = None;
-        for pdu in pdus {
+        if let Some(rec) = g.ops.get_mut(&id) {
+            rec.pending = pdus;
+        }
+        let now = self.clock.mono();
+        match self.pump(&mut g, id, now) {
+            Ok(()) => Ok(()),
+            Err(f) => {
+                drop(g);
+                Err(self.fail_op(id, &work, f))
+            }
+        }
+    }
+
+    /// Hands the PDUs of `id` whose release time falls inside the release
+    /// window to the scheduler, in order. Called with the lock held, so an
+    /// outcome cannot overtake the in-flight index.
+    ///
+    /// A full queue is retried a few times at once and then once per tick;
+    /// the release time is preserved. If it stays full, the operation fails
+    /// and its still-pending PDUs are dropped, so a campaign larger than the
+    /// scheduler's queue never leaves a stream of PDUs queued behind a
+    /// failure. A PDU whose release time has already passed (a late tick) is
+    /// re-timed to keep at least the operation's delay after the previous
+    /// one.
+    fn pump(&self, g: &mut Inner, id: OperationId, now: MonoTime) -> Result<(), StartFailure> {
+        let Inner { ops, pdus, .. } = g;
+        let Some(rec) = ops.get_mut(&id) else {
+            return Ok(());
+        };
+        if rec.state.status().is_final() {
+            rec.pending.clear();
+            return Ok(());
+        }
+        let initial = rec.state.status() == OpStatus::RequestSent;
+        let horizon = now.saturating_add(self.cfg.release_window);
+        while let Some(front) = rec.pending.front() {
+            if front.release_at.is_some_and(|r| r > horizon) {
+                break;
+            }
+            let mut pdu = front.clone();
+            if let Some(r) = pdu.release_at {
+                let mut r2 = r.max(now);
+                if let Some(l) = rec.last_release {
+                    r2 = r2.max(l.saturating_add(rec.delay));
+                }
+                pdu.release_at = Some(r2);
+                pdu.deadline = Some(r2.saturating_add(self.cfg.pdu_deadline));
+            }
             let mut tries = 0;
-            let accepted = loop {
+            let sent = loop {
                 match self.sink.submit(Submission::Once(pdu.clone())) {
-                    Ok(pid) => break Ok(pid),
                     Err(SubmitError::QueueFull { .. }) if tries < self.cfg.queue_full_retries => {
                         tries += 1;
                         std::thread::yield_now();
                     }
-                    Err(e @ SubmitError::QueueFull { .. }) => {
-                        break Err(StartFailure::QueueFull(e));
-                    }
-                    Err(e) => break Err(StartFailure::Refused(e)),
+                    other => break other,
                 }
             };
-            match accepted {
+            match sent {
                 Ok(pid) => {
-                    g.pdus.insert(pid, id);
-                    if let Some(rec) = g.ops.get_mut(&id) {
-                        rec.outstanding += 1;
+                    rec.pending.pop_front();
+                    rec.full_ticks = 0;
+                    rec.outstanding += 1;
+                    if pdu.release_at.is_some() {
+                        rec.last_release = pdu.release_at;
                     }
+                    let due = pdu
+                        .deadline
+                        .unwrap_or_else(|| now.saturating_add(self.cfg.pdu_deadline));
+                    pdus.insert(
+                        pid,
+                        InFlight {
+                            op: id,
+                            lost_after: due.saturating_add(self.cfg.outcome_grace),
+                        },
+                    );
                 }
-                Err(f) => {
-                    failure = Some(f);
-                    break;
+                Err(e @ SubmitError::QueueFull { .. }) => {
+                    rec.full_ticks += 1;
+                    if initial || rec.full_ticks > self.cfg.queue_full_retries {
+                        return Err(StartFailure::QueueFull(e));
+                    }
+                    break; // try again at the next tick
                 }
+                Err(e) => return Err(StartFailure::Refused(e)),
             }
         }
-        if let Some(f) = failure {
-            drop(g);
-            return self.fail_start(id, &work, f);
+        if rec.state.status() == OpStatus::RequestSent {
+            // The RADD holds the plan: the first window is accepted and the
+            // rest waits in the release queue. Downloaded.
+            let _ = rec.state.transition(OpStatus::Downloaded);
         }
-        let link_up = self.link_up.load(Ordering::Acquire);
-        if let Some(rec) = g.ops.get_mut(&id)
-            && !rec.state.status().is_final()
-        {
-            // Every PDU of the repetition is accepted: Downloaded.
-            if rec.state.status() == OpStatus::RequestSent {
-                rec.state.transition(OpStatus::Downloaded)?;
-            }
-            apply_link(&mut rec.state, link_up);
-        }
+        apply_link(&mut rec.state, self.link_up.load(Ordering::Acquire));
         Ok(())
     }
 
-    /// Fails an operation whose repetition could not start: Request Sent
-    /// Failed or Timeout on the first repetition (still Request Sent),
-    /// Failed afterwards.
-    fn fail_start(
-        &self,
-        id: OperationId,
-        work: &Work,
-        why: StartFailure,
-    ) -> Result<(), CommandError> {
+    /// Fails an operation whose repetition could not start or continue:
+    /// Request Sent Failed or Timeout while still Request Sent, Failed
+    /// afterwards. Pending PDUs are dropped. Returns the error naming the
+    /// operation, for `submit` to hand back.
+    fn fail_op(&self, id: OperationId, work: &Work, why: StartFailure) -> CommandError {
         let (event, text, to_first, err) = match why {
             StartFailure::Encode(r) => (
                 "encode-error",
@@ -986,18 +1139,23 @@ impl CommandBus {
             if !rec.state.status().is_final() {
                 let _ = rec.state.transition(to);
             }
+            rec.pending.clear();
             rec.failure = Some(text);
         }
-        Err(err)
+        CommandError::OperationFailed {
+            id,
+            source: Box::new(err),
+        }
     }
 
     /// Feeds one scheduler outcome into the lifecycle. The daemon (#29)
     /// calls this for every [`OutcomeEvent`] it drains.
     pub fn on_outcome(&self, ev: OutcomeEvent) {
         let mut g = self.lock();
-        let Some(id) = g.pdus.remove(&ev.id) else {
+        let Some(inflight) = g.pdus.remove(&ev.id) else {
             return; // not ours (a carousel) or already forgotten
         };
+        let id = inflight.op;
         let Some(rec) = g.ops.get_mut(&id) else {
             return;
         };
@@ -1011,7 +1169,10 @@ impl CommandBus {
                 if rec.state.status() == OpStatus::Downloaded {
                     let _ = rec.state.transition(OpStatus::Active);
                 }
-                if rec.outstanding == 0 && rec.state.status() == OpStatus::Active {
+                if rec.outstanding == 0
+                    && rec.pending.is_empty()
+                    && rec.state.status() == OpStatus::Active
+                {
                     match rec.repeat_every {
                         Some(p) => {
                             // Between repetitions: Active -> Downloaded.
@@ -1026,25 +1187,59 @@ impl CommandBus {
             }
             Outcome::Expired => {
                 rec.failure = Some("a PDU expired before its first packet".to_owned());
+                rec.pending.clear();
                 let _ = rec.state.transition(OpStatus::Failed);
                 g.log(Some(id), "pdu-expired", String::new());
             }
             _ => {
                 rec.failure = Some("a PDU was dropped".to_owned());
+                rec.pending.clear();
                 let _ = rec.state.transition(OpStatus::Failed);
                 g.log(Some(id), "pdu-dropped", String::new());
             }
         }
     }
 
-    /// Advances time-driven state: starts due Repeat-Every repetitions and
-    /// closes out operations past their end time (Marked Completed). The
-    /// daemon calls it periodically; tests call it after moving the clock.
+    /// Advances time-driven state; the daemon calls it at least once per
+    /// [`BusConfig::release_window`], tests call it after moving the clock.
+    ///
+    /// - fails operations whose PDU outcome never arrived (the scheduler
+    ///   counts outcomes lost when its channel is full);
+    /// - closes out operations past their end time (Marked Completed),
+    ///   dropping their pending PDUs;
+    /// - hands due PDUs of running operations to the scheduler;
+    /// - starts due Repeat-Every repetitions.
+    ///
+    /// A failure found here fails its operation (status and log); there is
+    /// no caller to return it to.
     pub fn tick(&self) {
         let now = self.clock.mono();
         let mut due = Vec::new();
+        let mut failures = Vec::new();
         {
             let mut g = self.lock();
+            let lost: Vec<(PduId, OperationId)> = g
+                .pdus
+                .iter()
+                .filter(|(_, f)| f.lost_after <= now)
+                .map(|(p, f)| (*p, f.op))
+                .collect();
+            for (pid, op) in lost {
+                g.pdus.remove(&pid);
+                let failed = match g.ops.get_mut(&op) {
+                    Some(rec) if !rec.state.status().is_final() => {
+                        rec.failure = Some("a PDU outcome was lost".to_owned());
+                        rec.pending.clear();
+                        let _ = rec.state.transition(OpStatus::Failed);
+                        true
+                    }
+                    _ => false,
+                };
+                if failed {
+                    g.log(Some(op), "outcome-lost", String::new());
+                }
+            }
+            let mut pumpable = Vec::new();
             let ids: Vec<OperationId> = g.ops.keys().copied().collect();
             for id in ids {
                 let Some(rec) = g.ops.get_mut(&id) else {
@@ -1053,7 +1248,8 @@ impl CommandBus {
                 if rec.state.status().is_final() {
                     continue;
                 }
-                let between = rec.outstanding == 0 && rec.next_repeat_at.is_some();
+                let between =
+                    rec.outstanding == 0 && rec.pending.is_empty() && rec.next_repeat_at.is_some();
                 let past_end = rec.end_at.is_some_and(|e| now >= e);
                 let active = rec.state.status() == OpStatus::Active;
                 if past_end && (active || (between && rec.state.status() == OpStatus::Downloaded)) {
@@ -1065,14 +1261,27 @@ impl CommandBus {
                     }
                     let _ = rec.state.transition(OpStatus::MarkedCompleted);
                     rec.next_repeat_at = None;
+                    rec.pending.clear();
                     g.log(Some(id), "marked-completed", String::new());
                 } else if between
                     && rec.state.status() == OpStatus::Downloaded
                     && rec.next_repeat_at.is_some_and(|t| t <= now)
                 {
                     due.push((id, rec.next_repeat_at.unwrap_or(now)));
+                } else if !rec.pending.is_empty() {
+                    pumpable.push(id);
                 }
             }
+            for id in pumpable {
+                if let Err(f) = self.pump(&mut g, id, now)
+                    && let Some(rec) = g.ops.get(&id)
+                {
+                    failures.push((id, rec.work.clone(), f));
+                }
+            }
+        }
+        for (id, work, f) in failures {
+            let _ = self.fail_op(id, &work, f);
         }
         for (id, at) in due {
             // The release times are planned from the slot, not from a late
@@ -1101,6 +1310,7 @@ impl CommandBus {
             let status = rec.state.status();
             let silent = rec.outstanding == 0
                 && rec.emitted == 0
+                && rec.pending.is_empty()
                 && rec.next_repeat_at.is_none()
                 && matches!(status, OpStatus::Downloaded | OpStatus::Active);
             rec.state.clear_overlay();
