@@ -42,7 +42,9 @@ Socket path: `/run/oob/seam.sock` by default, a Layer 1 install setting
 is bind-mounted into the rootless container and group-owned by the
 flowgraph service's group (ADR-002 decision 6, F6-9); that mapping is an
 ops task, not part of this contract. On start the endpoint replaces a stale
-socket file left by a crash, but refuses to bind over a live endpoint.
+socket file left by a crash, but refuses to bind over a live endpoint, and
+never removes a path that is not a socket (a misconfigured path fails the
+bind instead of deleting a file).
 
 ## Wire format
 
@@ -101,7 +103,10 @@ the sync byte 0x47. A status-1 response has no body.
   concurrent connection is accepted only to be closed, logged and counted
   (`refused_connections`), because two pullers would drain the pacer
   twice. The first connection is unaffected. When it ends, the next
-  connection is accepted.
+  connection is accepted; a successor that connects in the same accept
+  batch as the close is counted refused and retries. A request left
+  half-sent for more than two seconds drops the connection, so a wedged
+  peer cannot hold the slot.
 - **Refusal.** A bad magic, version, flags, `n = 0`, `n > max_pull` or
   wrong `packet_size` gets a status-1 header and a closed connection; so
   does a source that refuses the pull (`PullError`) or breaks the

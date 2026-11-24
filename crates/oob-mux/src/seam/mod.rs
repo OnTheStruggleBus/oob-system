@@ -20,7 +20,11 @@
 //!   `puller_nulls`), which the endpoint records but never replays.
 //! - **One puller.** A second connection while one is live is accepted
 //!   only to be closed and counted, because two pullers would drain the
-//!   pacer twice.
+//!   pacer twice. A successor that connects in the same accept batch as
+//!   a departing puller's close is counted refused and simply retries
+//!   (the flowgraph reconnects about once a second). A request left
+//!   half-sent for more than two seconds drops the connection, so a wedged
+//!   peer cannot hold the slot.
 //! - **Refusal.** A malformed or over-limit request, or a source that
 //!   refuses the pull, gets a header with `status = 1` and the connection
 //!   is closed; the flowgraph then treats the endpoint as absent.
@@ -38,12 +42,12 @@ pub mod stub;
 
 use std::fmt;
 use std::io::{self, Read, Write};
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{FileTypeExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::pacer::{PacerConfig, PullSource};
 use crate::packet::{PACKET_LEN, TsPacket};
@@ -57,6 +61,9 @@ use proto::{
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// How long a reply may take to write before the connection is dropped.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
+/// How long a half-sent request may stay half-sent before the connection
+/// is dropped, so a wedged peer cannot hold the single-puller slot.
+const PARTIAL_FRAME_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Seam endpoint settings. The socket path and `max_pull` are Layer 1
 /// install settings (ADR-003); the frame constants are code.
@@ -263,7 +270,16 @@ impl SeamStatsSnapshot {
 /// Binds `path`, replacing a stale socket file left by a crashed endpoint
 /// but never one a live endpoint is listening on.
 fn bind(path: &Path) -> Result<UnixListener, SeamError> {
-    if path.exists() {
+    if let Ok(meta) = std::fs::symlink_metadata(path) {
+        // Only ever unlink a socket: on Linux, connecting to a regular
+        // file also gives ECONNREFUSED, so a misconfigured path must not
+        // be mistaken for a stale socket (oob-qa F-1).
+        if !meta.file_type().is_socket() {
+            return Err(SeamError::Bind(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "the seam socket path exists and is not a socket; refusing to remove it",
+            )));
+        }
         match UnixStream::connect(path) {
             Ok(_) => {
                 return Err(SeamError::Bind(io::Error::new(
@@ -279,6 +295,9 @@ fn bind(path: &Path) -> Result<UnixListener, SeamError> {
     }
     let listener = UnixListener::bind(path).map_err(SeamError::Bind)?;
     // Access is the directory's and the group's: 0660 (design note §2).
+    // There is a brief window between bind and chmod in which the umask's
+    // mode applies; the socket directory's permissions are what close it
+    // (ops, ADR-002 decision 6).
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o660))
         .map_err(SeamError::Bind)?;
     listener.set_nonblocking(true).map_err(SeamError::Io)?;
@@ -300,6 +319,8 @@ struct Conn {
     stream: UnixStream,
     req: [u8; REQUEST_LEN],
     filled: usize,
+    /// When the first byte of the current partial request arrived.
+    partial_since: Option<Instant>,
 }
 
 /// Serves the seam on `cfg.socket_path` until `shutdown` is requested.
@@ -367,6 +388,7 @@ fn accept_pending(listener: &UnixListener, conn: &mut Option<Conn>, stats: &Seam
                         stream,
                         req: [0; REQUEST_LEN],
                         filled: 0,
+                        partial_since: None,
                     });
                 }
             }
@@ -389,6 +411,12 @@ fn step<S: PullSource>(
     out: &mut Vec<TsPacket>,
     buf: &mut Vec<u8>,
 ) -> Step {
+    if c.partial_since
+        .is_some_and(|t| t.elapsed() > PARTIAL_FRAME_TIMEOUT)
+    {
+        eprintln!("oob-mux seam: request half-sent for too long, dropping the puller");
+        return Step::Closed;
+    }
     match c.stream.read(&mut c.req[c.filled..]) {
         Ok(0) => return Step::Closed,
         Ok(n) => c.filled += n,
@@ -407,9 +435,11 @@ fn step<S: PullSource>(
         }
     }
     if c.filled < REQUEST_LEN {
+        c.partial_since.get_or_insert_with(Instant::now);
         return Step::Idle;
     }
     c.filled = 0;
+    c.partial_since = None;
     answer(c, cfg, source, stats, out, buf)
 }
 

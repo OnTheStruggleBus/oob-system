@@ -387,7 +387,11 @@ fn malformed_and_over_limit_requests_are_refused_with_status_one() {
     .encode();
     expect_refusal(&ep.path, &wrong_size, 77);
 
-    assert_eq!(ep.stats.snapshot().bad_requests, 5);
+    let mut reserved_flags = good_request().encode();
+    reserved_flags[6] = 1;
+    expect_refusal(&ep.path, &reserved_flags, 0);
+
+    assert_eq!(ep.stats.snapshot().bad_requests, 6);
     assert_eq!(ep.stats.snapshot().requests, 0);
     // Still serving afterwards.
     let mut p = Puller::new(puller_cfg(&ep.path, 4, Duration::from_secs(5)));
@@ -535,4 +539,63 @@ fn the_rust_side_does_no_55_1_coding() {
             }
         }
     }
+}
+
+#[test]
+fn a_regular_file_at_the_socket_path_is_not_deleted() {
+    // oob-qa F-1: on Linux a connect to a regular file is ECONNREFUSED,
+    // which must not read as "stale socket".
+    let path = socket_path("file");
+    std::fs::write(&path, b"precious").unwrap_or_else(|e| panic!("{e}"));
+    let r = oob_mux::seam::serve(
+        &SeamConfig {
+            socket_path: path.clone(),
+            max_pull: MAX_PULL,
+            packet_size: PACKET_SIZE_V1,
+        },
+        stub(0.4),
+        Arc::new(SeamStats::default()),
+        &ShutdownFlag::new(),
+    );
+    assert!(matches!(r, Err(SeamError::Bind(_))), "{r:?}");
+    assert_eq!(std::fs::read(&path).unwrap_or_default(), b"precious");
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn the_socket_is_created_mode_0660() {
+    // oob-qa F-2
+    use std::os::unix::fs::PermissionsExt;
+    let ep = Endpoint::start(socket_path("mode"), stub(0.4));
+    let mode = std::fs::metadata(&ep.path)
+        .unwrap_or_else(|e| panic!("{e}"))
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o660);
+}
+
+#[test]
+fn a_wedged_half_sent_request_does_not_hold_the_slot_forever() {
+    // oob-qa F-3
+    let ep = Endpoint::start(socket_path("wedge"), stub(0.4));
+    let mut wedged = UnixStream::connect(&ep.path).unwrap_or_else(|e| panic!("{e}"));
+    wedged
+        .write_all(&good_request().encode()[..5])
+        .unwrap_or_else(|e| panic!("{e}"));
+    wedged
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap_or_else(|e| panic!("{e}"));
+    // The endpoint drops it after the partial-frame timeout (2 s).
+    let mut byte = [0u8; 1];
+    match wedged.read(&mut byte) {
+        Ok(0) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {}
+        other => panic!("the wedged connection should be dropped, got {other:?}"),
+    }
+    let mut p = Puller::new(puller_cfg(&ep.path, 4, Duration::from_secs(5)));
+    let mut out = Vec::new();
+    wait_until("a replacement puller to be served", || {
+        out.clear();
+        matches!(p.pull(&mut out), Delivery::Served { .. })
+    });
 }
