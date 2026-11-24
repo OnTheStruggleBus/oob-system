@@ -35,7 +35,7 @@ pub mod pat;
 pub mod pmt;
 pub(crate) mod section;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::pdu::{CarouselId, Payload, Pdu, Submission, TrafficClass};
@@ -146,6 +146,10 @@ pub fn statuses() -> &'static [StatusRow] {
 #[derive(Debug, Default, Clone)]
 pub struct TableVersions {
     last: HashMap<TableKind, (u8, Arc<[u8]>)>,
+    /// Kinds whose table left the plan. Their version and bytes are kept so
+    /// a re-added table continues the mod-32 count instead of restarting
+    /// at 0 (a box that cached the old version would keep stale metadata).
+    retired: HashSet<TableKind>,
 }
 
 impl TableVersions {
@@ -160,25 +164,28 @@ impl TableVersions {
     /// until #25 lands, persistence is the caller's job. Without a restore a
     /// restart would re-emit a changed table at version 0, which a box that
     /// cached that version could ignore.
-    pub fn snapshot(&self) -> Vec<(TableKind, u8, Arc<[u8]>)> {
+    pub fn snapshot(&self) -> Vec<(TableKind, u8, Arc<[u8]>, bool)> {
         let mut v: Vec<_> = self
             .last
             .iter()
-            .map(|(k, (ver, b))| (*k, *ver, Arc::clone(b)))
+            .map(|(k, (ver, b))| (*k, *ver, Arc::clone(b), self.retired.contains(k)))
             .collect();
-        v.sort_by_key(|(k, _, _)| *k);
+        v.sort_by_key(|(k, _, _, _)| *k);
         v
     }
 
-    /// Restores a set from a [`TableVersions::snapshot`]. Versions are
-    /// taken mod 32.
-    pub fn from_parts(parts: impl IntoIterator<Item = (TableKind, u8, Arc<[u8]>)>) -> Self {
-        Self {
-            last: parts
-                .into_iter()
-                .map(|(k, v, b)| (k, (v % 32, b)))
-                .collect(),
+    /// Restores a set from a [`TableVersions::snapshot`] (the last field is
+    /// "retired": the table is out of the plan but its version is kept).
+    /// Versions are taken mod 32.
+    pub fn from_parts(parts: impl IntoIterator<Item = (TableKind, u8, Arc<[u8]>, bool)>) -> Self {
+        let mut out = Self::default();
+        for (k, v, b, retired) in parts {
+            out.last.insert(k, (v % 32, b));
+            if retired {
+                out.retired.insert(k);
+            }
         }
+        out
     }
 
     /// The current version of a table, if it has been built.
@@ -237,7 +244,7 @@ fn pid_of(plan: &PidPlan, kind: TableKind) -> Pid {
 
 /// Builds one table, advancing its version only if the bytes changed.
 /// Returns the section bytes.
-pub fn build_table(
+pub(crate) fn build_table(
     plan: &ValidatedPidPlan,
     kind: TableKind,
     versions: &mut TableVersions,
@@ -275,13 +282,20 @@ pub struct PsiSet {
 pub fn build_all(plan: &ValidatedPidPlan, versions: &mut TableVersions) -> PsiSet {
     let p = plan.plan();
     let current = kinds(p);
-    let withdrawn: Vec<CarouselId> = versions
+    // Newly withdrawn tables keep their version and bytes (retired), so a
+    // later re-add continues the count; they are withdrawn once.
+    let mut gone: Vec<TableKind> = versions
         .last
         .keys()
-        .filter(|k| !current.contains(k))
-        .map(|k| k.carousel_id())
+        .filter(|k| !current.contains(k) && !versions.retired.contains(k))
+        .copied()
         .collect();
-    versions.last.retain(|k, _| current.contains(k));
+    gone.sort();
+    let withdrawn: Vec<CarouselId> = gone.iter().map(|k| k.carousel_id()).collect();
+    versions.retired.extend(gone);
+    for k in &current {
+        versions.retired.remove(k);
+    }
     let submissions = current
         .iter()
         .map(|&kind| {

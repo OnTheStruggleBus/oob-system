@@ -17,7 +17,7 @@ use oob_mux::pid_plan::{
     CaRef, EmmProviderId, EmmStream, EsPlan, PidPlan, PidPlanViolation, ProgramPlan, validate,
 };
 use oob_mux::psi::dcii::{CaSystem, GI_CA_SYSTEM_ID};
-use oob_mux::psi::{TableKind, TableVersions, build_all, build_table, statuses};
+use oob_mux::psi::{TableKind, TableVersions, build_all, statuses};
 use oob_mux::{Pid, Status, Submission};
 
 fn pid(v: u16) -> Pid {
@@ -185,7 +185,16 @@ fn golden(name: &str, bytes: &[u8]) {
 
 fn build(p: &PidPlan, kind: TableKind) -> Vec<u8> {
     let v = validate(p).unwrap();
-    build_table(&v, kind, &mut TableVersions::new()).to_vec()
+    let set = build_all(&v, &mut TableVersions::new());
+    set.submissions
+        .iter()
+        .find_map(|s| match s {
+            Submission::Cyclic { id, pdu, .. } if *id == kind.carousel_id() => {
+                Some(pdu.payload.as_bytes().to_vec())
+            }
+            _ => None,
+        })
+        .expect("table in plan")
 }
 
 fn pat_plan(n: u16) -> PidPlan {
@@ -435,6 +444,7 @@ fn version_snapshot_round_trips_and_keeps_numbering() {
     assert_eq!(v.version(TableKind::Pmt { program_number: 1 }), Some(1));
 
     let mut restored = TableVersions::from_parts(v.snapshot());
+    assert!(v.snapshot().iter().all(|e| !e.3));
     assert_eq!(restored.snapshot(), v.snapshot());
     // Unchanged plan after a restart: identical bytes, versions kept.
     let after = build_all(&validate(&p).unwrap(), &mut restored);
@@ -650,4 +660,48 @@ fn psi_through_the_pipeline_with_continuity_across_wrap() {
         assert!(s.iter().all(|x| x == &s[0]));
         decode(&s[0]);
     }
+}
+
+fn pmt2_version_after(readd: impl Fn(&mut PidPlan)) -> (Option<u8>, Option<u8>) {
+    let mut v = TableVersions::new();
+    let pmt2 = TableKind::Pmt { program_number: 2 };
+    let mut p = plan(
+        vec![program(1, 0x100, 0x101), program(2, 0x110, 0x111)],
+        vec![],
+    );
+    build_all(&validate(&p).unwrap(), &mut v);
+    // Bump program 2 once so the retained version is not the trivial 0.
+    p.programs[1].streams = vec![es(0x02, 0x111)];
+    build_all(&validate(&p).unwrap(), &mut v);
+    let last = v.version(pmt2);
+    // Remove it (withdrawn once; a second apply withdraws nothing more).
+    let mut gone = p.clone();
+    gone.programs.truncate(1);
+    let set = build_all(&validate(&gone).unwrap(), &mut v);
+    assert_eq!(set.withdrawn, [pmt2.carousel_id()]);
+    assert!(
+        build_all(&validate(&gone).unwrap(), &mut v)
+            .withdrawn
+            .is_empty()
+    );
+    // A restart in between must not lose the retained version.
+    let mut v = TableVersions::from_parts(v.snapshot());
+    readd(&mut p);
+    build_all(&validate(&p).unwrap(), &mut v);
+    (last, v.version(pmt2))
+}
+
+#[test]
+fn readded_program_with_changed_bytes_advances_version_not_zero() {
+    let (before, after) = pmt2_version_after(|p| {
+        p.programs[1].streams = vec![es(0x02, 0x111), es(0x81, 0x112)];
+    });
+    assert_eq!(before, Some(1));
+    assert_eq!(after, Some(2));
+}
+
+#[test]
+fn readded_program_with_identical_bytes_keeps_version() {
+    let (before, after) = pmt2_version_after(|_| {});
+    assert_eq!(before, after);
 }
