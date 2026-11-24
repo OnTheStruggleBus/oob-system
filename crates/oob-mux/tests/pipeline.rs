@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::sync::mpsc::TryRecvError;
 use std::time::Duration;
 
+use oob_mux::scheduler::{BudgetConfig, ClassBudget, ClassMap};
 use oob_mux::{
     CarouselId, Clock, ConfigError, DropReason, ManualClock, MonoTime, Outcome, OutcomeReceiver,
     Pacer, PacerConfig, PacketRate, Payload, Pdu, Pid, PullError, PullSource, Scheduler,
@@ -16,12 +17,37 @@ use oob_mux::{
 const BPS: u64 = 1504 * 1000; // 1000 packets/s keeps slot arithmetic readable
 const T0_UTC: u64 = 1_000_000;
 
+/// A permissive budget over the whole fixture stream: the classes behave
+/// as in strict class order unless a test says otherwise. Fixture values
+/// only; the budget's own behavior is tested in `sim_floors.rs`.
+fn budget_fixture(lab_mode: bool) -> BudgetConfig {
+    let stream_kbps = u32::try_from(BPS / 1000).unwrap();
+    BudgetConfig {
+        insertion_kbps: stream_kbps,
+        classes: ClassMap::from_fn(|c| ClassBudget {
+            floor_kbps: if c == TrafficClass::C0System {
+                stream_kbps / 2
+            } else {
+                0
+            },
+            cap_kbps: match c {
+                TrafficClass::C2Eas | TrafficClass::C4Cdl | TrafficClass::C5Lab => {
+                    Some(stream_kbps / 2)
+                }
+                _ => None,
+            },
+            burst_packets: 64,
+        }),
+        lab_mode,
+    }
+}
+
 fn sched_config() -> SchedulerConfig {
     SchedulerConfig {
         queue_depth: 8,
         max_carousels: 4,
         outcome_capacity: 64,
-        disabled_classes: vec![],
+        budget: budget_fixture(true),
     }
 }
 
@@ -442,7 +468,7 @@ fn submission_errors() {
         queue_depth: 1,
         max_carousels: 1,
         outcome_capacity: 1,
-        disabled_classes: vec![TrafficClass::C5Lab],
+        budget: budget_fixture(false),
     });
     let h = &r.handle;
     let ok = || pdu(TrafficClass::C3Guide, 0, 10, 1);
@@ -604,7 +630,8 @@ fn expired_pdus_in_lower_classes_are_reaped_while_higher_ones_have_work() {
     r.handle
         .submit(Submission::Cyclic {
             id: CarouselId(1),
-            pdu: pdu(TrafficClass::C0System, 0, 10, 1),
+            // C1: a 1 ns C0 carousel would exceed any C0 floor (#16).
+            pdu: pdu(TrafficClass::C1Addressed, 0, 10, 1),
             period: Duration::from_nanos(1), // always due
         })
         .unwrap();

@@ -26,7 +26,13 @@
 //!
 //! - [`scheduler`]: [`Pdu`]s with class, priority, release time and
 //!   deadline; one-shot or cyclic ([`Submission`]); outcomes on a bounded
-//!   channel. Class budgets, floors and caps are #16.
+//!   channel. Serves the insertion budget by class (#16, r6 F6-3):
+//!   per-class floors and caps as token buckets in packet slots
+//!   ([`scheduler::BudgetConfig`]), checked by the pure, exported
+//!   [`scheduler::validate`] that oob-dac's save path calls. C0 system
+//!   and C1 addressed are guaranteed, C2 (EAS) preempts the C3–C5
+//!   floors within its cap, C1 honours release times and infers no
+//!   spacing, C5 (lab) is off outside lab mode.
 //! - [`packetizer`]: one PDU in flight, segmented on demand. Time-bearing
 //!   PDUs are stamped when their first packet is released (r6 F6-16).
 //! - [`pacer`]: the seam's mux side. Null packets exist only here.
@@ -35,8 +41,10 @@
 //!
 //! The pull path is synchronous and bounded: no I/O, no `await`, no
 //! allocation beyond the caller's buffer, and the queue lock only for
-//! each dequeue. Counters ([`PacerStats`]) are plain atomics; exposing
-//! them as `/metrics` is #29.
+//! each dequeue. Counters ([`PacerStats`]), per-class served packets and
+//! bytes, expired and dropped included, are plain atomics; exposing them
+//! as `/metrics` is #29. `cargo bench -p oob-mux --bench scheduler`
+//! measures the pull under saturation.
 //!
 //! # What is a hypothesis
 //!

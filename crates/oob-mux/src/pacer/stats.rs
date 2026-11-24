@@ -13,6 +13,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
+use crate::packet::PACKET_LEN;
 use crate::pdu::TrafficClass;
 
 const CLASSES: usize = TrafficClass::ALL.len();
@@ -29,6 +30,9 @@ pub struct PacerStats {
     stamper_panics: AtomicU64,
     outcomes_lost: AtomicU64,
     served_by_class: [AtomicU64; CLASSES],
+    served_bytes_by_class: [AtomicU64; CLASSES],
+    expired_by_class: [AtomicU64; CLASSES],
+    dropped_by_class: [AtomicU64; CLASSES],
 }
 
 /// A point-in-time copy of [`PacerStats`].
@@ -53,6 +57,14 @@ pub struct PacerStatsSnapshot {
     /// Non-null packets per traffic class, indexed by
     /// [`TrafficClass::index`].
     pub served_by_class: [u64; CLASSES],
+    /// Wire bytes of those packets (188 per packet) per class: what #29
+    /// reads to show each class's delivered rate against its floor and
+    /// cap.
+    pub served_bytes_by_class: [u64; CLASSES],
+    /// One-shot PDUs per class dropped because their deadline passed.
+    pub expired_by_class: [u64; CLASSES],
+    /// One-shot PDUs per class dropped for another reason (lab mode off).
+    pub dropped_by_class: [u64; CLASSES],
 }
 
 impl PacerStats {
@@ -68,6 +80,11 @@ impl PacerStats {
             stamper_panics: self.stamper_panics.load(Relaxed),
             outcomes_lost: self.outcomes_lost.load(Relaxed),
             served_by_class: core::array::from_fn(|i| self.served_by_class[i].load(Relaxed)),
+            served_bytes_by_class: core::array::from_fn(|i| {
+                self.served_bytes_by_class[i].load(Relaxed)
+            }),
+            expired_by_class: core::array::from_fn(|i| self.expired_by_class[i].load(Relaxed)),
+            dropped_by_class: core::array::from_fn(|i| self.dropped_by_class[i].load(Relaxed)),
         }
     }
 
@@ -79,6 +96,7 @@ impl PacerStats {
 
     pub(crate) fn add_served(&self, class: TrafficClass, n: u64) {
         self.served_by_class[class.index()].fetch_add(n, Relaxed);
+        self.served_bytes_by_class[class.index()].fetch_add(n * PACKET_LEN as u64, Relaxed);
     }
 
     pub(crate) fn add_late(&self) {
@@ -89,8 +107,13 @@ impl PacerStats {
         self.oversized_pulls.fetch_add(1, Relaxed);
     }
 
-    pub(crate) fn add_expired(&self) {
+    pub(crate) fn add_expired(&self, class: TrafficClass) {
         self.expired.fetch_add(1, Relaxed);
+        self.expired_by_class[class.index()].fetch_add(1, Relaxed);
+    }
+
+    pub(crate) fn add_dropped(&self, class: TrafficClass) {
+        self.dropped_by_class[class.index()].fetch_add(1, Relaxed);
     }
 
     pub(crate) fn add_stamper_panic(&self) {
