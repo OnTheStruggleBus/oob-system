@@ -1,0 +1,20 @@
+# status: hypothesized — regression lock, not box-verified
+# One packet carrying the minimal PMT section (golden pmt_no_ca) on PID 0x100, counter 0.
+# Hand cross-check against ISO/IEC 13818-1 §2.4.3.2 / §2.4.4.8 (#18, F6-15):
+#   47 | 41 00 | 10   sync; TEI 0, PUSI 1, priority 0, PID 0x0100; payload only, counter 0
+#   00                 pointer_field 0
+#   02 b0 17 ... b5 b5 the 26-byte PMT section of pmt_no_ca.hex (decoded by hand there)
+#   ff ...             stuffing to 188 bytes
+# tstables (tsduck 3.45) decodes this packet as PMT, program 1, PCR PID 0x101, CRC valid.
+47 41 00 10 00 02 b0 17 00 01 c1 00 00 e1 01 f0
+00 02 e1 01 f0 00 81 e1 02 f0 00 d8 a8 b5 b5 ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff

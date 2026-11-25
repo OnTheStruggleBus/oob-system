@@ -179,3 +179,37 @@ jobs:
         run: python3 ops/agent-guard.py --self-test
       - name: every committed hook is wired, enabled, and blocks
         run: python3 ops/check-agent-hooks.py
+
+  # #18 / r6 F6-15 / ADR-002 Option C: a fixed-length stream from the real
+  # scheduler -> packetizer -> pacer (`gen_stream`, regenerated on every run,
+  # nothing cached) is analyzed by tsduck as an independent oracle for section
+  # syntax, CRC32, continuity and PID references. tsduck proves generic
+  # MPEG-2 conformance ONLY: DCII/GI-private bits are unknown to it and not
+  # thereby proven; d 15 / d 16 on a box stay the referee (r4 F4-6). Rules,
+  # allowlist and self-test: ops/ci/tsduck-analyze.py.
+  # The display name is final: it must be added to the required checks (an
+  # owner action, AGENTS.md §6 rule 6), never before this job reports.
+  tsduck:
+    name: tsduck analyze
+    # Pinned to the image the .deb below is built for (ubuntu24).
+    runs-on: ubuntu-24.04
+    env:
+      TSDUCK_VERSION: 3.45-4798
+      # sha256 of tsduck_${TSDUCK_VERSION}.ubuntu24_amd64.deb as published in
+      # the GitHub release's asset digest; a re-published asset fails the check.
+      TSDUCK_SHA256: 0023689f76e75b64e45253771208bcf8ca95b91fbfd0900da097c729f3c39fde
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: install pinned toolchain (rust-toolchain.toml)
+        run: rustup toolchain install && rustc --version
+      - name: install tsduck (release .deb + pinned sha256, no third-party action)
+        run: |
+          set -euo pipefail
+          deb="tsduck_${TSDUCK_VERSION}.ubuntu24_amd64.deb"
+          curl -sSfL "https://github.com/tsduck/tsduck/releases/download/v${TSDUCK_VERSION}/${deb}" -o "/tmp/${deb}"
+          echo "${TSDUCK_SHA256}  /tmp/${deb}" | sha256sum --check -
+          sudo apt-get update
+          sudo apt-get install -y "/tmp/${deb}"
+          tsp --version
+      - name: generate the stream, analyze it, and prove the checker rejects corrupted copies
+        run: python3 ops/ci/tsduck-analyze.py --self-test

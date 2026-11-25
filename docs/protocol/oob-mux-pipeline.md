@@ -174,3 +174,40 @@ The seam transport is built (#15): see [the pull seam](seam.md). Class
 floors and caps (#16) are built, see above; the PSI assemblers (#17)
 arrive as a sibling module. Nothing in this
 crate is hub-specific (AGENTS.md §9).
+
+## Box-free stream verification
+
+Built by issue #18 to r6 F6-15 (accepted 2026-11-22) and ADR-002 Option C.
+CI shows the stream is *valid* before a box iteration; it never shows the
+box accepts it.
+
+**None of this is box evidence.** Every golden vector header reads
+`status: hypothesized — regression lock, not box-verified`: a vector made
+by this crate proves only that its bytes did not change. **tsduck proves
+generic MPEG-2 conformance only** (section syntax, CRC32, continuity, PID
+references). The GI/DCII descriptors and table layouts are private to it:
+it reports them as unknown or private, and that is neither a failure nor a
+proof. `d 15` / `d 16` on a box remain the referee for the DCII bits (r4
+F4-6); only a capture in `lab/captures/` promotes a status (AGENTS.md §2).
+
+| Layer | Where | What it proves |
+| --- | --- | --- |
+| Golden vectors | `crates/oob-mux/tests/golden/*.hex`, loader `tests/common/golden.rs` | Exact bytes of the null packet, one packet per PID class (PAT, CAT, PMT, EMM, private), a one-packet section, sections ending exactly on a packet boundary and a multi-packet section. The PAT, the minimal PMT and the null packet were also cross-checked by hand against ISO/IEC 13818-1 and tsduck's decoder; the cross-check is in each file's header. `OOB_BLESS=1` rewrites a vector after a deliberate change (the header is kept). |
+| Properties | in-crate (`packetizer::section`, `::cc`, `::tests`) and `tests/stream.rs` | CRC32 of a section with its CRC is zero and any single bit flip breaks it; counters run +1 mod 16 per PID across any interleaving, wrap at 16, never disturb another PID, and the null PID is exempt; a section of any length spans `packets_for(len)` packets, reassembles byte-identical and has `pointer_field` 0 on every payload-unit-start packet; `pull(n)` returns exactly `n` for `n <= max_pull`. |
+| Whole stream | `cargo run -p oob-mux --example gen_stream` | A pure function of its arguments (`ManualClock`, fixed submissions, fixed xorshift seed): 20 000 packets with the class mix of C0 to C5 through the real scheduler, packetizer and pacer. |
+| tsduck | CI job `tsduck analyze`, `ops/ci/tsduck-analyze.py` | The independent oracle over the generated stream: no continuity error, no section tsduck rejects (CRC32 or syntax), no invalid sync or transport error, no PID outside the PAT/PMT/CAT (the null PID is the one allowlisted name), exactly the declared PIDs. Sections tsduck rejects are found by `tstables --invalid-sections`, matched case-insensitively and independent of the exit code. The script's self-test corrupts a copy five ways (bad CRC32, invalid syntax under a valid CRC32, continuity counter, unreferenced PID, sync byte) and requires each to be caught by the gate that owns it, so a dead gate cannot hide behind another. |
+
+Run it locally (tsduck 3.45; `brew install tsduck` or the release package):
+
+```text
+cargo run -p oob-mux --example gen_stream -- --out /tmp/oob-gen.ts
+python3 ops/ci/tsduck-analyze.py --stream /tmp/oob-gen.ts   # or no argument: regenerate
+python3 ops/ci/tsduck-analyze.py --self-test                # checker rejects bad streams
+```
+
+The OOB stream has no PCR, so the rate is given to tsduck with `--bitrate`;
+its one home is `docs/facts.yaml` (`oob_stream.stream_rate_mb_s`). The
+tsduck package is pinned by version and sha256 in the workflow. Out of
+scope: the loopback *receive* flowgraph that records TX output for replay
+(F6-15's fourth bullet) belongs to oob-dev-rf.
+
