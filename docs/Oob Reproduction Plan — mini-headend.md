@@ -290,7 +290,7 @@ hypotheses only. RF captures from real silicon confirm them.
 | W1 | PHY + carrier | M0.5–M1 | Acquire SCTE 55-1 (timeboxed 2 weeks, F3-1); GNU Radio QPSK flowgraph per spec; loopback BER test; box d 02 data-activity test | O7 preferred; oracle fallback defined (F3-1) |
 | W2 | oob-dac core + mux | M1 | TS writer (188B packets, async/null-stuffed), PID plan, **DCII-flavored** section assemblers (PAT/PMT/CAT/NIT + CA descriptors, F4-6 — O4 gains a DCII SI conformance row, documented/hypothesized/verified like the message layer; W2 exit: box d 15/d 16 shows our PMT with the expected CA descriptors), `lineup.yaml`, unit DB (DAC Define Terminal schema, §3.2), WireLink-verb admin API | — |
 | W3 | Message discovery lab | M1 | **Capture rig first (E1, F3-2):** camera OCR + capture card + RS-232 scrape, zero human interaction per experiment iteration, *before* connect experiments begin. Harness: message templates → SDR → box feedback capture; enrollment order per the E-code remedies: **factory-init → unit-creation → connect** (r4 F4-4, now manual-confirmed), then VCM/region/inband-processor/general, then the poll family + disconnect (§2). **System time/date is hunted from day one** as a hypothesized oob-msg message class (F5-8, absorbing F3-9); the capture rig notes any box-clock behavior during connect experiments | W1, W2 |
-| W4 | Clear-tier playout | M2 | ffmpeg/tsp playout → UDP/GigE → **SEM V8** (Annex B QAM, in hand); codec pin MPEG-2 MP@ML + MP2/AC-3 per census (F3-6/F5-7, §8); lineup consistency CI, extended to a schedule-DB drift alarm (W4 amendment below); time service | W3 (connect+VCM); SEM fallback = HackRF software QAM (F4-2) |
+| W4 | Clear-tier playout | M2 | ffmpeg/tsp playout → UDP/GigE → **SEM V8** (Annex B QAM, in hand); codec pin MPEG-2 MP@ML + MP2/AC-3 per census (F3-6/F5-7, §8); lineup consistency CI, inverted into a schedule-DB drift alarm (W4 amendment below); time service | W3 (connect+VCM); SEM fallback = HackRF software QAM (F4-2) |
 | W5 | FPK tier via SEM | M3 | SEM ACP module in **FPK mode** (no EMMS required — manual §2); flavor = DES or CSA per box support; verify d 01 auth reason on encrypted tier; software DES/CSA scrambling path in oob-mux stays on the backlog, not optional (see the W5 backlog note below) | W4 |
 | W6 | CDL / DLS | M4 | .obj/.dat loader, carousel builder, download control in EMM stream; sacrificial-box protocol with verified flash recovery. **First download enable is gated on D0 validation** (F3-3) | W3, **D0** |
 | W7 | Return + polish | M5–M6 | STARFONE modem-bank bridge (mgetty NAS), STARVUE upstream demod, per-terminal **Configure Transmission Parameters** (RPD channel/freq, interactive IDs, impulse credit limits, **power-leveling** attempt tracking), d 12 sign-on state machine + d 13 MAC table as observables, EAS (**post-connect message-family work, reuses the W3 harness** — no separate discovery mechanism, F3-11; zero-weight M6 backlog entry: EAS message class + crawl on the guide channel, F5-9), NC stubs | W4 |
@@ -359,7 +359,7 @@ Console views are:
 **Non-goals.** No distributed components of any kind, no message broker, no
 hot playlist injection into a running queue, and no session-VOD. SQLite stays.
 
-**W4 exit criterion (set by this plan).** W4 is accepted only when clear-tier
+**W4 exit criterion (set by this plan).** W4 counts as met only when clear-tier
 playout is driven through the schedule DB. An exercise that runs on
 `ops/lineup.yaml` alone does not satisfy it. Any box-visible claim about the
 playout still needs a capture under `lab/captures/` (AGENTS.md §2).
@@ -868,9 +868,10 @@ d 14 is fleet-wide per the install manual, so this tier is no longer
 DCT2500-gated — plus the RS-232 console *if* the census yields an
 instrumentable unit (census designates the instrument or records its
 absence).
-- M3 routed through the physical SEM V8's ACP module in FPK mode (see §8)
-  as the preferred reference; the software DES/CSA path stays on the backlog (W5 backlog note) rather than being dropped. **M3 exit amended
-  (F5-4):** EMM authorship gets an R11-style timebox + escalation ladder —
+- M3 routed through the physical SEM V8's ACP module in FPK mode (see §8),
+  as the preferred reference. The software DES/CSA path stays on the backlog
+  (W5 backlog note) rather than being dropped.
+  **M3 exit amended (F5-4):** EMM authorship gets an R11-style timebox + escalation ladder —
   (1) SEM manual re-read for EMM/ACP interfaces, (2) box-as-oracle against
   SEM-generated streams with the entitlement matrix varied, (3) surplus
   escalation (OM/RADD — one purchase covers both this and R11). Who authors

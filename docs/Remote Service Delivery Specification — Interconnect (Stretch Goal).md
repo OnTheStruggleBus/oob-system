@@ -169,7 +169,7 @@ master SEM), no change to the threat model.
 GigE/ASI *output* (not only to its own QAMs) so the scrambled TS is
 available for WAN shipment. If it can't, fallbacks in order: (a) hub gets
 its own ACP-equipped 507199-001 (expensive, opportunistic); (b) hub runs
-clear tier only until O3's optional software-scrambler knowledge exists —
+clear tier only until the software DES/CSA path exists (Plan W5 backlog note) —
 the one scenario where the demoted FPK-extraction work regains schedule
 relevance. Flagged here so nobody is surprised later.
 
