@@ -341,6 +341,8 @@ for Marshal, upload pattern per doctrine; no paywall bypass).
 
 ## 4. Data model and config (sketch)
 
+*Pointer (strategy session 2026-11-24): the schedule DB in the Reproduction Plan's W4 amendment supersedes this section's program and epoch tables as the planned source. Re-pointing this section is a follow-up and is not done here.*
+
 - `oob-dac` sqlite: `services` (already implied by entitlements work) gains
   `program_provision`; new `programs` (epoch fields, cost_units,
   antitaping), `program_handles` (BS × program → handle, zero-handle

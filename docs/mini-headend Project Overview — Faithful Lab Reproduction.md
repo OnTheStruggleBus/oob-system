@@ -205,7 +205,7 @@ reproducible)?
 
 | Order | Lane | Trust root | Planning status |
 | --- | --- | --- | --- |
-| 1 | **SciAtl cable** | Local headend: DBDS/DNCS with PowerKEY. Explorer 2000, 3000 and 8000 set-tops. DAVIC 1.x is public. | Sequenced first |
+| 1 | **SciAtl cable** | Local headend: DBDS/DNCS with PowerKEY. Explorer 2000, 3000 and 8000 set-tops. The DAVIC-derived Mode B PHY is covered by the Sci-Atlanta spec (§3). | Sequenced first |
 | 2 | **Satellite DCII** | Local headend: DCII, with DSR-4500-class IRDs and 4DTV receivers | Rides the SciAtl CA workstream (shared PowerKEY lineage) |
 | 3 | **IP STBs** | Third-party service | Per-box opportunistic rescue only. Zero gates, zero planning weight. |
 | 4 | **CableCARD** | Blocked at one anchor: the card factory CA and the PowerKEY/MediaCipher issuer hierarchy | Zero gates until the revival trigger below |

@@ -334,10 +334,11 @@ source of truth**. Every consumer reads it; none keeps a private copy:
    schedule; the lineup CI only checks that the config files agree with each
    other.
 3. **oob-dac operations.** A lineup change becomes a future-dated DAC
-   operation. The operation names Change Set-Top Channel Map and PPV
-   Authorization Update are as listed in the DAC-6000 Operations Reference
-   (section 5). The multiplex and carousel-refresh operations are to be
-   matched to that table when the ops board is specified.
+   operation. Two operation names are taken verbatim from the DAC-6000
+   Operations Reference (section 5): Change Set-Top Channel Map and PPV
+   Authorization Update. The multiplex and carousel-refresh operations do not
+   appear under those names there; they are to be named when the ops board is
+   specified.
    It is never a hot edit to live state.
 
 **Entities.** The schedule DB, held in the oob-dac store (SQLite, see the
@@ -364,7 +365,8 @@ fields, once `ops/lineup.yaml` exists, are a further place to check. Reconciling
 amendment renames neither.
 
 **Management interface.** The WireLink-verb admin API comes first. The Oob
-Console views are:
+Console views below are proposed here; the Management Console Specification
+does not list them yet:
 
 - week grid and traffic view;
 - on-air-now per service, derived from mux feedback (continuity counters and

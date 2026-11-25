@@ -155,7 +155,7 @@ back identical, and that observations are cleared.
 | Terminal rows, events, audit rows | Runtime data (Layer 1, through the command layer and API, #22 and #25) |
 | Box-type IDs a terminal refers to | The upstream catalog (#30), read-only at runtime |
 
-## Decision record: SQLite stays
+## Decision record: SQLite stays (a design note, not a numbered ADR)
 
 *Recorded from the strategy session 2026-11-24 (Marshal). Logged so that
 this is not re-litigated.*
