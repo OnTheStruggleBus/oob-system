@@ -148,7 +148,7 @@ and no archive exists yet.*
 
 **Target.** The usbjtag.com DCT2000 guide set (`https://www.usbjtag.com/dct2000/`)
 covers DCT2000 BDM, SPI, NVRAM and diagnostics. The site is abandonware, last
-updated 2016-12-31. Its FAQ is §3.1 above, and §3.1's scope rule still applies:
+updated 2016-12-31 (as the strategy-session record gives it; not yet checked against the site). Its FAQ is §3.1 above, and §3.1's scope rule still applies:
 structural and diagnostic facts only.
 
 **Method.** Mirror with `wget --mirror --no-parent --page-requisites

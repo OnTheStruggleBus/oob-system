@@ -206,13 +206,15 @@ reproducible)?
 | Order | Lane | Trust root | Planning status |
 | --- | --- | --- | --- |
 | 1 | **SciAtl cable** | Local headend: DBDS/DNCS with PowerKEY. Explorer 2000, 3000 and 8000 set-tops. The DAVIC-derived Mode B PHY is covered by the Sci-Atlanta spec (§3). | Sequenced first |
-| 2 | **Satellite DCII** | Local headend: DCII, with DSR-4500-class IRDs and 4DTV receivers | Rides the SciAtl CA workstream (shared PowerKEY lineage) |
+| 2 | **Satellite DCII** | Local headend: DCII, with DSR-4500-class IRDs and 4DTV receivers | Proposed to share the SciAtl CA workstream; the shared-lineage basis is open (see Sourcing) |
 | 3 | **IP STBs** | Third-party service | Per-box opportunistic rescue only. Zero gates, zero planning weight. |
 | 4 | **CableCARD** | Blocked at one anchor: the card factory CA and the PowerKEY/MediaCipher issuer hierarchy | Zero gates until the revival trigger below |
 
 - **SciAtl cable.** Sequenced first. Its CA workstream is the one the
   satellite lane reuses.
-- **Satellite DCII.** One CA workstream feeds both SciAtl and satellite.
+- **Satellite DCII.** The strategy session proposed one CA workstream for
+  both SciAtl and satellite. The shared-lineage basis is not relied on here;
+  see Sourcing.
   Surplus headend hardware gives richer captures. An IRD can serve as a
   headend element: demodulator, then ASI, then mux, then QAM. The L-band never
   touches coax. If a physical satellite side is wanted, the LNB is its own
@@ -234,6 +236,10 @@ Sci-Atlanta Ecosystem Specification (§3); DAVIC 1.x as a whole is not. The
 Explorer 2000, 3000 and 8000 model list, Shaw Direct's DCII service, the
 HDHomeRun Prime and Ceton InfiniTV host claims and the approximate $30 price
 are strategy-session input and are not yet sourced to a document. The
+shared PowerKEY lineage asserted for satellite DCII is contradicted by the
+Sci-Atlanta Ecosystem Specification §1 table (PowerKEY on the Scientific-Atlanta
+side, MediaCipher on the GI/Motorola side); it is not relied on here and is for
+Marshal to resolve. The
 standing searches in Prior Art §6.1 are where they get sourced.
 
 **Lane entry step (planning construct; not a gate).** Each lane has its own
