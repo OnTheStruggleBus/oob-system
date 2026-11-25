@@ -28,7 +28,7 @@ Usage:
   ops/ci/tsduck-analyze.py             generate, analyze, exit 0 only if clean
   ops/ci/tsduck-analyze.py --stream F  analyze an existing file instead
   ops/ci/tsduck-analyze.py --self-test generate, then prove the checker
-                                       rejects corrupted copies of it
+                                       rejects corrupted copies of it, each by its own gate
 """
 from __future__ import annotations
 
@@ -82,10 +82,10 @@ def check(stream: Path, bps: int, packets: int | None) -> list[str]:
          "-P", "continuity", "-P", "analyze", "--normalized", "-O", "drop"]
     )
     if rc != 0:
-        bad.append(f"tsp exited {rc}")
+        bad.append(f"[tsp] exited {rc}")
     for line in err.splitlines():
         if line.strip() and not any(k in line for k in ALLOW_STDERR):
-            bad.append(f"tsp: {line.strip()}")
+            bad.append(f"[tsp] {line.strip()}")
 
     pids: dict[int, dict[str, str]] = {}
     ts: dict[str, str] = {}
@@ -102,25 +102,25 @@ def check(stream: Path, bps: int, packets: int | None) -> list[str]:
         elif line.startswith("table:") and "tid" in f:
             tables.add(int(f["tid"]))
     if not ts:
-        return bad + ["tsp analyze produced no `ts:` summary line"]
+        return bad + ["[analyze] tsp analyze produced no `ts:` summary line"]
 
     n = int(ts.get("packets", "0"))
     if packets is not None and n != packets:
-        bad.append(f"stream has {n} packets, expected {packets}")
+        bad.append(f"[analyze] stream has {n} packets, expected {packets}")
     for key in ("invalidsyncs", "transporterrors"):
         if ts.get(key, "?") != "0":
-            bad.append(f"{key}={ts.get(key)}")
+            bad.append(f"[analyze] {key}={ts.get(key)}")
     for pid, f in sorted(pids.items()):
         for key in ("discontinuities", "duplicated", "invalidscrambling"):
             if f.get(key, "?") != "0":
-                bad.append(f"pid {pid}: {key}={f.get(key)}")
+                bad.append(f"[analyze] pid {pid}: {key}={f.get(key)}")
     extra = [p for p in unref.split(",") if p and int(p) != NULL_PID]
     if extra:
-        bad.append(f"unreferenced PIDs (not in PAT/PMT/CAT): {','.join(extra)}")
+        bad.append(f"[analyze] unreferenced PIDs (not in PAT/PMT/CAT): {','.join(extra)}")
     if set(pids) != EXPECTED_PIDS:
-        bad.append(f"PIDs present {sorted(pids)} != declared {sorted(EXPECTED_PIDS)}")
+        bad.append(f"[analyze] PIDs present {sorted(pids)} != declared {sorted(EXPECTED_PIDS)}")
     if not {0, 1, 2} <= tables:
-        bad.append(f"PAT/CAT/PMT not all seen (table ids {sorted(tables)})")
+        bad.append(f"[analyze] PAT/CAT/PMT not all seen (table ids {sorted(tables)})")
 
     # tsduck drops sections it cannot validate unless asked to dump them.
     cmd = ["tstables", "--all-sections", "--invalid-sections"]
@@ -129,10 +129,13 @@ def check(stream: Path, bps: int, packets: int | None) -> list[str]:
             cmd += ["--pid", str(p)]
     rc, out, err = run(cmd + [str(stream)])
     if rc != 0:
-        bad.append(f"tstables exited {rc}")
+        bad.append(f"[tstables] exited {rc}")
+    # tstables can exit 0 while dumping a rejected section, and its wording
+    # is lowercase in places ("invalid section", "invalid CRC32"): match
+    # case-insensitively, independent of the exit code (Copilot CP60-1).
     for line in (out + err).splitlines():
-        if "Invalid section" in line:
-            bad.append(f"tstables: {line.strip()}")
+        if "invalid section" in line.lower():
+            bad.append(f"[tstables-invalid-section] {line.strip()}")
     return bad
 
 
@@ -145,6 +148,16 @@ def generate(dest: Path, bps: int) -> None:
         raise SystemExit(f"gen_stream failed:\n{err}")
     if dest.stat().st_size != PACKETS * PKT:
         raise SystemExit(f"gen_stream wrote {dest.stat().st_size} bytes")
+
+
+def crc32(data: bytes) -> int:
+    """Bitwise CRC-32/MPEG-2 (poly 04C11DB7, init FFFFFFFF, no reflection)."""
+    crc = 0xFFFFFFFF
+    for b in data:
+        crc ^= b << 24
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x04C11DB7) & 0xFFFFFFFF if crc & 0x80000000 else (crc << 1) & 0xFFFFFFFF
+    return crc
 
 
 def mutate(data: bytes, kind: str) -> bytes:
@@ -160,6 +173,15 @@ def mutate(data: bytes, kind: str) -> bytes:
             seen += 1
             if seen == 3:
                 d[i + 3] = (d[i + 3] & 0xF0) | ((d[i + 3] + 3) & 0x0F)
+                return bytes(d)
+        if kind == "syntax" and pid == 512 and pusi:
+            sec_len = (((d[i + 6] & 0x0F) << 8) | d[i + 7]) + 3
+            if sec_len <= 183:
+                # section_number 5 > last_section_number 0: invalid syntax,
+                # with the CRC32 recomputed so it is VALID.
+                d[i + 11] = 5
+                body = bytes(d[i + 5 : i + 5 + sec_len - 4])
+                d[i + 5 + sec_len - 4 : i + 5 + sec_len] = crc32(body).to_bytes(4, "big")
                 return bytes(d)
         if kind == "unref" and pid == NULL_PID:
             d[i + 1], d[i + 2] = 0x01, 0x23  # a PID nothing declares
@@ -191,14 +213,24 @@ def main() -> int:
               f"PIDs {sorted(EXPECTED_PIDS)}, no CC/CRC/syntax/reference findings")
         if args.self_test:
             clean = stream.read_bytes()
-            for kind in ("crc", "cc", "unref", "sync"):
+            # Each corruption must be rejected by the gate that owns it, so a
+            # dead gate cannot hide behind another one still firing.
+            expect = {
+                "crc": "[tstables-invalid-section]",
+                "syntax": "[tstables-invalid-section]",
+                "cc": "[tsp]",
+                "unref": "[analyze] unreferenced",
+                "sync": "[tsp]",
+            }
+            for kind, gate in expect.items():
                 bad = Path(tmp) / f"bad-{kind}.ts"
                 bad.write_bytes(mutate(clean, kind))
                 found = check(bad, bps, packets)
-                if not found:
-                    print(f"SELF-TEST FAIL: a corrupted ({kind}) stream passed")
+                if not any(f.startswith(gate) for f in found):
+                    print(f"SELF-TEST FAIL: {kind} not caught by {gate}; got {found[:2]}")
                     return 1
-                print(f"self-test ok: {kind} rejected ({found[0][:90]})")
+                hit = next(f for f in found if f.startswith(gate))
+                print(f"self-test ok: {kind} caught by {gate} ({hit[len(gate):].strip()[:70]})")
     return 0
 
 
