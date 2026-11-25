@@ -408,57 +408,90 @@ impl StorePolicy {
         }
     }
 
-    /// Spends `token` for (`op`, `target`) in its own transaction. The
-    /// `authorized` audit row is written in that same transaction, so a
-    /// hard-destructive operation cannot run with its token spent and no
-    /// audit row (QA-3): if the row cannot be written, the token is not
-    /// spent and the command is refused.
-    fn spend(
+    /// Revalidates the target, then spends the token, in **one** writer
+    /// transaction (#59 CP-2). The sacrificial flags, the CDL lock, the
+    /// token consume and the `authorized` audit row are all read or written
+    /// inside that single transaction, so an unmark-sacrificial or a
+    /// lock-enable cannot slip in between the check and the spend: whichever
+    /// the single writer serializes first wins, and a refusal spends no token.
+    /// The `authorized` row shares the transaction too (QA-3): if it cannot
+    /// be written, the token is not spent and the command is refused.
+    ///
+    /// `cdl` is `Some(resolved)` for a CDL class: while the lock is on, the
+    /// set must be non-empty (fails closed) and every terminal must be
+    /// sacrificial **in the store now**. A flag carried by `resolved` can
+    /// only narrow that, never widen it. `must_exist` names a terminal that
+    /// has to be in the store (`unknown-terminal` otherwise). With `token`
+    /// `None` the checks still run first, then `token-missing` is returned.
+    fn spend_checked(
         &self,
         ctx: &CommandContext,
-        token: &ConfirmationToken,
+        token: Option<&ConfirmationToken>,
         op: DestructiveOp,
         target: TokenTarget,
+        cdl: Option<&[TerminalRef]>,
+        must_exist: Option<TerminalId>,
     ) -> Result<(), PolicyDenied> {
-        let (now, tok) = (self.now_ms(), token.0.clone());
+        let (now, tok) = (self.now_ms(), token.map(|t| t.0.clone()));
         let row = Self::entry(ctx, op.name(), Some(target.key()), "authorized");
-        match self.store.call_blocking(move |s| {
-            s.write(|tx| {
-                let c = token::consume(tx, &tok, op, &target, now)?;
-                if c.is_none() {
+        let cdl: Option<Vec<TerminalRef>> = cdl.map(<[TerminalRef]>::to_vec);
+        let denied = self
+            .store
+            .call_blocking(move |s| {
+                s.write(|tx| {
+                    let sac = |id: TerminalId| -> Result<Option<bool>, StoreError> {
+                        Ok(tx
+                            .conn()
+                            .query_row(
+                                "SELECT sacrificial FROM terminal WHERE terminal_id = ?1",
+                                [id.get()],
+                                |r| r.get::<_, bool>(0),
+                            )
+                            .optional()?)
+                    };
+                    if let Some(id) = must_exist
+                        && sac(id)?.is_none()
+                    {
+                        return Ok(Some(RuleId::UnknownTerminal.deny_default()));
+                    }
+                    if let Some(resolved) = cdl
+                        && lock_on(tx)?
+                    {
+                        if resolved.is_empty() {
+                            return Ok(Some(RuleId::CdlLockNonSacrificial.deny(
+                                "the sacrificial-only CDL lock is on and the target set is \
+                                 not resolved; failing closed",
+                            )));
+                        }
+                        let mut now_state = Vec::with_capacity(resolved.len());
+                        for t in &resolved {
+                            let mut t = t.clone();
+                            t.sacrificial = t.sacrificial && sac(t.id)?.unwrap_or(false);
+                            now_state.push(t);
+                        }
+                        let bad = classes::non_sacrificial(&now_state);
+                        if !bad.is_empty() {
+                            let ids: Vec<String> =
+                                bad.iter().map(|t| t.get().to_string()).collect();
+                            return Ok(Some(RuleId::CdlLockNonSacrificial.deny(format!(
+                                "the sacrificial-only CDL lock is on; not sacrificial: \
+                                 terminal ID {}",
+                                ids.join(", ")
+                            ))));
+                        }
+                    }
+                    let Some(tok) = tok else {
+                        return Ok(Some(RuleId::TokenMissing.deny_default()));
+                    };
+                    if let Some(rule) = token::consume(tx, &tok, op, &target, now)? {
+                        return Ok(Some(rule.deny_default()));
+                    }
                     tx.append_audit(&row)?;
-                }
-                Ok(c)
+                    Ok(None)
+                })
             })
-        }) {
-            Ok(None) => Ok(()),
-            Ok(Some(rule)) => Err(rule.deny_default()),
-            Err(e) => Err(store_denied(&e)),
-        }
-    }
-
-    /// Applies the lock to `resolved`. Fails closed on an empty set: a
-    /// target set the command layer could not resolve cannot be shown
-    /// sacrificial.
-    fn check_cdl_lock(&self, resolved: &[TerminalRef]) -> Result<(), PolicyDenied> {
-        if !self.cdl_lock_on().map_err(|e| store_denied(&e))? {
-            return Ok(());
-        }
-        if resolved.is_empty() {
-            return Err(RuleId::CdlLockNonSacrificial.deny(
-                "the sacrificial-only CDL lock is on and the target set is not resolved; \
-                 failing closed",
-            ));
-        }
-        let bad = classes::non_sacrificial(resolved);
-        if bad.is_empty() {
-            return Ok(());
-        }
-        let ids: Vec<String> = bad.iter().map(|t| t.get().to_string()).collect();
-        Err(RuleId::CdlLockNonSacrificial.deny(format!(
-            "the sacrificial-only CDL lock is on; not sacrificial: terminal ID {}",
-            ids.join(", ")
-        )))
+            .map_err(|e| store_denied(&e))?;
+        denied.map_or(Ok(()), Err)
     }
 
     /// Authorizes a destructive operation that does not arrive as a bus
@@ -485,24 +518,28 @@ impl StorePolicy {
                     target.kind().label()
                 )));
             }
-            if op.is_cdl() {
-                if let TokenTarget::Terminal(id) = &target {
-                    let sac = self.sacrificial(*id)?;
+            // Terminal targets resolve to the terminal itself; a plan
+            // carries no terminals here, so the lock refuses it while on
+            // (fails closed) and lets it through to the token while off.
+            let (cdl, must_exist) = match &target {
+                TokenTarget::Terminal(id) if op.is_cdl() => {
                     let mut t = TerminalRef::new(*id, crate::store::TerminalType::OneWay);
-                    t.sacrificial = sac;
-                    self.check_cdl_lock(&[t])?;
-                } else {
-                    // A plan carries no terminals here: refused while the
-                    // lock is on (fails closed), allowed through to the
-                    // token check while it is off.
-                    self.check_cdl_lock(&[])?;
+                    // Narrowed to the store's flag inside the transaction.
+                    t.sacrificial = true;
+                    (Some(vec![t]), Some(*id))
                 }
-            }
-            let t = ctx
-                .confirmation
-                .as_ref()
-                .ok_or_else(|| RuleId::TokenMissing.deny_default())?;
-            self.spend(ctx, t, op, target.clone())
+                _ if op.is_cdl() => (Some(Vec::new()), None),
+                _ => (None, None),
+            };
+            // Revalidated inside the spend transaction (#59 CP-2).
+            self.spend_checked(
+                ctx,
+                ctx.confirmation.as_ref(),
+                op,
+                target.clone(),
+                cdl.as_deref(),
+                must_exist,
+            )
         };
         match run() {
             Ok(()) => {
@@ -511,25 +548,6 @@ impl StorePolicy {
             }
             Err(d) => Err(self.refuse(ctx, op.name(), key, d)),
         }
-    }
-
-    fn sacrificial(&self, id: TerminalId) -> Result<bool, PolicyDenied> {
-        let got = self
-            .store
-            .call_blocking(move |s| {
-                s.write(|tx| {
-                    Ok(tx
-                        .conn()
-                        .query_row(
-                            "SELECT sacrificial FROM terminal WHERE terminal_id = ?1",
-                            [id.get()],
-                            |r| r.get::<_, bool>(0),
-                        )
-                        .optional()?)
-                })
-            })
-            .map_err(|e| store_denied(&e))?;
-        got.ok_or_else(|| RuleId::UnknownTerminal.deny_default())
     }
 
     /// Issues a confirmation token (owner only, audited). The caller must
@@ -542,6 +560,7 @@ impl StorePolicy {
     /// [`PolicyDenied`]: `guest-read-only`, `owner-required`,
     /// `system-cannot-originate`, `token-target-mismatch` (a target kind the
     /// class cannot take, or an install ID that is not this one),
+    /// `unknown-terminal` (a terminal target that is not in the store),
     /// `confirm-text-mismatch`, or `policy-store-error`.
     pub fn issue_token(
         &self,
@@ -572,10 +591,29 @@ impl StorePolicy {
             let expires = now.saturating_add(i64::try_from(ttl.as_millis()).unwrap_or(i64::MAX));
             let (op, target, actor) = (req.op, req.target.key(), ctx.actor.clone());
             let audit = Self::entry(ctx, &cmd, key.clone(), "ok");
+            let terminal = match &req.target {
+                TokenTarget::Terminal(id) => Some(*id),
+                _ => None,
+            };
             let token = self
                 .store
                 .call_blocking(move |s| {
                     s.write(|tx| {
+                        // CP-3: the terminal must exist, checked in the
+                        // transaction that inserts the token.
+                        if let Some(id) = terminal {
+                            let known: Option<i64> = tx
+                                .conn()
+                                .query_row(
+                                    "SELECT 1 FROM terminal WHERE terminal_id = ?1",
+                                    [id.get()],
+                                    |r| r.get(0),
+                                )
+                                .optional()?;
+                            if known.is_none() {
+                                return Ok(Err(RuleId::UnknownTerminal));
+                            }
+                        }
                         tx.conn().execute(
                             "DELETE FROM confirmation_token WHERE expires_ms <= ?1",
                             [now],
@@ -599,10 +637,11 @@ impl StorePolicy {
                             ],
                         )?;
                         tx.append_audit(&audit)?;
-                        Ok(raw)
+                        Ok(Ok(raw))
                     })
                 })
-                .map_err(|e| store_denied(&e))?;
+                .map_err(|e| store_denied(&e))?
+                .map_err(RuleId::deny_default)?;
             Ok(IssuedToken {
                 token: ConfirmationToken(token),
                 ttl,
@@ -653,11 +692,32 @@ impl StorePolicy {
                                 return Ok(c);
                             }
                         }
+                        // CP-4: a present but malformed value (anything but
+                        // exactly "0" or "1") reads as ON; overwriting it
+                        // would report success over a damaged row. Fail
+                        // closed instead: the error rolls back the token
+                        // spend, the write and the audit row.
+                        if let Some(v) = setting(tx, LOCK_KEY)?
+                            && v != "0"
+                            && v != "1"
+                        {
+                            return Err(StoreError::Corrupt(format!(
+                                "the {LOCK_KEY} setting is malformed; the lock was not changed"
+                            )));
+                        }
                         let before = lock_on(tx)?;
-                        tx.conn().execute(
+                        let rows = tx.conn().execute(
                             "UPDATE install_setting SET value = ?1 WHERE key = ?2",
                             rusqlite::params![if on { "1" } else { "0" }, LOCK_KEY],
                         )?;
+                        if rows != 1 {
+                            // CP-4: a missing setting row would read as ON
+                            // while we reported a change. Returning the
+                            // error rolls back the token spend and the audit.
+                            return Err(StoreError::Corrupt(format!(
+                                "the {LOCK_KEY} setting row is missing; the lock was not changed"
+                            )));
+                        }
                         audit.before = Some(format!("{{\"cdl_sacrificial_only\":{before}}}"));
                         audit.after = Some(format!("{{\"cdl_sacrificial_only\":{on}}}"));
                         tx.append_audit(&audit)?;
@@ -762,14 +822,16 @@ impl Policy for StorePolicy {
         {
             return Err(RuleId::DestructiveBulkRepeat.deny_default());
         }
-        if need.op.is_cdl() {
-            self.check_cdl_lock(resolved)?;
-        }
-        let token = ctx
-            .confirmation
-            .as_ref()
-            .ok_or_else(|| RuleId::TokenMissing.deny_default())?;
-        self.spend(ctx, token, need.op, need.target)?;
+        // Lock, sacrificial flags and token spend in one transaction
+        // (#59 CP-2); `resolved` flags are revalidated against the store.
+        self.spend_checked(
+            ctx,
+            ctx.confirmation.as_ref(),
+            need.op,
+            need.target,
+            need.op.is_cdl().then_some(resolved),
+            None,
+        )?;
         Ok(Grant::new())
     }
 

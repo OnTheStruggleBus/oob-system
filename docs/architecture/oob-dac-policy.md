@@ -82,7 +82,10 @@ because their times are monotonic-clock milliseconds). The lifetime defaults to
 120 s and is capped by the server at 600 s. A token is **single use**: it is
 spent by the check that accepts it, in one store transaction on the single
 writer, so of two racing spends exactly one wins. A refused attempt does not
-spend it.
+spend it. A token for a terminal target is issued only when that terminal
+exists in the store, checked in the transaction that inserts the token
+(`unknown-terminal`, no token row, no `ok` audit row): a token cannot be minted
+for an ID that a later enrolment might allocate.
 
 Binding is to the **terminal ID** (or, for a bulk set, the plan digest), the
 store-allocated handle for the unit. This deliberately differs from the
@@ -125,12 +128,21 @@ Every refusal names its rule; the code is the `reason` of the
 | `destructive-bulk-no-repeat` | a destructive bulk operation with `repeat_every` or `run_for` |
 | `confirm-text-mismatch` | a typed phrase that is not the required one |
 | `cdl-lock-non-sacrificial` | a CDL class while the lock is on and a target is not sacrificial |
-| `unknown-terminal` | marking a terminal that does not exist |
+| `unknown-terminal` | marking, authorizing a CDL class on, or issuing a token for a terminal that does not exist |
 | `policy-store-error` | any store failure (fail closed) |
 
 The order of checks is: guest, then owner and door, then the repeat refusal,
 then the CDL lock, then the token, so a lock or repeat refusal never spends a
 token.
+
+**The CDL lock check and the token spend are one transaction** (#59 CP-2). For
+a CDL class, `check` and `authorize` read the lock, re-read each target's
+`sacrificial` flag from the store, consume the token and append the
+`authorized` row in a single writer transaction. The flags the command layer
+resolved can only narrow the store's answer, never widen it, so an
+unmark-sacrificial or a lock-enable that lands between the command layer's
+resolve and the spend cannot authorize a stale target: the single writer runs
+one first, and a refusal spends no token.
 
 **A spent token is not refunded.** The token is spent by the policy check, and
 the operation can still fail afterwards (an encode error or a scheduler
@@ -151,7 +163,12 @@ safe: a failure can burn a token, never the reverse.
   and a token for `CDL LOCK OFF <install id>` **and nothing else**. The product
   imposes no D0 or evidence check (ADR-003 section 5, Marshal QA-7). The token
   is spent in the same transaction that changes the setting, which is audited
-  with before and after values.
+  with before and after values. The change must update exactly one row,
+  and the stored value must be exactly `0` or `1`: a missing or malformed
+  (e.g. `garbage`) `cdl_sacrificial_only` row fails the call with
+  `policy-store-error` and rolls the transaction back (no token spent, no `ok`
+  row), because that state reads as ON and must never be reported as changed
+  (#59 CP-4).
 - **Turning it ON** needs the owner role only.
 - **Marking a unit sacrificial** is D-hard; unmarking is owner-only.
 
