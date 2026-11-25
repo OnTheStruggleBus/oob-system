@@ -25,6 +25,15 @@
 //! status lifecycle, campaign pacing as per-PDU release times, and the only
 //! path into the `oob-mux` scheduler. The admin API and every other front
 //! door are adapters over it, in later issues.
+//!
+//! # The policy layer (r6 F6-10, ADR-003 section 5)
+//!
+//! [`policy::StorePolicy`] is the real implementation of the command layer's
+//! policy hook: owner role, confirmation tokens bound to (operation,
+//! target), dry-run default, the sacrificial-only CDL lock (seeded ON,
+//! turned off with owner plus token alone, QA-7), and an audit row for every
+//! outcome.
 
 pub mod command;
+pub mod policy;
 pub mod store;

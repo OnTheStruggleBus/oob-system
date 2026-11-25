@@ -251,7 +251,7 @@ fn derivers_write_only_classified_derived_tables() {
 
 #[test]
 fn empty_db_migrates_to_head() {
-    assert_eq!(SCHEMA_VERSION, 1);
+    assert_eq!(SCHEMA_VERSION, 2);
     for (i, (n, _)) in migrate::MIGRATIONS.iter().enumerate() {
         assert_eq!(*n as usize, i + 1, "migrations must be contiguous from 1");
     }
@@ -259,7 +259,7 @@ fn empty_db_migrates_to_head() {
     let mut store = open(&dir.db());
     assert_eq!(migrate::user_version(&store.conn).unwrap(), SCHEMA_VERSION);
 
-    // Golden schema: every object 0001 creates.
+    // Golden schema: every object the migrations create.
     let mut stmt = store
         .conn
         .prepare(
@@ -277,8 +277,10 @@ fn empty_db_migrates_to_head() {
         objects,
         [
             "table audit_log",
+            "table confirmation_token",
             "table derive_watermark",
             "table event_log",
+            "table install_setting",
             "table terminal",
             "table terminal_status",
             "trigger audit_log_no_delete",
@@ -959,7 +961,10 @@ fn rebuild_derived_restores_derived_and_never_touches_precious() {
     let from_events_before = from_events(&store.conn);
 
     let report = store.rebuild_derived().unwrap();
-    assert_eq!(report.tables, ["terminal_status", "derive_watermark"]);
+    assert_eq!(
+        report.tables,
+        ["terminal_status", "derive_watermark", "confirmation_token"]
+    );
     assert_eq!(report.events_replayed, 5);
     assert_eq!(report.derivation_error, None);
 

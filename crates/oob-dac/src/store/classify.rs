@@ -66,6 +66,20 @@ pub const TABLES: &[TableClass] = &[
         append_only: true,
         why: "the bsilog equivalent (DAC Reference §8); F6-5 precious list",
     },
+    TableClass {
+        name: "confirmation_token",
+        durability: Durability::DerivedObserved,
+        append_only: false,
+        why: "short-lived F6-10 tokens (SHA-256 only); worthless after a restart, \
+              so losing them on a restore is correct",
+    },
+    TableClass {
+        name: "install_setting",
+        durability: Durability::Precious,
+        append_only: false,
+        why: "per-install owner settings (the sacrificial-only CDL lock, seeded ON; \
+              the install id); changes are audited by the policy layer",
+    },
 ];
 
 /// Tables whose rows are box instances or box-identifying data (unit

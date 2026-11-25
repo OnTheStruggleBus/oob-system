@@ -123,9 +123,10 @@ impl TerminalOp {
     ];
 
     /// Whether the operation is destructive: policy (#23) requires the owner
-    /// role and a confirmation token for it (r6 F6-10, AGENTS.md §7).
+    /// role and a confirmation token for it (r6 F6-10, AGENTS.md §7). The
+    /// classes are the table in [`crate::policy::CLASSES`].
     pub fn is_destructive(self) -> bool {
-        matches!(self, Self::ColdInitialize | Self::FactoryInit)
+        crate::policy::classify_terminal_op(self).is_some()
     }
 }
 
