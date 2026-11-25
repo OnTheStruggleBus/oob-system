@@ -13,6 +13,8 @@
 - [Remote Service Delivery Specification — Interconnect (Stretch Goal)](Remote%20Service%20Delivery%20Specification%20—%20Interconnect%20(Stretch%20Goal).md)
 - [VOD & PPV Simulation Specification — mini-headend](VOD%20&%20PPV%20Simulation%20Specification%20—%20mini-headend.md)
 - [Billing & Subscriber Management Specification — mini-headend](Billing%20&%20Subscriber%20Management%20Specification%20—%20mini-headend.md)
+- [Programming & Ad Management Specification — mini-headend](Programming%20&%20Ad%20Management%20Specification%20—%20mini-headend.md)
+- [Encoding & Transport Specification — mini-headend](Encoding%20&%20Transport%20Specification%20—%20mini-headend.md)
 - [Management Console Specification — Oob Console](Management%20Console%20Specification%20—%20Oob%20Console.md)
 - [Project Milestones & Stage Gates — mini-headend](Project%20Milestones%20&%20Stage%20Gates%20—%20mini-headend.md)
 - [Hardware Acquisition List — mini-headend](Hardware%20Acquisition%20List%20—%20mini-headend.md)

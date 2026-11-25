@@ -110,6 +110,24 @@ exception — the SEM — collapsed our two largest risks (QAM modulation and
 MediaCipher FPK encryption) into a single period-correct appliance that was
 already in the estate.
 
+**Platform scope additions (strategy session 2026-11-24).** Three capabilities
+are part of the platform, not stretch goals:
+
+- **Programming** — the channel lineup, the service grid, sign-on and
+  sign-off, and the schedule that drives playout and the listings.
+- **Ad management** — avails, spots, campaigns and flights, trafficking, the
+  as-run log and the affidavit. All ads are spliced at the headend, because the
+  box has no per-subscriber ad path (hypothesized; see the Programming & Ad
+  Management Specification).
+- **Advanced encoding** — the MPEG-2 MP@ML 480i profile, closed-GOP splice
+  points, the CBR transport budget, PCR and PSI timing, captions, and the
+  verification checks. See the Encoding & Transport Specification.
+
+**Configuration is UI- and database-driven.** Every operator setting lives in
+oob-dac's store and is edited in the Oob Console or through the API. No
+operator edits a YAML file by hand. `ops/*.yaml` are seed and example data
+only (ADR-003).
+
 ## 4. Lab topology
 
 ```javascript
@@ -267,6 +285,8 @@ decides which governs.
 | `Remote Service Delivery Specification — Interconnect (Stretch Goal).md` | The S2 remote-delivery design |
 | `VOD & PPV Simulation Specification — mini-headend.md` | The S4 transactional layer: scheduled PPV + call-ahead, impulse PPV, NVOD, and the registered true-VOD stretch (proposed, awaiting disposition) |
 | `Billing & Subscriber Management Specification — mini-headend.md` | The S5 theater layer: accounts, rate cards, immutable ledger, period-styled fictitious statements, dunning-driven disconnect/reconnect, and the documented Billing API (proposed, awaiting disposition) |
+| `Programming & Ad Management Specification — mini-headend.md` | The platform's programming schedule, avails, spots, campaigns, trafficking, as-run and affidavit, with the UI-and-database configuration rule (proposed; gate placement for Marshal) |
+| `Encoding & Transport Specification — mini-headend.md` | The advanced encoding profile: MPEG-2 MP@ML 480i, closed-GOP splice points, CBR transport budget, PCR and PSI timing, captions, and the lab-side verification (proposed; gate placement for Marshal) |
 | `Management Console Specification — Oob Console.md` | The operator front-end — every setting, template, and campaign, API-first over the WireLink verbs |
 | `Project Milestones & Stage Gates — mini-headend.md` | The operating contract: milestone/gate map G0–G6 with entry/exit/evidence rules, enabling tracks, the living gate register, and the full development tool stack |
 | `Hardware Acquisition List — mini-headend.md` | The prioritized buy list: what to acquire, in P0→P3 order, and which gate or track each purchase unblocks |

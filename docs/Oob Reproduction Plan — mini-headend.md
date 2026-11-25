@@ -375,6 +375,14 @@ does not list them yet:
 - ops board: the Define Operations lifecycle queue;
 - fleet dashboard.
 
+**Programming, ads and encoding.** The schedule-DB entities above are
+specified in the Programming & Ad Management Specification (grid, avails,
+spots, campaigns, trafficking, as-run, affidavit, and the on-air monitor). The
+encode profile, GOP and splice rules and the asset pipeline are in the
+Encoding & Transport Specification. **All operator configuration, including
+every row those specifications define, lives in the store and is edited in the
+Console or through the API. No operator hand-edits a file (ADR-003).**
+
 **Non-goals.** No distributed components of any kind, no message broker, no
 hot playlist injection into a running queue, and no session-VOD. SQLite stays.
 
