@@ -70,7 +70,7 @@ the reason the profile is pinned, not a matter of taste.
 | Secondary codec | AC-3 (Dolby Digital), 48 kHz, only where the census confirms decoder support | documented (repo, Plan §8). The fleet's support is **hypothesized** until d-screen census |
 | MP2 bitrate | 192 kb/s stereo | lab default (the fleet's MP2 range is set in the census) |
 | AC-3 bitrate | 192–384 kb/s; 384 kb/s is the usual 5.1 rate | documented (repo, F3-6 range); the 5.1 rate is a public-standard practice |
-| Second audio (SAP-style) | Not carried in v1 | lab default. Period headends carried one |
+| Second audio (SAP-style) | Not carried in v1 | lab default. Whether period headends carried one is hypothesized |
 
 Audio is timed against video through the PTS on both elementary streams.
 The lab target is that a splice (§5) moves picture and sound together. The
@@ -113,16 +113,18 @@ This is the detail that decides whether an ad splice is clean.
 
 - **Closed GOP.** Every splice point starts a closed GOP, so the first
   frame after the splice does not depend on pictures from before it. Period
-  headend encoders used closed-GOP operation for the same reason. The
-  Sci-Atlanta encoder line in the Sci-Atlanta spec (§2) is a documented
-  example: its encoders are described with closed-GOP statistical
+  headend encoders are described with closed-GOP operation. The reason given
+  here (decode after a splice) is a lab engineering choice, not a sourced
+  claim. One documented example is the Sci-Atlanta spec §2 encoder D9032,
+  described with closed-GOP statistical
   multiplexing.
 - **GOP cadence.** N = 15, M = 3, which is the usual 480i broadcast pattern
   (I B B P B B P B B P B B P B B). **Lab default.** The cadence is a choice
   for the splice points, not a fleet requirement.
 - **Cue placement.** An SCTE 35 cue is placed on the frame that opens the
-  GOP at the splice in-point. A splice at any other frame produces a
-  decoder artifact, which the lab treats as a failed splice (§10).
+  GOP at the splice in-point. A splice at any other frame is expected to
+  produce a decoder artifact (**hypothesized** for the fleet decoder). The lab
+  treats it as a failed splice (§10).
 - **No B-frame leakage.** The first GOP after a splice starts with an I-frame
   and carries no references to the previous program.
 
@@ -132,12 +134,11 @@ This is the detail that decides whether an ad splice is clean.
 | --- | --- | --- |
 | PCR interval | At most 100 ms between PCR packets on the PCR PID | documented (public standard, ISO/IEC 13818-1) |
 | PCR accuracy | Within ±500 ns of the nominal clock | documented (public standard, ISO/IEC 13818-1) |
-| PAT and PMT repetition | At most 100 ms | documented (public standard, ISO/IEC 13818-1). Confirm wording when the text is acquired |
-| PTS | Present on every access unit | documented (public standard) |
+| PAT and PMT repetition | Lab target: at most 500 ms. The 100 ms figure is the PCR interval, not a PAT or PMT rule | lab default, to confirm against ISO/IEC 13818-1 when acquired. The 500 ms target follows public DVB measurement practice (ETSI TR 101 290), not a repo document |
+| PTS | Present on every access unit; repeated at least every 700 ms | documented (public standard, ISO/IEC 13818-1), to confirm against the text |
 | Lab pacing target | PCR jitter inside the ±500 ns budget at the SEM input | lab default. Measured on the analyzer (§10) |
 
-The program TS has PCR. The OOB stream does not (ADR-001, the OOB rate note in
-§4). Anyone who copies the "no PCR" fact from the OOB context into the program
+The program TS has PCR. The OOB stream does not (ADR-001 §1, Context). Anyone who copies the "no PCR" fact from the OOB context into the program
 context is making an error.
 
 ## 7. Program stream tables
@@ -152,8 +153,9 @@ context is making an error.
   public standard, ANSI/SCTE 35). The box's reaction to this stream type is
   **hypothesized**. The lab expects the box to skip it; a capture must show that.
 - **Null packets** — PID 0x1FFF. Used to fill the CBR budget (§4).
-- **Continuity counters** — must increase by one per packet on each PID, with
-  the documented exceptions. The analyzer checks them (§10).
+- **Continuity counters** — increments by one on each packet that carries payload, on each PID, with the
+  public-standard exceptions (ISO/IEC 13818-1, for adaptation-only packets and
+  discontinuity indicators). The analyzer checks them (§10).
 
 ## 8. Captions and user data
 
@@ -207,7 +209,7 @@ box-visible claim still needs a capture (AGENTS.md §2).
 | GOP cadence at splices | Every splice frame is a closed-GOP I-frame | tsduck analyzer on the splice list |
 | PCR interval | ≤ 100 ms on every PCR PID | tsanalyze (tsduck) |
 | PCR accuracy | Within ±500 ns at the SEM input | tsp pacing logs; lab-side measurement only |
-| PAT and PMT repetition | ≤ 100 ms | tsanalyze |
+| PAT and PMT repetition | ≤ 500 ms lab target (§6) | tsanalyze |
 | Continuity counters | No unexplained gaps | tsanalyze |
 | Bitrate per service | Within the §4 budget | tsanalyze PID bitrate |
 | Lip sync across a splice | Picture and sound within the lab target | lab measurement; the target is a lab default |

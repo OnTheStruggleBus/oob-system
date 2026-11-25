@@ -81,7 +81,7 @@ The chain of entities, from the lineup down to the content:
 1. **Service** — a mux service with its PID plan, entitlement tier and
    lineup position (the W4 amendment's **Service** entity).
 2. **Grid slot** — a time window on one service, aligned to the half hour
-   by default (lab default, the common period grid).
+   by default (lab default).
 3. **Program instance** — a **Program** placed in a grid slot. A program is
    built from one or more **Assets** (the Encoding & Transport Specification,
    §9).
@@ -107,8 +107,9 @@ synthesizer reads (Reproduction Plan §4.1).
 
 **Schedule changes.** A schedule change is a revision (§2). Changes that
 affect the next grid slot or later are future-dated DAC operations
-(Channel Map, Multiplex, PPV Authorization Update, carousel refresh, per the
-DAC-6000 Operations Reference, section 5). A change inside the current slot
+(Change Set-Top Channel Map and PPV Authorization Update, as named in the
+DAC-6000 Operations Reference, section 5; the multiplex and carousel-refresh
+operations are not named there and are to be named at the ops board). A change inside the current slot
 is refused, not applied in place.
 
 **Emergency alert.** The EAS path is the W7 backlog entry and is not in the
@@ -132,7 +133,7 @@ edits, not a constant in code.
 ### 4.2 Spot inventory
 
 A **spot** is a self-authored commercial placeholder. Spot length is one of
-15, 30, 60 or 120 seconds (lab default; the period lengths). Each spot is an
+15, 30, 60 or 120 seconds (lab default; the period lengths are hypothesized). Each spot is an
 Asset (Encoding & Transport Specification, §9) with its own transcode record,
 so a spot is encoded to the same profile as program content and the splice
 rules of §5 of that specification apply to it.
@@ -152,7 +153,7 @@ A **campaign** is a fictitious advertiser's order:
   per service per hour, so one spot does not dominate a break);
 - a **make-good** rule: when as-run shows fewer airings than contracted, the
   shortfall is queued as make-good airings in the next flight (period
-  practice; lab default).
+  practice hypothesized; lab default).
 
 ### 4.4 Trafficking
 
@@ -284,8 +285,9 @@ No gate is passed, claimed or dispositioned here.
   amendment).
 - Encoding & Transport Specification (the profile, GOP and splice rules, the
   asset pipeline).
-- DAC-6000 Operations Reference, section 5 (Define Operations: Change Set-Top
-  Channel Map, PPV Authorization Update) and section 10.
+- DAC-6000 Operations Reference, section 5 (Change Set-Top Channel Map, code
+  688; PPV Authorization Update, code 694) and section 10 (Define Operations
+  status).
 - VOD & PPV Simulation Specification (PPV epochs; the W4 amendment supersedes
   its hand-simulated epochs, as a planned follow-up).
 - ADR-003 (runtime configuration in the store; YAML is seed only; community

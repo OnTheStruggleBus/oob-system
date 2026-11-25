@@ -193,7 +193,7 @@ format + segment framing to confirm against a live box."
 | Define Terminal / unit DB (§9) | `units` store (unit addr, serial, type, plants, features) |
 | Initialize / Cold Init / Disconnect / Clear PIN (§9) | `lifecycle` command emitter |
 | Authorize Services/Packages/IPPV (§9, §7) | `entitlements` (tiers, packages, credit) |
-| Channel maps (§8) | `lineup` (from `lineup.yaml`) |
+| Channel maps (§8) | `lineup` store rows (seeded from `lineup.yaml`) |
 | WireLink 600/700 (§4) | `admin-api` (same verbs/codes) |
 | DLS download stream (§12) | `cdl` carousel builder (.obj/.dat loader) |
 | EMM stream incl. download control (§12) | `emm` (Fixed-mode now; Full later) |

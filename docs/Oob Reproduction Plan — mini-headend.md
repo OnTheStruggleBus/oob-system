@@ -793,7 +793,7 @@ in order: (a) source a donor object (fleet-external DCTs are cheap e-waste
 feedstock; census watches explicitly for **Passport Echo** modules — one
 artifact would satisfy residency *and* R12 theming, F5-3) and re-serve via
 CDL; (b) **headend-rendered video guide channel** — grid rendered from
-`lineup.yaml` server-side and played out as an ordinary MPEG-2 channel
+the schedule DB and lineup store rows server-side and played out as an ordinary MPEG-2 channel
 (Prevue/TV Guide Channel style, period-authentic by definition): zero
 box-side code, zero CDL dependency, works the day clear-tier playout works;
 (c) only if both fail, a **native substitute grid app** — explicitly
@@ -1022,7 +1022,7 @@ passthrough or device-node juggling. Realtime tolerance: OOB is a
 1.024 Msym/s constant-rate stream; the flowgraph (not the daemons) owns
 timing. **Deployment notes (F4-7):** host networking (or macvlan) for the
 playout container so UDP multicast behaves; explicit multicast group/port
-convention in `lineup.yaml`; the managed switch (buy list) sits between
+convention in a store row (seeded from `lineup.yaml`); the managed switch (buy list) sits between
 playout host and SEM to keep multicast clean; a container-restart canary
 re-asserts the Pluto/iiod connection (the USB-net gadget's link-local
 addressing must survive restarts).
@@ -1063,7 +1063,7 @@ OOB flowgraph ─►│ HackRF One   │── filter ────┴───�
   kill criteria revised in §6.
 - **Frequency housekeeping (F4-8):** the SEM tunes to 861 MHz but the box
   tuner passes 54–860 MHz — keep the lineup ≤860 MHz. STD vs HRC/IRC is our
-  free choice via the VCM; the SEM's plan setting, `lineup.yaml`, and the
+  free choice via the VCM; the SEM's plan setting, the lineup store row, and the
   VCM must agree — **STD is the default**, recorded here deliberately. Three
   hunt carriers (104.2/107.25/107.40 MHz) sit in the FM broadcast band — a
   closed, terminated plant radiates nothing of consequence, but this is a

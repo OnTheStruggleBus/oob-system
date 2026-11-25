@@ -111,7 +111,7 @@ MediaCipher FPK encryption) into a single period-correct appliance that was
 already in the estate.
 
 **Platform scope additions (strategy session 2026-11-24).** Three capabilities
-are part of the platform, not stretch goals:
+are proposed as platform scope, not stretch goals; gate placement is for Marshal:
 
 - **Programming** — the channel lineup, the service grid, sign-on and
   sign-off, and the schedule that drives playout and the listings.
