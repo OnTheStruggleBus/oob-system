@@ -270,6 +270,8 @@ goes into a corpus spec with its provenance, written as "extracted from
 acquired image, sha256:DIGEST", with the full digest in place of DIGEST. Wire-format constants are permitted.
 Key material is not a wire-format constant: an FPK constant or any other key
 material is secrets-tier under AGENTS.md §5 and never goes into a corpus spec.
+Whether corpus specs carry the full digest or a truncated one is for the owner
+to confirm, since a full digest fingerprints the artifact.
 Code, artwork and UI text are never copied verbatim.
 
 **Solo cleanroom hygiene.** This is cleanroom discipline at solo weight, not a
@@ -293,7 +295,7 @@ hypotheses only. RF captures from real silicon confirm them.
 | W2 | oob-dac core + mux | M1 | TS writer (188B packets, async/null-stuffed), PID plan, **DCII-flavored** section assemblers (PAT/PMT/CAT/NIT + CA descriptors, F4-6 — O4 gains a DCII SI conformance row, documented/hypothesized/verified like the message layer; W2 exit: box d 15/d 16 shows our PMT with the expected CA descriptors), `lineup.yaml`, unit DB (DAC Define Terminal schema, §3.2), WireLink-verb admin API | — |
 | W3 | Message discovery lab | M1 | **Capture rig first (E1, F3-2):** camera OCR + capture card + RS-232 scrape, zero human interaction per experiment iteration, *before* connect experiments begin. Harness: message templates → SDR → box feedback capture; enrollment order per the E-code remedies: **factory-init → unit-creation → connect** (r4 F4-4, now manual-confirmed), then VCM/region/inband-processor/general, then the poll family + disconnect (§2). **System time/date is hunted from day one** as a hypothesized oob-msg message class (F5-8, absorbing F3-9); the capture rig notes any box-clock behavior during connect experiments | W1, W2 |
 | W4 | Clear-tier playout | M2 | ffmpeg/tsp playout → UDP/GigE → **SEM V8** (Annex B QAM, in hand); codec pin MPEG-2 MP@ML + MP2/AC-3 per census (F3-6/F5-7, §8); lineup consistency CI (kept; a G2 exit item) plus a schedule-DB drift alarm (W4 amendment below); time service | W3 (connect+VCM); SEM fallback = HackRF software QAM (F4-2) |
-| W5 | FPK tier via SEM | M3 | SEM ACP module in **FPK mode** (no EMMS required — manual §2); flavor = DES or CSA per box support; verify d 01 auth reason on encrypted tier; software DES/CSA scrambling path in oob-mux is backlog work and not a counted route (see the W5 backlog note below) | W4 |
+| W5 | FPK tier via SEM | M3 | SEM ACP module in **FPK mode** (no EMMS required — manual §2); flavor = DES or CSA per box support; verify d 01 auth reason on encrypted tier; software DES/CSA scrambling path in oob-mux is backlog work (see the W5 backlog note below); its kill-criterion status is not decided here | W4 |
 | W6 | CDL / DLS | M4 | .obj/.dat loader, carousel builder, download control in EMM stream; sacrificial-box protocol with verified flash recovery. **First download enable is gated on D0 validation** (F3-3) | W3, **D0** |
 | W7 | Return + polish | M5–M6 | STARFONE modem-bank bridge (mgetty NAS), STARVUE upstream demod, per-terminal **Configure Transmission Parameters** (RPD channel/freq, interactive IDs, impulse credit limits, **power-leveling** attempt tracking), d 12 sign-on state machine + d 13 MAC table as observables, EAS (**post-connect message-family work, reuses the W3 harness** — no separate discovery mechanism, F3-11; zero-weight M6 backlog entry: EAS message class + crawl on the guide channel, F5-9), NC stubs | W4 |
 | W8 | **Guide — classic i-Guide** | M6 | See §4.1. App residency census → data-feed discovery → listings synthesizer; fidelity target is the TV Guide Interactive grid | W3, W4; donor path also D0 (F3-3/F4-3) |
@@ -324,7 +326,7 @@ source of truth**. Every consumer reads it; none keeps a private copy:
 
 1. **oob-playout** builds its playlist queues from the schedule.
 2. **The W8 listings synthesizer** derives guide listings from the same
-   schedule. A **drift alarm** is added beside the lineup consistency CI.
+   schedule. A **drift monitor** is added at runtime beside the lineup consistency CI job.
    The lineup CI stays as it is and stays green (G2 exit). The alarm reports
    when on-air state, the listings and the mux output disagree with the
    schedule; the lineup CI only checks that the config files agree with each
@@ -332,7 +334,7 @@ source of truth**. Every consumer reads it; none keeps a private copy:
 3. **oob-dac operations.** A lineup change becomes a future-dated DAC
    operation. The operation names Change Set-Top Channel Map and PPV
    Authorization Update are as listed in the DAC-6000 Operations Reference
-   (section 10). The multiplex and carousel-refresh operations are to be
+   (section 5). The multiplex and carousel-refresh operations are to be
    matched to that table when the ops board is specified.
    It is never a hot edit to live state.
 
@@ -353,8 +355,10 @@ entities:
 
 **Name collision (follow-up).** The VOD & PPV Simulation Specification (§3.1
 and §4) already defines a `programs` table and a program database in oob-dac.
-The Program and Service entities here belong to the schedule DB, in the same
-store. Reconciling the two sets of names is a follow-up for the owner. This
+The Program and Service entities here are schedule-DB entities in the same
+store. The VOD spec's BSG service and program handles (§2.1) use the same
+words, so the Service entity collides with them as well. The lineup's PPV
+fields, once `ops/lineup.yaml` exists, are a further place to check. Reconciling the two sets of names is a follow-up for the owner. This
 amendment renames neither.
 
 **Management interface.** The WireLink-verb admin API comes first. The Oob
@@ -386,8 +390,8 @@ entry. It does not change the W5 row's gate placement, the M3 exit criteria,
 or any gate disposition.*
 
 W5 currently leans on the surplus SEM V8 ACP module as load-bearing for the
-whole FPK tier. That is backwards from AGENTS.md §11, under which surplus finds carry no
-planning weight. The backlog entry reverses the dependency.
+whole FPK tier. That is backwards: a whole tier that depends on one surplus unit inherits
+that unit's availability. The backlog entry reverses the dependency.
 
 - **Implement the DES/CSA scrambling path in oob-mux** against the SEM V8
   manual, which is in hand, as its design basis. This proceeds regardless of
@@ -412,10 +416,9 @@ Operations Reference both name oob-mux.
 **Gap.** The F4-2 HackRF fallback (W4) covers modulation only. It gives no
 scrambling path, so it does not close this gap.
 
-**Kill criterion.** The software path is backlog work, not a new route under
-the kill criterion (AGENTS.md §1, rule 5). Whether it should count as an
-additional route is Marshal's call at the next gate review. It is not counted
-here.
+**Kill criterion.** Whether the software path counts as a route under the kill
+criterion (AGENTS.md §1, rule 5) is Marshal's call at the next gate review.
+This note does not classify it, and it is not counted here.
 
 ## 4.1 W8 — Guide, classic i-Guide (Marshal's requirement)
 

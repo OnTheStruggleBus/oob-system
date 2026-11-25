@@ -124,7 +124,7 @@ here claims working code until the gate evidence says so — see
   then synthesize the listings feed in whatever format the resident app
   parses — discovered box-as-oracle, with the d 14 message-type counters
   as the transport oracle.
-- Listings synthesizer: `lineup.yaml` + schedule editor → feed; per-program
+- Listings synthesizer: schedule DB (W4 amendment; seeded from `lineup.yaml`) → feed; per-program
   attributes evidenced by the period frame corpus (genre colors,
   ratings, cast synopses, PPV price/`$` badging, preview links).
 - The guide feed is an **always-on service** under watchdog; the nightly

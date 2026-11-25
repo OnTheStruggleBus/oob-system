@@ -52,8 +52,10 @@ DAC-documented per-service/per-program encryption modes:
    DCT2000-class boxes). One extraction serves the whole fleet. Candidate
    sources: box firmware analysis (DCT2500 Broadcom path), SEM documentation,
    or the surplus-hardware lab.
-3. Scrambling is ours to implement in oob-mux (DCII DES/CSA; backlog per Plan W5 note) once the
-   constant is known — tsduck and ffmpeg both have CSA/DES-CSA building blocks.
+3. Scrambling is ours to implement once the constant is known — tsduck and
+   ffmpeg both have CSA/DES-CSA building blocks. Placement in oob-mux is
+   proposed in the Plan W5 note and awaits an ADR-002 amendment; the path is
+   backlog.
 4. **Full Encryption per-service addressability** remains the only mode that
    truly needs the KLS/ECC chain (§3) — now explicitly a stretch goal, not a
    gate.

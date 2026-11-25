@@ -183,6 +183,9 @@ opportunistic only (AGENTS.md §11).
   the CableCARD revival trigger in the Overview, §7.1.
 - DNCS and Explorer service documentation.
 - DCII IRD and mux-modulator surplus.
+- Shaw Direct, DSR-4500-class IRD and 4DTV documentation and surplus.
+- HDHomeRun Prime and Ceton InfiniTV host documentation, including SDV.
+- DAVIC 1.x specification availability.
 
 **Open tension (flagged, not resolved).** The G5 note in §6 calls the
 Sci-Atlanta second front "far-future". The expansion-lane order in the Overview,
