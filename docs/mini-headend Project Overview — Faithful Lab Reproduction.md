@@ -242,8 +242,8 @@ get folded in at the next revision.
   branch `docs/wirelink-v3-corpus`, not yet merged. Open item **O15** (the
   full WireLink 600/700 dialect reference) is therefore partly acquired;
   its §4 and §5 are still missing, and the O15 wording stays open.
-- **Next steps:** Track C — #18 (box-free stream verification with tsduck
-  analysis in CI), then #19 and #20; Track D — #25 (runtime configuration
+- **Next steps:** Slice C — #18 (box-free stream verification with tsduck
+  analysis in CI), then #19 and #20; Slice D — #25 (runtime configuration
   store), then #26, #27, #24 and #29.
 - Documentation base: **done** (M0). Two manuals mined in full (DAC 6000
   V3.1, SEM V8 7.1.x), DCT2000 Installation Manual in hand and folded in.
