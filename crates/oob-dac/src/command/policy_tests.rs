@@ -1165,3 +1165,255 @@ fn authorize_names_the_right_rule_for_a_cdl_plan_in_both_lock_states() {
         .authorize(&with(owner(), &t), DestructiveOp::CdlCampaign, plan)
         .unwrap();
 }
+
+// ---- #59: CP-2 / CP-3 / CP-4 security fixes ---------------------------
+
+impl Fix {
+    fn sql(&self, sql: &'static str) {
+        self.store
+            .call_blocking(move |s| {
+                s.write(|tx| {
+                    tx.conn().execute_batch(sql)?;
+                    Ok(())
+                })
+            })
+            .unwrap();
+    }
+
+    fn count(&self, sql: &'static str) -> i64 {
+        self.store
+            .call_blocking(move |s| s.write(|tx| Ok(tx.conn().query_row(sql, [], |r| r.get(0))?)))
+            .unwrap()
+    }
+
+    fn tokens(&self) -> i64 {
+        self.count("SELECT count(*) FROM confirmation_token")
+    }
+
+    fn unspent(&self) -> i64 {
+        self.count("SELECT count(*) FROM confirmation_token WHERE used = 0")
+    }
+}
+
+#[test]
+fn cp2_check_revalidates_a_stale_sacrificial_flag_in_the_spend_transaction() {
+    let f = fix();
+    let cdl = Command::Auto(AutoOp::CodeDownload);
+    // The command layer's directory says terminal 2 is sacrificial; the
+    // store (the authority) says it is not.
+    let stale = refs(&[1, 2], &[1, 2]);
+    let t = f.issue(
+        DestructiveOp::CdlCampaign,
+        TokenTarget::Plan(plan_digest(AutoOp::CodeDownload.name(), &stale)),
+    );
+    let e = f
+        .policy
+        .check(&with(owner(), &t), &cdl, &stale)
+        .unwrap_err();
+    assert_eq!(e.reason, "cdl-lock-non-sacrificial");
+    assert!(e.detail.contains('2'), "{}", e.detail);
+    assert_eq!(f.unspent(), 1, "a refusal spends no token");
+    // With the lock off the same token still works: it was never spent.
+    f.lock_off();
+    f.policy.check(&with(owner(), &t), &cdl, &stale).unwrap();
+}
+
+#[test]
+fn cp2_authorize_refuses_a_terminal_unmarked_before_the_spend_and_spends_nothing() {
+    let f = fix();
+    let tgt = TokenTarget::Terminal(tid(1));
+    let t = f.issue(DestructiveOp::CodeDownloadEnable, tgt.clone());
+    f.policy.mark_sacrificial(&owner(), tid(1), false).unwrap();
+    let e = f
+        .policy
+        .authorize(
+            &with(owner(), &t),
+            DestructiveOp::CodeDownloadEnable,
+            tgt.clone(),
+        )
+        .unwrap_err();
+    assert_eq!(e.reason, "cdl-lock-non-sacrificial");
+    assert_eq!(f.unspent(), 1);
+    assert!(seq_of(&f, DestructiveOp::CodeDownloadEnable.name(), "authorized").is_none());
+    // An unknown terminal is still named as such, with the lock on.
+    let ghost = TokenTarget::Terminal(tid(99));
+    assert_eq!(
+        rule(
+            f.policy
+                .authorize(&with(owner(), &t), DestructiveOp::CodeDownloadEnable, ghost)
+        ),
+        "unknown-terminal"
+    );
+    assert_eq!(f.unspent(), 1);
+}
+
+/// The sequence number of the first audit row with this command and outcome.
+fn seq_of(f: &Fix, command: &str, outcome: &str) -> Option<i64> {
+    f.rows(command)
+        .into_iter()
+        .find(|r| r.entry.outcome == outcome)
+        .map(|r| r.seq)
+}
+
+#[test]
+fn cp2_a_concurrent_unmark_cannot_slip_a_non_sacrificial_unit_through() {
+    // The writer serializes the authorize transaction and the unmark. The
+    // authorize either lands before the unmark (its `authorized` row has the
+    // lower sequence number) or sees the unmarked unit and is refused. The
+    // old read-then-spend code could authorize after the unmark.
+    let op = DestructiveOp::CodeDownloadEnable;
+    for _ in 0..60 {
+        let f = fix();
+        let tgt = TokenTarget::Terminal(tid(1));
+        let t = f.issue(op, tgt.clone());
+        let gate = Arc::new(Barrier::new(2));
+        let a = {
+            let (p, g, t, tgt) = (f.policy.clone(), gate.clone(), t.clone(), tgt.clone());
+            thread::spawn(move || {
+                g.wait();
+                p.authorize(&with(owner(), &t), op, tgt)
+            })
+        };
+        let b = {
+            let (p, g) = (f.policy.clone(), gate.clone());
+            thread::spawn(move || {
+                g.wait();
+                p.mark_sacrificial(&owner(), tid(1), false)
+            })
+        };
+        let res = a.join().unwrap();
+        b.join().unwrap().unwrap();
+        let unmark = seq_of(&f, "mark-sacrificial", "ok").expect("the unmark landed");
+        match res {
+            Ok(()) => {
+                let auth = seq_of(&f, op.name(), "authorized").expect("authorized row");
+                assert!(
+                    auth < unmark,
+                    "authorized (seq {auth}) after the unit was unmarked (seq {unmark})"
+                );
+            }
+            Err(e) => {
+                assert_eq!(e.reason, "cdl-lock-non-sacrificial");
+                assert_eq!(f.unspent(), 1, "a refusal spends no token");
+                assert!(seq_of(&f, op.name(), "authorized").is_none());
+            }
+        }
+    }
+}
+
+#[test]
+fn cp2_a_concurrent_lock_enable_cannot_slip_a_non_sacrificial_unit_through() {
+    let op = DestructiveOp::CodeDownloadEnable;
+    for _ in 0..60 {
+        let f = fix();
+        f.lock_off();
+        let tgt = TokenTarget::Terminal(tid(2)); // not sacrificial
+        let t = f.issue(op, tgt.clone());
+        let gate = Arc::new(Barrier::new(2));
+        let a = {
+            let (p, g, t, tgt) = (f.policy.clone(), gate.clone(), t.clone(), tgt.clone());
+            thread::spawn(move || {
+                g.wait();
+                p.authorize(&with(owner(), &t), op, tgt)
+            })
+        };
+        let b = {
+            let (p, g) = (f.policy.clone(), gate.clone());
+            thread::spawn(move || {
+                g.wait();
+                p.set_cdl_lock(&owner(), true)
+            })
+        };
+        let res = a.join().unwrap();
+        b.join().unwrap().unwrap();
+        let enable = f
+            .rows("set-cdl-lock")
+            .into_iter()
+            .find(|r| r.entry.after.as_deref() == Some("{\"cdl_sacrificial_only\":true}"))
+            .map(|r| r.seq)
+            .expect("the lock-enable landed");
+        match res {
+            Ok(()) => {
+                let auth = seq_of(&f, op.name(), "authorized").expect("authorized row");
+                assert!(auth < enable, "authorized after the lock was enabled");
+            }
+            Err(e) => {
+                assert_eq!(e.reason, "cdl-lock-non-sacrificial");
+                assert_eq!(f.unspent(), 1, "a refusal spends no token");
+                assert!(seq_of(&f, op.name(), "authorized").is_none());
+            }
+        }
+    }
+}
+
+#[test]
+fn cp3_a_token_is_not_issued_for_an_unknown_terminal() {
+    let f = fix();
+    for op in [
+        DestructiveOp::FactoryInit,
+        DestructiveOp::CodeDownloadEnable,
+    ] {
+        let target = TokenTarget::Terminal(tid(99));
+        let confirm_text = confirmation_phrase(op, &target);
+        let e = f
+            .policy
+            .issue_token(
+                &owner(),
+                &TokenRequest {
+                    op,
+                    target,
+                    confirm_text,
+                },
+            )
+            .unwrap_err();
+        assert_eq!(e.reason, "unknown-terminal");
+        let rows = f.rows(&format!("issue-token:{}", op.name()));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].entry.outcome, "unknown-terminal");
+    }
+    assert_eq!(f.tokens(), 0, "no token row was written");
+    // A known terminal still issues.
+    let _ = f.issue(DestructiveOp::FactoryInit, TokenTarget::Terminal(tid(2)));
+    assert_eq!(f.tokens(), 1);
+    assert!(seq_of(&f, "issue-token:factory-init", "ok").is_some());
+}
+
+#[test]
+fn cp4_a_missing_lock_row_fails_the_change_and_rolls_back() {
+    let f = fix();
+    let t = f.issue(DestructiveOp::CdlLockOff, f.install());
+    f.sql("DELETE FROM install_setting WHERE key = 'cdl_sacrificial_only'");
+
+    // Turning it off with a valid token: refused, token not spent, no ok row.
+    let e = f
+        .policy
+        .set_cdl_lock(&with(owner(), &t), false)
+        .unwrap_err();
+    assert_eq!(e.reason, "policy-store-error");
+    assert_eq!(f.unspent(), 1, "the rollback kept the token unspent");
+    // Turning it on: also not a success.
+    let e = f.policy.set_cdl_lock(&owner(), true).unwrap_err();
+    assert_eq!(e.reason, "policy-store-error");
+    assert!(
+        f.rows("set-cdl-lock")
+            .iter()
+            .all(|r| r.entry.outcome != "ok")
+    );
+    assert!(f.policy.cdl_lock_on().unwrap(), "a missing row reads as ON");
+
+    // Restore the row: the same token still works, and the change reports
+    // success with exactly one row.
+    f.sql("INSERT INTO install_setting (key, value) VALUES ('cdl_sacrificial_only', '1')");
+    f.policy.set_cdl_lock(&with(owner(), &t), false).unwrap();
+    assert!(!f.policy.cdl_lock_on().unwrap());
+    assert_eq!(
+        f.count("SELECT count(*) FROM install_setting WHERE key = 'cdl_sacrificial_only'"),
+        1
+    );
+    let ok = f
+        .rows("set-cdl-lock")
+        .into_iter()
+        .filter(|r| r.entry.outcome == "ok")
+        .count();
+    assert_eq!(ok, 1);
+}
