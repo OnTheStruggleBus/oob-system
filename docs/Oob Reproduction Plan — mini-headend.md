@@ -248,6 +248,41 @@ added" question directly — and rules out a whole class of guesses:
   the address-field guide.
 
 
+## 3.3 Acquired binary artifacts — cleanroom doctrine
+
+*Recorded from the strategy session 2026-11-24 (Marshal). This applies if and
+when DCT-family firmware images surface. It is doctrine, not an acquisition:
+nothing here acquires or handles an image. The doctrine lives in this plan,
+not in AGENTS.md, which this session does not change.*
+
+**Seal on receipt.**
+
+1. Compute the SHA-256 immediately, before anything else is done with the file.
+2. Keep it only in the git-crypt tier. Never plaintext, never in chat, never
+   in a PR (AGENTS.md §5).
+3. Write an acquisition-log entry with honest provenance: source, date, method,
+   and what is not known about the file. Entries go in the provenance log
+   described in Prior Art §6.1.
+
+**Extract facts, not code.** Permitted extractions are behavioral: version
+strings, error tables, diagnostic strings and expected OOB frequencies. Each
+goes into a corpus spec with its provenance, written as "extracted from
+acquired image, sha256:DIGEST", with the full digest in place of DIGEST. Wire-format constants are permitted.
+Code, artwork and UI text are never copied verbatim.
+
+**Solo cleanroom hygiene.** This is cleanroom discipline at solo weight, not a
+two-team clean room. Implementation works from the spec document. The binary
+is not open during implementation. The discipline is kept by process, not by
+a second team.
+
+**Validation is behavioral.** The box is the referee (AGENTS.md §2). Nothing
+is validated by diffing code against the image.
+
+**Optional, long term.** An emulator for the MC68331-class CPU (Musashi or a
+MAME-class core) could run the genuine image headlessly to generate traces.
+The CPU class is quoted, not verified (Prior Art §3.2). Emulated traces are
+hypotheses only. RF captures from real silicon confirm them.
+
 ## 4. Workstreams and build order
 
 | # | Workstream | Milestone | Key tasks | Depends on |
