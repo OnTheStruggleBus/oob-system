@@ -23,7 +23,7 @@ interconnect them, share configs, and transfer subscribers.
 | Original system | Role in the original network | Oob realization |
 | --- | --- | --- |
 | **DAC 6000** (Digital Addressable Controller) | System brain: unit database, entitlements, message scheduler, operator interface | `oob-dac` — Rust daemon, sqlite unit DB, WireLink-verb admin API |
-| **OM 1000/2000** (OOB Modulator) | Out-of-band control channel (QPSK, 1.024 Msym/s, 70–130 MHz) | GNU Radio flowgraph → SDR (HackRF One primary, ADALM-Pluto spare) |
+| **OM 1000/2000** (OOB Modulator) | Out-of-band control channel (QPSK, 1.024 Msym/s, 70–130 MHz) | GNU Radio flowgraph → SDR from the supported set (HackRF One clone, ADALM-Pluto range-hacked, LibreSDR; primary chosen at the G0.5 bench by the F4-1 level log) |
 | **KLS/DLS** (Code Download System) | Firmware/application delivery to boxes as 68k objects over the OOB stream | `oob-cdl` — .obj/.dat loader + carousel builder |
 | **SEM V8** (SmartStream Encryptor Modulator) | Edge QAM + MediaCipher encryption | **Period hardware in the estate** — Motorola SEM V8, P/N 507199-001-00, ACP encryption module confirmed |
 | **STARVUE II** | Upstream return-path receiver (5–42 MHz) | SDR receive flowgraph (stretch S1) |
@@ -124,7 +124,7 @@ here claims working code until the gate evidence says so — see
   then synthesize the listings feed in whatever format the resident app
   parses — discovered box-as-oracle, with the d 14 message-type counters
   as the transport oracle.
-- Listings synthesizer: `lineup.yaml` + schedule editor → feed; per-program
+- Listings synthesizer: schedule DB (W4 amendment; seeded from `lineup.yaml`) → feed; per-program
   attributes evidenced by the period frame corpus (genre colors,
   ratings, cast synopses, PPV price/`$` badging, preview links).
 - The guide feed is an **always-on service** under watchdog; the nightly
@@ -139,7 +139,7 @@ here claims working code until the gate evidence says so — see
 - Web front-end, API-first: generated types from `openapi.json`, no logic
   the admin API doesn't expose.
 - Fleet registry (the Define Terminal schema), ops views mirroring the
-  DAC's operation lifecycle, program schedule editor, purchase ledger and
+  DAC's operation lifecycle, program schedule editor (over the schedule DB, W4 amendment), purchase ledger and
   orphan-purchase queue, per-terminal credit display, Clear PIN op.
 - **Born as the experiment workbench** — Console phase C0 is a G1 exit
   requirement, because the discovery gate's evidence pack demands it.
@@ -223,6 +223,10 @@ register in `docs/Project Milestones & Stage Gates — mini-headend.md` §7.*
   documentation declared a build artifact (mdBook in CI, gate rule 9).
 - **Adversarial reviews r3 (×11), r4 (×8), r5 (×14) dispositioned — all
   findings accepted**, deltas folded across ten corpus files.
+- **Software architecture review r6 (×16) dispositioned — all accepted**;
+  ADR-002 (runtime architecture) accepted; ADR-003 (the amended F6-4)
+  makes Oob an operator system users configure themselves at runtime,
+  with sample content, community packs and firmware import tooling.
 - **SEM V8 in the estate**, ACP (MediaCipher FPK, DES or CSA) confirmed by
   part number — the project's two largest risks (QAM, encryption) collapsed
   into one period-correct appliance.
@@ -244,12 +248,14 @@ register in `docs/Project Milestones & Stage Gates — mini-headend.md` §7.*
 
 **In flight — gate G0.5 (PHY ready)**
 
-- Buy list items 1–2 (HackRF One OOB TX, F3-7 RF chain) → flowgraph
+- Buy list items 1–2 (OOB TX from the supported set, primary chosen at the G0.5 bench; F3-7 RF chain) → flowgraph
   loopback BER test → metered carrier through the chain into a dummy load.
 - O7: SCTE 55-1 acquisition (two-week timebox; box-as-oracle PHY fallback
   defined).
 - Pre-exit engineering task: mdBook scaffold + CI link-check + OpenAPI
-  drift stub (F5-10).
+  drift stub (F5-10), plus the prose-vs-`facts.yaml` check (F6-13) —
+  built (`book.toml`, generated `docs/SUMMARY.md`, `ops/docs-*.py`, three
+  CI jobs); the G0.5 evidence is their green doc-site CI run.
 
 **Next after G0.5**
 
@@ -261,11 +267,15 @@ register in `docs/Project Milestones & Stage Gates — mini-headend.md` §7.*
 
 **Awaiting Marshal (manual actions, no agent can do these)**
 
-ADR-001 rev 7 approval · branch protection · Projects board + labels ·
+ADR-001 approval (rev 8) · `gh` `project` scope for the board (oob-pm then
+builds board + labels) ·
 git-crypt init + key escrow (G1 entry requirement) · buy list purchases ·
 O7 / O15 / O16 restricted-document acquisitions (upload pattern) · VOD/PPV
-§7 and billing §7 gate-proposal dispositions · AGENTS.md brand-skin text
-ruling.
+§7 and billing §7 gate-proposal dispositions · repository setting
+"require approval for workflows from outside collaborators" (r6 F6-8) ·
+add the F5-10 CI jobs `mdbook (link check)`, `docs facts` and
+`openapi drift` to the `main` ruleset's required checks once they have
+reported green (AGENTS.md §6 rule 6).
 
 ## How we work
 
@@ -297,16 +307,28 @@ crates/      oob-dac, oob-mux, oob-msg, oob-cdl, oob-playout,
 flowgraphs/  GNU Radio OOB TX / STARVUE RX — versioned here
 lab/         harness/ discovery runner + captures/ box evidence
              (git-crypt tier)
-ops/         lineup.yaml, units.yaml (schema-validated), CI
-             (nightly canary)
+ops/         lineup.yaml, units.yaml (seed data + box-type catalog,
+             schema-validated; ADR-003), CI
+             (nightly canary), agent-guard.py (agent command guard),
+             check-agent-hooks.py (CI: every agent hook wired and blocking)
 docs/        the mdBook source — specs, protocol, runbook, reviews
-.github/     agent roster, PR template, workflows
+.github/     agent role files, PR template, workflows
+.claude/     Claude Code subagent launchers, one per role, and
+             settings.json (runs the agent guard on every shell call)
+.cursor/ .gemini/ .codex/ .github/hooks/
+             the same agent guard for Cursor, Gemini CLI, Codex, Copilot
+             (Kimi Code users: uv run --python 3.12 python3
+             ops/install-agent-guards.py)
 ```
 
 ## Documentation
 
 Everything human-readable lives in [`docs/`](docs/) and builds into an
-mdBook site in CI (broken links fail the build). Start here:
+mdBook site in CI (broken links and anchors fail the build; prose is
+checked against `docs/facts.yaml`). Build it locally with
+`mdbook build` (output in `target/book/html`); the table of contents is
+generated from the Overview's document map by `ops/docs-summary.py`, so
+add a document there, not in `docs/SUMMARY.md`. Start here:
 
 | Start with | What it is |
 | --- | --- |
@@ -322,6 +344,8 @@ mdBook site in CI (broken links fail the build). Start here:
 | [`docs/Hardware Acquisition List — mini-headend.md`](docs/Hardware%20Acquisition%20List%20—%20mini-headend.md) | The prioritized buy list and what each item unblocks |
 | [`docs/Prior Art & External References — mini-headend.md`](docs/Prior%20Art%20&%20External%20References%20—%20mini-headend.md) | The prior-art scan and the gap this project fills |
 | [`docs/ADR-001 — Emulated GI Cable Headend for DCT2000 Revival.md`](docs/ADR-001%20—%20Emulated%20GI%20Cable%20Headend%20for%20DCT2000%20Revival.md) + adversarial reviews r1–r5 | The decision record and its review lineage |
+| [`docs/ADR-002 — Oob Runtime Architecture.md`](docs/ADR-002%20—%20Oob%20Runtime%20Architecture.md) + [adversarial review r6](docs/Reproduction%20Plan%20—%20Adversarial%20Review%20r6.md) | Runtime shape: one control-plane daemon, pull-driven mux ↔ PHY seam, traffic classes (accepted) |
+| [`docs/ADR-003 — Configuration, Extensibility and Distribution Model.md`](docs/ADR-003%20—%20Configuration,%20Extensibility%20and%20Distribution%20Model.md) | How Oob is configured and distributed: runtime-configurable by its users, community packs, firmware import tooling (accepted) |
 | [`AGENTS.md`](AGENTS.md) | Working rules for AI agents in this repo |
 
 ## Safety and intent

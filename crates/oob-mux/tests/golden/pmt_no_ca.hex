@@ -1,0 +1,19 @@
+# status: hypothesized — regression lock, not box-verified
+# PMT, program 1, PCR PID 0x101, ES 0x02 (video) @0x101 and 0x81 @0x102,
+# no CA descriptors. Section only (#17).
+# Hand cross-check against ISO/IEC 13818-1 §2.4.4.8 (#18, F6-15):
+#   02        table_id 0x02 (TS_program_map_section)
+#   b0 17     section_syntax_indicator 1, '0', reserved 11, section_length 23
+#             = prog# 2 + ver/cn 1 + sec#/last# 2 + PCR_PID 2 + prog_info_len 2
+#               + two ES loops of 5 + CRC 4
+#   00 01     program_number 1
+#   c1        version 0, current_next 1
+#   00 00     section_number 0, last_section_number 0
+#   e1 01     reserved 111, PCR_PID 0x101
+#   f0 00     reserved 1111, program_info_length 0
+#   02 e1 01 f0 00   stream_type 0x02, elementary_PID 0x101, ES_info_length 0
+#   81 e1 02 f0 00   stream_type 0x81, elementary_PID 0x102, ES_info_length 0
+#   d8 a8 b5 b5  CRC_32, recomputed with the same independent bitwise CRC; the
+#             whole section checks to 0.
+02 b0 17 00 01 c1 00 00 e1 01 f0 00 02 e1 01 f0
+00 81 e1 02 f0 00 d8 a8 b5 b5

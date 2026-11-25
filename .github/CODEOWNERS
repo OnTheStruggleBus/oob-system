@@ -1,23 +1,23 @@
 # Oob — code ownership and review routing
 #
 # Human approval rule (AGENTS.md §6): every declared feature merges only
-# with Marshal's human approval and completed role reviews. This file makes
-# the human-approval half enforceable by GitHub: the owner is required on
-# every pull request.
+# when Marshal merges it, after the required reviews (AGENTS.md §6
+# rule 2) — his merge is the approval (GitHub can't record an author
+# approving their own PR). This file routes every pull request to the
+# owner for notification; CODEOWNERS review is deliberately not a
+# branch-protection requirement.
 
 *   @OnTheStruggleBus
 
-# Role-review routing (process-level; roles are repo agents, not GitHub
-# users, so these lines are informational for reviewers and for the
-# branch-protection notes in AGENTS.md §6):
+# Role ownership — who BUILDS each area (process-level; roles are repo
+# agents, not GitHub users). Reviews are oob-qa (bugs) and oob-architect
+# (drift) on every PR, per AGENTS.md §6 rule 2:
 #
-#   /crates/oob-msg/            → oob-architect + oob-qa (wire formats, verified status)
-#   /crates/oob-mux/            → oob-architect (PID plan, shaper)
-#   /crates/oob-dac/            → oob-architect (API surface) + oob-dev-console (consumer)
-#   /crates/oob-cdl/            → oob-architect + oob-qa (destructive-op drills)
-#   /crates/oob-guide/          → oob-po (fidelity) + oob-architect
-#   /flowgraphs/                → oob-dev-rf
-#   /lab/                       → oob-qa
-#   /ops/                       → oob-architect + oob-qa (lineup consistency)
-#   /docs/protocol/             → oob-architect
-#   /.github/agents/            → oob-scrum (process coherence)
+#   /crates/                    → oob-dev-core builds; oob-architect designs first (ADR / issue note)
+#   /flowgraphs/                → oob-dev-rf builds
+#   Console SPA (location set by ADR when C0 starts) → oob-dev-console builds
+#   /lab/, /ops/ci/             → oob-qa builds (capture rig, canary, evidence)
+#   /ops/*.yaml                 → oob-dev-core builds; oob-architect owns the schema
+#   /docs/ (ADRs, protocol/)    → oob-architect builds
+#   /docs/ (research notes)     → oob-expert builds
+#   /.github/agents/, /.claude/ → oob-scrum / oob-pm build (process coherence)

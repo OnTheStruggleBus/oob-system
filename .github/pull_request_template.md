@@ -1,7 +1,9 @@
 <!--
-Oob pull request — every declared feature requires Marshal's human approval
-plus completed role reviews before merge (AGENTS.md §6). Fill every section;
-an incomplete PR is not reviewable. Delete nothing from this template.
+Oob pull request — every declared feature requires the oob-qa (bugs) and
+oob-architect (drift) reviews, current per AGENTS.md §6 rule 3, then
+Marshal merges; his merge is the human approval (AGENTS.md §6). Fill
+every section; an incomplete PR is not reviewable. Delete nothing from
+this template.
 -->
 
 ## Summary
@@ -52,24 +54,33 @@ Write "n/a — no box-visible claims" if none. -->
 
 ## Review routing (required before merge)
 
-<!-- Mark every role review this change class requires (AGENTS.md §6):
-     - crate boundaries / wire formats / PID plan / OpenAPI → oob-architect
-     - box-behavior claims / captures / canary / drills → oob-qa
-     - flowgraphs / RF chain / SEM → oob-dev-rf
-     - Console SPA / journeys → oob-dev-console
-     - board/process/gate items → oob-scrum or oob-pm -->
+<!-- AGENTS.md §6 rule 2: only oob-qa (bugs + fixes) and oob-architect
+     (drift) review and comment on PRs. Neither may review a PR containing
+     commits it authored. Name the authoring role and the issue. -->
 
-- [ ] oob-architect
-- [ ] oob-qa
-- [ ] oob-dev-rf
-- [ ] oob-dev-console
-- [ ] oob-dev-core (cross-review)
-- [ ] oob-scrum / oob-pm
+- Authoring role (subagent): <!-- oob-dev-core / oob-dev-rf / oob-dev-console / oob-architect / … -->
+- Issue: <!-- #NN -->
+- [ ] oob-qa — bug review at head SHA, no findings standing (or the architect's combined review, if oob-qa authored this PR)
+- [ ] oob-architect — drift review at head SHA, no findings standing (or QA's combined review, if oob-architect authored this PR)
+- Commits without an `Oob-Role:` trailer, excluding merge commits (`<sha> → <role or Marshal>`): <!-- "none" -->
+
+## Disputed findings
+
+<!-- AGENTS.md §6 rule 2: the authoring role contests a review finding
+here (finding ID + reason), never as a PR comment. The reviewer withdraws
+or holds it at its next review (editing this section triggers that
+re-review). Only Marshal can waive a held finding, by writing
+"waived by Marshal" against it here before merging. Agents never write or
+edit a waiver line, except the orchestrator recording Marshal's waiver
+quoted verbatim with the date (AGENTS.md §6 rule 2, §11). Write "none" if
+none. -->
 
 ## Merge readiness
 
-- [ ] All required role reviews **completed** (no open change requests)
-- [ ] Marshal's human approval received
+- [ ] Required reviews (AGENTS.md §6 rule 2) **completed and current** (rule 3: each names the head SHA, or the pre-merge head when only main-only merges followed; no findings standing, or waived by Marshal)
+- Main-only merges since the last review (orchestrator, §6 rule 3): <!-- "none", or "<sha>… — diff against main unchanged" -->
+- [ ] oob-po acceptance recorded on the linked issue (AGENTS.md §14 step 8) — or n/a for Marshal's direct request with no issue (his merge is the acceptance, §12)
+- [ ] Ready for Marshal to merge — his merge is the human approval
 - [ ] Definition of done (AGENTS.md §12) met
 
 <!-- Agents do not approve, merge, or self-review. Marshal merges. -->

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Bash(gh pr merge *)",
+      "Bash(gh auth token*)",
+      "Bash(gh auth refresh *)",
+      "Bash(gh repo edit *)",
+      "Bash(gh repo delete *)",
+      "Bash(gh secret set *)",
+      "Bash(gh secret delete *)",
+      "Edit(.claude/settings.json)",
+      "Edit(.claude/settings.local.json)",
+      "Edit(ops/agent-guard.py)",
+      "Edit(~/.claude/settings.json)",
+      "Edit(.cursor/hooks.json)",
+      "Edit(.gemini/settings.json)",
+      "Edit(.codex/hooks.json)",
+      "Edit(.codex/config.toml)",
+      "Edit(.github/hooks/**)",
+      "Edit(~/.kimi-code/config.toml)",
+      "Edit(ops/agent-guard.kimi.toml)",
+      "Edit(ops/install-agent-guards.py)",
+      "Edit(ops/check-agent-hooks.py)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git rev-parse --show-toplevel 2>/dev/null) || exit 0; f=\"$r/ops/agent-guard.py\"; if [ -f \"$f\" ]; then exec python3 \"$f\"; fi; s=$(git -C \"$r\" rev-parse -q --verify origin/main:ops/agent-guard.py 2>/dev/null || git -C \"$r\" log -1 --remotes --diff-filter=AMR --format=%H:ops/agent-guard.py -- ops/agent-guard.py 2>/dev/null); if [ -n \"$s\" ]; then exec python3 -c \"$(git -C \"$r\" cat-file -p \"$s\")\"; fi; exit 0",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

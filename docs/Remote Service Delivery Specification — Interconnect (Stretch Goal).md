@@ -88,7 +88,7 @@ coax, terminators, no exceptions (hub carriers sit in the FM band too).
 | Item | Role | Notes |
 | --- | --- | --- |
 | SBC (RPi 5 or x86 mini-PC) | hub agent host | runs our containers; 8 GB class |
-| HackRF One *or* ADALM-Pluto | OOB TX | HackRF preferred (F4-1: Pluto needs the range hack at hunt frequencies; Pluto acceptable as kit-recycling) |
+| HackRF One clone, ADALM-Pluto, or LibreSDR | OOB TX | Supported set; primary chosen at the G0.5 bench by the F4-1 level log (Marshal, 2026-11-23). Pluto needs the range hack at hunt frequencies; Pluto acceptable as kit-recycling |
 | QAM source (pick one, in order of preference) | in-band RF | (a) surplus SEM V8 507199-**002** (ACP-less — clear tier is all a hub needs locally; F4-2 already has these on the O1 watch); (b) HDMI→QAM gadget (pragmatic, period-wrong); (c) GNU Radio QAM on a second SDR (CPU-heavy, fidelity risk) |
 | Mini RF chain | plant | 2-way combiner, tap, attenuator, 75 Ω dummy loads, RG6 |
 | Optional (R4) | return path | RX-capable SDR for STARVUE + USB cam/OCR telemetry reuse of the F3-2 capture rig |
@@ -105,7 +105,8 @@ So:
    timestamped) over a persistent TCP connection inside the WireGuard
    tunnel.
 2. The hub's **oob-regen** service performs the 55-1 framing and
-   **null-stuffing locally at exactly 1.544 Mb/s**, feeding the SDR
+   **null-stuffing locally at exactly 2.048 Mb/s** (1.024 Msym/s QPSK),
+   feeding the SDR
    flowgraph at a hard constant rate. WAN jitter is absorbed by a PDU
    buffer; if the buffer starves, regen stuffs nulls — exactly what a real
    OM does when the DAC is quiet. Boxes see an unbroken carrier either way.
@@ -126,7 +127,7 @@ where `tsp` re-clocks and hands it to the QAM source. PCR/continuity
 re-stamping at the hub with `tsp` filters as needed. Bandwidth is the
 honest constraint: MPEG-2 MP@ML at 3–6 Mb/s per service means a home
 uplink carries a *curated* lineup (2–8 services), not a full 1999-basic
-tier. The hub subscribes to a channel set; `lineup.yaml` declares per-hub
+tier. The hub subscribes to a channel set; the hub registry (store rows, ADR-003) declares per-hub
 mappings.
 
 ### 4.3 Time, region, and guide data
@@ -168,7 +169,7 @@ master SEM), no change to the threat model.
 GigE/ASI *output* (not only to its own QAMs) so the scrambled TS is
 available for WAN shipment. If it can't, fallbacks in order: (a) hub gets
 its own ACP-equipped 507199-001 (expensive, opportunistic); (b) hub runs
-clear tier only until O3's optional software-scrambler knowledge exists —
+clear tier only until the software DES/CSA path exists (backlog, no date; Plan W5 backlog note) —
 the one scenario where the demoted FPK-extraction work regains schedule
 relevance. Flagged here so nobody is surprised later.
 

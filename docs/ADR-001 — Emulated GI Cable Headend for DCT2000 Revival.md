@@ -112,7 +112,8 @@ bootcode-control messages, and the DLS stream-builder role.
 3. **Cost** — SDR-class budget.
 4. **RF and electrical safety** — closed terminated coax; CPSC-recalled
    2002-era cords checked at census.
-5. **Estate consistency** — Debian 13, Gitea config-as-code, git-crypt secrets,
+5. **Estate consistency** — Debian 13, code in git (runtime configuration in
+   oob-dac's store, ADR-003), git-crypt secrets,
    Zabbix/VictoriaMetrics, Rust daemons; analog plant (IAD2432 + Asterisk +
    mgetty) for STARFONE modem-bank emulation.
 6. **Incremental value** — every milestone leaves boxes visibly "more alive,"
@@ -155,8 +156,9 @@ DAC/RADD/DLS/NC roles end-to-end: connect/configure/time, virtual channel map,
 Fixed-mode authorization, CDL carousel, guide (local-EPG-server equivalent),
 EAS, polling — muxed by tsduck (asynchronous, null-stuffed), QPSK via GNU
 Radio, SDR-transmitted at the fleet's carrier frequency into a closed coax
-plant. In-band: Annex B 64/256-QAM playout; **`lineup.yaml` single source of
-truth**. Return path: STARVUE II upstream demod (M6); STARFONE modem-bank
+plant. In-band: Annex B 64/256-QAM playout; **one lineup as single source of
+truth** (in oob-dac's store at runtime, seeded from `lineup.yaml` —
+ADR-003). Return path: STARVUE II upstream demod (M6); STARFONE modem-bank
 emulation via the mgetty NAS (M5, stretch). Admin API adopts the WireLink
 600/700 verbs and codes (660/662/663/664/666/680/684/685/688/694/720–726/
 760/770/794).
@@ -281,9 +283,11 @@ M2 = visibly working fleet. M3 + M4 = full parity per the agreed definition.
 ## 9. Infrastructure and operability
 
 - **Host:** Debian 13 VM/CT on Proxmox; Tailscale; Firewalla-restricted lab VLAN.
-- **Config-as-code:** oob-dac config, flowgraphs, `lineup.yaml`, unit DB
-  (DAC §9 schema) in Gitea; secrets per §8; discovery-lab experiment logs are
-  commits (message hash → box response → verdict).
+- **Configuration (ADR-003):** code, flowgraphs and seed data (`lineup.yaml`,
+  the box-type catalog) in git; the unit DB (DAC §9 schema) and all runtime
+  configuration in oob-dac's store with revisions, journal and backup;
+  secrets per §8; upstream discovery-lab evidence lands as commits
+  (message hash → box response → verdict).
 - **CI/observability:** nightly canary reboot → `AUTH` on the clear tier via
   diagnostics scrape on the instrumented DCT2500; OOB lock + TS bitrate into
   VictoriaMetrics; Zabbix on carrier loss; lineup-consistency check;
@@ -311,7 +315,9 @@ M2 = visibly working fleet. M3 + M4 = full parity per the agreed definition.
   identify the i-Guide application module and a donor unit.
 - **O13:** i-Guide listings format discovery — box-as-oracle loop seeded by the
   Gemstar/StarSight patent trove and DAC Source-ID semantics; self-authored
-  listings content from `lineup.yaml`.
+  listings content from `lineup.yaml`. Listings are now sourced from the
+  schedule DB (Reproduction Plan, W4 amendment, strategy session 2026-11-24);
+  this decision text is otherwise as recorded.
 
 ---
 

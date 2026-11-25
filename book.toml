@@ -1,0 +1,39 @@
+# mdBook configuration for the Oob doc site (r5 F5-10, AGENTS.md §3).
+#
+# The book's source is docs/ as-is; docs/SUMMARY.md is GENERATED from the
+# Project Overview's document map by ops/docs-summary.py — edit the map,
+# not the summary. CI job `mdbook (link check)` builds this with pinned
+# mdbook 0.4.52 + mdbook-linkcheck 0.7.7; a broken internal link or anchor
+# fails the build. External links are deliberately not checked (no
+# network flakiness in a required check).
+
+[book]
+title = "Oob — mini-headend documentation"
+language = "en"
+src = "docs"
+
+[build]
+build-dir = "target/book"
+# A SUMMARY entry without a file is an error, never a silently created stub.
+create-missing = false
+# Keep README.md -> README.html. mdBook's default `index` preprocessor renames
+# chapter READMEs to index.html but leaves in-prose links to README.md
+# pointing at README.html, which then 404s (and linkcheck cannot see it).
+# Turning it off makes `[x](runbook/README.md)` work the same on GitHub and
+# in the book. The `links` preprocessor (include directives) is re-enabled
+# explicitly.
+use-default-preprocessors = false
+
+[preprocessor.links]
+
+[output.html]
+# Raw HTML and inline <https://...> autolinks in the specs stay as written.
+no-section-label = false
+
+[output.linkcheck]
+follow-web-links = false
+# Broken file links and broken anchors are hard errors. "Potential incomplete
+# link" heuristics (prose like `[x]` or `control[s]`) stay warnings so they
+# show in the log without breaking the build.
+warning-policy = "warn"
+traverse-parent-directories = false

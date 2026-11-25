@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "matcher": "bash",
+        "bash": "r=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git rev-parse --show-toplevel 2>/dev/null) || exit 0; f=\"$r/ops/agent-guard.py\"; if [ -f \"$f\" ]; then exec python3 \"$f\"; fi; s=$(git -C \"$r\" rev-parse -q --verify origin/main:ops/agent-guard.py 2>/dev/null || git -C \"$r\" log -1 --remotes --diff-filter=AMR --format=%H:ops/agent-guard.py -- ops/agent-guard.py 2>/dev/null); if [ -n \"$s\" ]; then exec python3 -c \"$(git -C \"$r\" cat-file -p \"$s\")\"; fi; exit 0",
+        "timeoutSec": 10
+      }
+    ]
+  }
+}

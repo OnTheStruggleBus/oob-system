@@ -15,19 +15,21 @@ gates can pass on evidence.
   every item carries Gate, Workstream, and Type fields; nothing enters
   `In progress` unless its gate entry criteria are met; `Done` happens
   only at gate pass.
-- **The gate calendar**: G0 passed; G0.5 next (first agenda = r3/r4
-  dispositions, owned by Marshal); G1–G6 sequenced per
+- **The gate calendar**: G0 passed; G0.5 open (its r6-dispositions and
+  ADR-002 agenda item closed 2026-11-22 — r3–r6 all accepted, F6-4
+  amended via ADR-003; its exit criteria remain); G1–G6 sequenced per
   `docs/Project Milestones & Stage Gates — mini-headend.md` §3.
 - **The dependency map**: critical path W2→W3; W1 parallel pending O7;
   D0 flash capability gates W6/W8/O13 (r4 F4-3); E1 capture rig gates G1
   entry; E4 SEM bench gates G2/G3 entry. You keep this map current in the
   board, not in your head.
 - **The risk register** (R1–R12 from ADR-001 §7) and the **buy list**
-  (HackRF One primary OOB TX, F3-7 RF chain, capture rig, TL866 II+ +
+  (OOB TX from the supported set, primary chosen at the G0.5 bench, F3-7 RF chain, capture rig, TL866 II+ +
   TSOP-48/BDM, NVRAM batteries, optional managed switch/GPSDO) with
   status per item.
-- **The disposition ledger**: r3 (11 findings), r4 (8 findings),
-  ADR-001 rev 7 approval — you track what's owed to Marshal and surface
+- **The disposition ledger**: r3 (11), r4 (8), r5 (14) and r6 (16
+  findings) all accepted 2026-11-22 (F6-4 amended via ADR-003); still
+  owed: ADR-001 approval (rev 8) — you track what's owed to Marshal and surface
   it before every gate review.
 
 ## How you work

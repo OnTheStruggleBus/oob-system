@@ -86,14 +86,26 @@ gate rules (§5).
   - GNU Radio flowgraph passes a loopback BER test at 1.024 Msym/s.
   - Chosen hunt-table carrier (104.2/110.25 class) measured through the
     F3-7 chain into a dummy load; level log committed (r4 F4-1 metering).
-  - OOB TX committed: HackRF One primary, Pluto spare (r4 F4-1).
+  - OOB TX committed as a **supported set** — ADALM-Pluto (range-hacked at
+    the hunt carriers), HackRF One clone, LibreSDR — with the **primary
+    chosen at this bench by the F4-1 level log** (r4 F4-1 metering). This
+    implements Marshal's 2026-11-23 hardware-option delta, which replaces
+    the earlier HackRF-primary pin; the r4 F4-1 record is unchanged and
+    this PR does not disposition it. ADR-002 records the same delta.
+  - **Mux ↔ PHY pull seam proven (r6 F6-2, ADR-002):** a 24 h loopback
+    run with the flowgraph pulling from the pacer (stub allowed), **zero
+    pull underruns**, and the **null ratio logged**.
   - **Docs scaffolding exists (r5 F5-10):** mdBook scaffold (`book.toml` +
     `SUMMARY.md` generated from the doc map) builds `docs/` in CI, the
     broken-link check fails the build, and the utoipa drift-check job stub
     is wired. Gate rule 9 is unenforceable until this exists, so it is a
     pre-G0.5-exit task.
 - **Evidence:** flowgraph commit + BER log; level log; O7 record in
-  `docs/protocol/phy.md`; green doc-site CI run.
+  `docs/protocol/phy.md`; 24 h loopback log (underrun count, null ratio);
+  green doc-site CI run (jobs `mdbook (link check)`, `docs facts`,
+  `openapi drift` (a stub until Slice D); scaffold: `book.toml`,
+  generated `docs/SUMMARY.md`, `ops/docs-*`), whose `doc-site-<sha>`
+  artifact is the site Marshal attaches to `gate/g0.5`.
 
 ### G1 — First connect (M1) — MAJOR GATE
 
@@ -113,9 +125,14 @@ gate rules (§5).
     install manual — not DCT2500-gated; the census designates the
     instrumented box or records its absence, and the RS-232 console tier
     applies only if an instrumentable unit exists); Insert System Time
-    emitted on schedule; Console C0 live as the experiment workbench.
+    emitted on schedule; Console C0 live in its **stub-to-live** scope: a
+    minimal live workbench against the oob-dac REST adapter (issue #27).
+    The full experiment workbench (Console spec §4.3) is deferred until the
+    E1 capture rig exists and is not a G1 exit criterion (Marshal's
+    direction, 2026-11-23).
 - **Evidence:** capture-rig scrapes (front-panel OCR + d-screens) per
-  experiment; the harness commit log; C0 screenshots.
+  experiment; the harness commit log; C0 screenshots of the live workbench
+  against #27.
 - **Review:** full adversarial review (r-series format) before PASS.
 
 ### G2 — Clear tier (M2)
@@ -215,17 +232,53 @@ gate rules (§5).
 
 | Track | Feeds | Done when |
 | --- | --- | --- |
-| **E1 — Capture rig** (r3 F3-2) | G1 entry | Camera OCR of the front panel, capture-card d-screen grabs, and DCT2500 RS-232 scrape all producing files into `lab/captures/`; OCR accuracy spot-checked against manual d-screen readings |
+| **E1 — Capture rig** (r3 F3-2) | G1 entry | Camera OCR of the front panel, capture-card d-screen grabs, and DCT2500 RS-232 scrape all producing files into `lab/captures/`; OCR accuracy spot-checked against manual d-screen readings. Specified in the [Capture Rig Specification](Capture%20Rig%20Specification%20—%20mini-headend.md) (zero human interaction per experiment) |
 | **E2 — D0 flash RE** (r3 F3-3, r4 F4-3) | G4 entry; W8/O13 support | Clean dump via *both* validated routes (TL866 + 68k BDM), verified restore, message-ID enum registry extracted; dumps in git-crypt |
 | **E3 — F0 census** (O2/O12) | G2 exit; G6 fidelity call | Every fleet box's d-screen set recorded; platform table built; guide residency known per platform; CPSC 02-227 cord check logged |
 | **E4 — SEM bench** (r4 F4-2) | G2 entry; G3 entry (license) | ACP presence + **license state** verified (FPK selectable, not greyed); SEM-EM jar + MIBs archived to git; tsp loop via GigE → RF out confirmed on the meter; W4 fallback re-documented |
+
+### 4.1 Slice C/D tracking (status, 2026-11-24)
+
+Marshal's 2026-11-23 ruling schedules ADR-002's Slices C (oob-mux and
+oob-msg) and D (oob-dac) now. This subsection records progress only. It
+sets no gate state and changes no entry, exit or kill criterion; the G0.5
+exit work and the G1 entry criteria are unaffected.
+
+| Issue | Slice | Status at 2026-11-24 |
+| --- | --- | --- |
+| #14 scheduler → packetizer → pacer skeleton (oob-mux) | C | merged (PR #42) |
+| #15 mux ↔ PHY pull-seam contract and Rust endpoint | C | merged (PR #47) |
+| #16 class-based insertion scheduler C0–C5 | C | merged (PR #52) |
+| #17 DCII-flavored PSI assemblers | C | merged (PR #55) |
+| #18 box-free stream verification (tsduck analyze in CI) | C | next (Slice C) |
+| #19 message catalog as data (oob-msg) | C | open |
+| #20 mdBook protocol chapters from the catalog | C | open |
+| #21 sqlite store (oob-dac) | D | merged (PR #43) |
+| #22 command layer (oob-dac) | D | merged (PR #51) |
+| #23 policy layer (oob-dac) | D | merge-ready, not yet merged (PR #57; CI finishing on its head) |
+| #24 whole-file backup, restore and export | D | open |
+| #25 configuration store with revision history | D | next (Slice D) |
+| #26 save-path validators and guardrails | D | open |
+| #27 REST adapter and the `openapi drift` job | D | open |
+| #29 daemon binary | D | open |
+
+The merged issues stay open until oob-po records acceptance on each issue
+(AGENTS.md §14 step 8, §12). Follow-ups opened alongside the slices, all in
+Backlog: #53 (scheduler candidate scan, deferred until a bench trigger
+fires), #54 (WireLink vocabulary cross-check page) and #56 (sourcing the
+GI/Motorola DCII `CA_system_id`). The WireLink v3.0 corpus document has
+been ingested on branch `docs/wirelink-v3-corpus` (not yet merged); open
+item O15 is partly acquired, with its §4 and §5 still missing.
 
 ## 5. Console & Interconnect gates inherit these rules
 
 - **Console C0–C5** (Console spec §5): each phase closes with its section
   live and its operator journeys demonstrable; C0 is a **G1 exit
-  requirement**, not a side project — the Console is born as the
-  experiment workbench because G1's evidence pack demands it.
+  requirement** in its stub-to-live scope (live against the oob-dac REST
+  adapter, #27), not a side project. The full experiment workbench follows
+  the E1 capture rig and is outside the G1 exit (Marshal, 2026-11-23). The
+  Console is still born with a live workbench because G1's evidence pack
+  demands one.
 - **Interconnect R0–R5** (Interconnect spec §8): R1 (loopback hub with
   netem) is its own mini-gate with the same evidence rules; R3 requires
   G3's V1 bench check first; R-gates open only after G6.
@@ -262,7 +315,7 @@ Pinned where it matters, FOSS where possible, everything scriptable.
 | Tool | Role | Notes |
 | --- | --- | --- |
 | GNU Radio 3.10 + gr-osmosdr + gr-iio | OOB PHY | Flowgraphs versioned in-repo |
-| hackrf host tools | Primary OOB TX / upstream RX | r4 F4-1: HackRF One is primary; Pluto (gr-iio) is spare |
+| hackrf and libiio host tools | OOB TX supported set / upstream RX | Supported set: ADALM-Pluto (gr-iio, range hack), HackRF One clone, LibreSDR (gr-iio over Ethernet). Primary chosen at the G0.5 bench by the F4-1 level log (Marshal, 2026-11-23) |
 | inspectrum | Capture analysis | Symbol/constellation inspection of recorded baseband |
 | tsduck (`tsp`, `tsdump`, tables plugins) | Mux scaffolding + PSI/SI inspection | Also early playout; dvbsnoop as cross-check |
 | ffmpeg/ffprobe | Playout + encode lint | MPEG-2 MP@ML only (F3-6) — lint runs in CI and in the Console |
@@ -295,6 +348,8 @@ Pinned where it matters, FOSS where possible, everything scriptable.
 | pre-commit | Local gates | fmt, lint, YAML schema validation |
 | Containerized CI on the lab host | Continuous verification | cargo test/clippy/fmt, pnpm build, schema validation, lineup-consistency CI, OpenAPI drift check; **nightly hardware canary** post-M1 (reboot box → `E 00` → scrape d 02/d 15) — the regression tripwire behind gate rule 8 |
 | ADR + adversarial-review docs | Decision/risk record | The r-series format is the major-gate review format (rule 4) |
+| Claude Code subagents (`.claude/agents/`) | Role agents at work | One launcher per role; the orchestrating session hands each AGENTS.md §14 step to its role; PR review is oob-qa (bugs) + oob-architect (drift) |
+| Agent command guard (`ops/agent-guard.py`) | Blocks agent merge/approve/admin/token commands | Wired per tool by committed hook files (`.claude/settings.json`, `.cursor/`, `.gemini/`, `.codex/`, `.github/hooks/`) and, for Kimi Code, `ops/install-agent-guards.py`; CI job `agent-guard` runs its self-test and `ops/check-agent-hooks.py`, which runs every tool's hook (in the checkout and on the git-fallback path) and fails if one is disabled, mis-wired, or stops blocking (AGENTS.md §14) |
 | Pandoc + **mdBook (required)** | Doc exports + the doc site | mdBook builds `docs/` into the human-readable doc site on every CI run — broken links fail the build (see §8); `docs/protocol/` stays Markdown-first |
 
 ### 6.6 Later-phase additions
@@ -318,9 +373,15 @@ carrier drift — F4 escalation path, not a default buy).
 
 *Rows are filled at each gate review. Dispositions closed 2026-11-22:
 adversarial reviews r3 (×11), r4 (×8), r5 (×14) — all accepted, deltas
-folded. Still open (Marshal's manual actions): ADR-001 rev 7 approval,
-branch protection (AGENTS.md §6.6), Projects board + labels
-(`.github/agents/README.md` spec).*
+folded; r6 (×16) — all accepted, F6-4 amended via ADR-003; ADR-002 and
+ADR-003 accepted. Still open (Marshal's manual actions): ADR-001
+approval (rev 8), repository setting "require approval for workflows
+from outside collaborators" (r6 F6-8),
+branch protection (AGENTS.md §6.6), the `gh` `project` scope so oob-pm
+can build the Projects board + labels (`.github/agents/README.md` spec,
+AGENTS.md §14), and adding the F5-10 CI jobs `mdbook (link check)`,
+`docs facts` and `openapi drift` to the `main` ruleset's required checks
+once they have reported green (AGENTS.md §6.6).*
 
 **Release tags (r5 F5-13):** tags use the collision-safe format
 `rel/<carrier>` — hunt-table carriers in the box's d 02 scroll order:

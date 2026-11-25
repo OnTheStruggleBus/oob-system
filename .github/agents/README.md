@@ -23,6 +23,16 @@ Routing rule: pick the role whose "owns" column matches the task. A task
 spanning roles gets handed off explicitly per each file's Handoffs
 section — never silently absorbed.
 
+**Roles build, and run as subagents.** Each role has a Claude Code
+subagent in `.claude/agents/<role>.md` that loads `AGENTS.md` and this
+role file. The orchestrating session hands each step of the AGENTS.md §14
+workflow to its role: PO shapes issues, PM builds the board, architect
+designs before `Ready`, a dev subagent builds one issue per run, QA and
+the architect review, and PO accepts on the issue. Marshal grants the
+`project` scope once; after that, oob-pm creates and maintains the
+board. Only **oob-qa** (bugs and fixes) and
+**oob-architect** (drift) comment on PRs.
+
 ## The Oob project board
 
 All work flows through the GitHub Projects board **"Oob"** (create it
@@ -43,10 +53,15 @@ under the owner's account, linked to this repo). Board setup:
 2. **Blocked (entry criteria)** — first-class state; the blocker is named
    in the issue (e.g., "needs D0 verified restore", "needs O7").
 3. **Ready** — gate entry criteria met; devs pull only from here.
-4. **In progress** — small WIP; one active slice per workstream.
-5. **In review** — PR + evidence pack assembled; QA/architect eyes.
+4. **In progress** — small WIP; one active slice per workstream. For
+   ADR-002's Slices C and D, Marshal ruled (orchestrator session,
+   2026-11-23, "One per ADR-002 slice (Recommended)"): "One Slice C (oob-mux/oob-msg)
+   issue and one Slice D (oob-dac) issue may run in parallel; issues
+   touching the same crate still run one at a time."
+5. **In review** — PR + evidence pack assembled; oob-qa bug review and
+   oob-architect drift review at the head SHA.
 6. **Gate review** — queued for Marshal's PASS / PASS-WITH-DELTAS / HOLD.
-7. **Done** — gate-passed only. Nobody else moves cards here.
+7. **Done** — gate-passed only. Only Marshal moves cards here.
 
 **Labels (repo)**
 
@@ -63,15 +78,21 @@ under the owner's account, linked to this repo). Board setup:
    §3) is the only sequencing authority.
 2. A finding-implementing PR cites the finding ID in commit and PR text
    (e.g., `implements F4-6`).
-3. Dispositions (r3 ×11, r4 ×8, ADR-001 rev 7) live as board items in
-   **Gate review** until Marshal rules.
+3. Pending dispositions (today: ADR-001 approval (rev 8); r3–r6 were
+   all accepted 2026-11-22) live as board items in **Gate review** until
+   Marshal rules.
 4. Canary red >3 nights: scrum master files the reopen item against the
    highest affected milestone the same day.
 5. Stretch columns (`post-G6`) hold Interconnect/S3 items with no
    schedule weight; they never enter `Ready` early.
-6. **Every declared feature merges only by pull request with Marshal's
-   human approval and all required role reviews completed** (AGENTS.md
-   §6; template at `.github/pull_request_template.md`; CODEOWNERS
-   enforces the human half). Cards sit in **In review** until both
-   conditions are met — "approved" without completed role reviews is not
-   mergeable, and no agent moves a card past this state itself.
+6. **Every declared feature merges only by pull request, merged by
+   Marshal after the required reviews (AGENTS.md §6 rule 2) are
+   completed and current (§6 rule 3) and oob-po has accepted on the
+   issue (for a PR with no issue — Marshal's direct request — his merge
+   is the acceptance)** —
+   Marshal's merge is the human approval (AGENTS.md §6; template at
+   `.github/pull_request_template.md`). Cards sit in **In review** until
+   the reviews are clean, PO has accepted, and Marshal merges; a PO
+   reject sends the card back to **In progress**. After the merge,
+   oob-scrum moves the card to **Gate review**. No agent moves a card to
+   **Done**.

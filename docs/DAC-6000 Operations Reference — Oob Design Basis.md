@@ -52,8 +52,8 @@ DAC-documented per-service/per-program encryption modes:
    DCT2000-class boxes). One extraction serves the whole fleet. Candidate
    sources: box firmware analysis (DCT2500 Broadcom path), SEM documentation,
    or the surplus-hardware lab.
-3. Scrambling is ours to implement in the playout chain (DCII DES/CSA) once the
-   constant is known — tsduck and ffmpeg both have CSA/DES-CSA building blocks.
+3. Scrambling is ours to implement once the constant is known. The software
+   path is backlog work (Plan W5 note).
 4. **Full Encryption per-service addressability** remains the only mode that
    truly needs the KLS/ECC chain (§3) — now explicitly a stretch goal, not a
    gate.
@@ -83,6 +83,17 @@ ground truth and mating ops, not necessarily Full-Encryption EMMs.
 Address** (unique 16-character decimal), **Serial Number** (12-char
 alphanumeric), optional Account Number, Business System Name, Downstream Plant
 Name, Upstream Plant Name (if two-way), on-plant flag.
+
+**Terminal communication types** (Define Terminal, Terminal Type field;
+page not yet cited): the field gives the model number and one of five
+communication types: **One-Way, Fone-Way, Two-Way, Ethernet or DOCSIS**.
+A **Fone-Way** terminal reaches the headend through the **Modem Bank**
+named on its record. The Purchase History report lists archived collected
+purchase information for Fone-Way and Two-Way terminals (terminal ID,
+service index, purchase time, poll date). *Inference:* a **One-Way**
+terminal has no return path, so purchase collection does not apply to it
+(it is outside the Purchase History scope), and neither do polls (Plan
+§3.2: Last Response Date is "poll-based; inactive for one-way units").
 
 **Terminal operations (all documented DAC commands):**
 
@@ -182,14 +193,50 @@ format + segment framing to confirm against a live box."
 | Define Terminal / unit DB (§9) | `units` store (unit addr, serial, type, plants, features) |
 | Initialize / Cold Init / Disconnect / Clear PIN (§9) | `lifecycle` command emitter |
 | Authorize Services/Packages/IPPV (§9, §7) | `entitlements` (tiers, packages, credit) |
-| Channel maps (§8) | `lineup` (from `lineup.yaml`) |
+| Channel maps (§8) | `lineup` store rows (seeded from `lineup.yaml`) |
 | WireLink 600/700 (§4) | `admin-api` (same verbs/codes) |
 | DLS download stream (§12) | `cdl` carousel builder (.obj/.dat loader) |
 | EMM stream incl. download control (§12) | `emm` (Fixed-mode now; Full later) |
 | Polling / terminal monitor (§1) | `poller` |
+| Operation status (§11, p. 11-4; this doc §10) | `command::lifecycle` (#22): status names are code (Layer 3), transition table `hypothesized` |
 | Time zone auto (§14) | `clock` |
 | Local EPG server option (§7) | `guide` |
 | bsilog (§4) | `audit` log |
 | STARFONE modem banks (§1) | `starfone` (mgetty NAS bridge) — stretch |
 | RPD channel/frequency config (§9) | `starvue` upstream config — M6 |
-| SEM V8 scrambling (DES/CSA, FPK) | `playout` scrambler stage (after FPK constant) |
+| SEM V8 scrambling (DES/CSA, FPK) | **SEM ACP** (FPK mode, DES or CSA) — no `playout` scrambler stage; oob-dac only records the tier matrix (SEM-ACP decision, Plan W5). The software DES/CSA path in oob-mux is backlog only (Plan W5 backlog note) |
+
+## 10. Operation status (Define Operations, §11, p. 11-4)
+
+The manual introduces these as "Status indications are as follows" (p.
+11-4). Every status describes the **event on the DAC and RADD 6000**. None
+describes a terminal reply. Definitions are paraphrased, with short quotes
+marked.
+
+| Status | Meaning (p. 11-4) |
+|---|---|
+| **New** | Not yet processed, because its start time hasn't arrived. |
+| **Request Sent** | Read and initiated by the DAC. |
+| **Request Sent Failed** | The operation manager could not send the event to its destination task. |
+| **Timeout** | Initiated, but "did not get an acknowledgement". The manual doesn't name the acknowledger; the RADD is the likely reading (inference). |
+| **Downloaded** | Initiated and "accepted by the RADD 6000". |
+| **Retrieving Status** | The DAC is fetching the event's status from the RADD 6000. (The Retrieve Operation Status control that triggers it is named elsewhere in the manual; seen only in search-index excerpts, page not yet cited.) |
+| **Unknown** | The RADD 6000 has no record of the event. |
+| **Device Offline** | The RADD 6000 is offline or has lost communication. |
+| **Active** | The event is executing. |
+| **Completed** | The event completed successfully. |
+| **Marked Completed** | The event was active but passed its end time, so the system closed it out as completed. |
+| **Failed** | "The operation failed." |
+| **Delayed** | A Category Epoch operation is currently active. (Inference: the event is held until that operation ends.) |
+
+**Takeaway for oob-dac (#22):** the lifecycle follows the DAC → RADD
+handoff (hypothesis H1 on #22), not terminal replies. Terminal results
+(Last Response Date, Failures, Chronic Non-Responding) live on the
+terminal record. Neither the manual nor this table gives transition order
+or a final status for One-Way operations. Oob's transition table
+([#22](https://github.com/OnTheStruggleBus/oob-system/issues/22#issuecomment-7106984109))
+is a `hypothesized` reconstruction. It ends a One-Way operation at
+**Completed**, or **Marked Completed** if its end time passes while Active.
+The reasoning: per the table above, the status depends on the event on the
+DAC/RADD, not on a terminal reply. Oob's daemon plays the DAC and RADD
+together (§1 takeaway). Research notes: issue #22 (oob-expert).

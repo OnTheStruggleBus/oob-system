@@ -1,0 +1,74 @@
+# docs/facts.yaml — the Oob facts registry (r6 F6-13).
+#
+# One home for numbers and states that the prose repeats across docs.
+# Checked against the prose on every commit by ops/docs-facts.py (CI job
+# `docs facts`, r5 F5-10); where it looks and which contexts it allows are
+# configured in ops/docs-facts.toml. Change a fact here and in the prose in
+# the same commit (AGENTS.md §3).
+#
+# YAML subset (ARCH-6): the check reads this file with a small stdlib loader
+# that supports block maps and lists, flow [a, b] and {k: v} on one line,
+# quoted and plain one-line scalars, and # comments. Block scalars (| >),
+# anchors/aliases, tags, multi-line plain scalars and multiple documents
+# fail the check loudly. Dates stay strings. To be replaced by the
+# uv/pydantic reader once schema CI exists (follow-up).
+
+oob_stream:
+  modulation: QPSK
+  symbol_rate_msym_s: 1.024        # SCTE 55-1 Mode A, as used by DCT2000-class boxes
+  stream_rate_mb_s: 2.048          # 2 bits/symbol x 1.024 Msym/s (ADR-001)
+  framing: asynchronous, null-stuffed
+  clock_master: flowgraph          # pull seam, ADR-002 / F6-2
+  insertion_budget_kbps: 1000      # approximate; shared by traffic classes C0-C5 (F6-3)
+
+not_our_rate:
+  scte_55_2_mode_b_mb_s: 1.544     # Sci-Atlanta 55-2 Mode B (Grade B); never the Oob OOB stream rate
+
+lineup:
+  ceiling_mhz: 860                 # box tuner ceiling; the SEM itself reaches 861
+  emm_provider_ids: ["0x0000", "0x0001"]
+
+release_tags:
+  format: "rel/<carrier>"          # r5 F5-13
+  carriers_in_box_scroll_order:
+    - "75.25"
+    - "104.20"
+    - "72.75"
+    - "92.25"
+    - "98.25"
+    - "107.25"
+    - "107.40"
+    - "110.25"
+    - "116.25"
+    - "103.75"
+
+naming:
+  software: Oob
+  guide_stack: VueGuide+
+  operator_ui: Oob Console
+  brand_skin: per-deployment config slot   # no preset operator identity ships
+  superseded_brand: ArchaiTel              # former placeholder skin; never the current brand
+
+configuration:                     # ADR-003 + Marshal's QA-6/QA-7 rulings
+  box_types: upstream catalog only; new type = upstream PR or fork   # QA-6
+  message_templates: runtime, user-defined; verified only via upstream PR
+  community_pack_contents: [message templates, lineups, guide themes, brand skins]
+  community_pack_box_types: upstream-sourced references only, no new types
+  sacrificial_only_cdl_lock: per-install owner setting, default on, unlock = F6-10 confirmation token   # QA-7
+
+decisions:
+  ADR-001: proposed (rev 8)
+  ADR-002: accepted 2026-11-22
+  ADR-003: accepted 2026-11-22     # the amended r6 F6-4
+
+review_dispositions:               # all by Marshal
+  r3: {findings: "F3-1..F3-11", state: accepted, date: 2026-11-22}
+  r4: {findings: "F4-1..F4-8", state: accepted, date: 2026-11-22}
+  r5: {findings: "F5-1..F5-14", state: accepted, date: 2026-11-22}
+  r6:
+    findings: "F6-1..F6-16"
+    state: accepted
+    date: 2026-11-22
+    amended:
+      F6-4: "ADR-003"
+

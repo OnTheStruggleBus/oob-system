@@ -1,0 +1,20 @@
+[package]
+name = "oob-mux"
+description = "OOB transport — TS writer, PSI/SI assemblers, PID plan, insertion-bandwidth shaper"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+# Property tests (#18); no fork/timeout machinery, so the dependency tree stays small.
+proptest = { version = "1", default-features = false, features = ["std"] }
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "scheduler"
+harness = false

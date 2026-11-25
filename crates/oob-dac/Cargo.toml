@@ -1,0 +1,28 @@
+[package]
+name = "oob-dac"
+description = "DAC reproduction — unit DB, entitlements, scheduler, WireLink-verb admin API"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The store (#21). Bundled sqlite pins one sqlite version for every install
+# (ADR-003: the file is the installation). rusqlite MIT, sqlite public domain.
+# `limits` sets SQLITE_LIMIT_ATTACHED=0 so ATTACH is impossible (QA-7).
+rusqlite = { version = "0.43.0", features = ["bundled", "limits"] }
+# event_log payloads are JSON (MIT/Apache-2.0).
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", default-features = false, features = ["std"] }
+# StoreHandle: bounded mpsc + oneshot to the writer thread; `sync` only, no
+# runtime (MIT).
+tokio = { version = "1.54.1", default-features = false, features = ["sync"] }
+# The command layer (#22) is the only oob-dac code that touches the scheduler:
+# it hands oob-mux per-PDU release times (r6 F6-11). Same workspace, no new
+# third-party crates.
+oob-mux = { path = "../oob-mux" }
+sha2 = "0.10"
