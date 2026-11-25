@@ -30,6 +30,35 @@ Formerly "rust-dac Reproduction Plan".*
 The discovery surface is deliberately small: one message layer, one carousel
 format, one constant. Everything else is engineering.
 
+### 1.1 CableLabs R-OOB Appendix I — architecture boundary (research note, 2026-11-25)
+
+**Question asked:** what can the publicly available CableLabs Remote
+Out-of-Band specification corroborate about an SCTE 55-1 OOB headend without
+being mistaken for a GI/Motorola proprietary protocol source?
+
+**Source and confidence:** [CableLabs, *Remote Out-of-Band Specification*,
+CM-SP-R-OOB-I08-171220, Appendix I (informative), 2017-12-20](https://account.cablelabs.com/server/alfresco/3d13de37-7bf4-4b06-bae0-c0e28ef445eb).
+The source is public and authoritative for the described architecture; each
+claim below is therefore **documented**, not box-verified.
+
+| Claim | Project status | Design consequence / boundary |
+| --- | --- | --- |
+| An OM receives OOB source streams, forms an MPEG transport stream, and QPSK-modulates the downstream OOB RF signal. | **Documented** (CableLabs Appendix I); **not box-verified** for Oob. | Confirms W1/W2's MPEG-over-QPSK separation and the mux/flowgraph division. It does not supply the SCTE 55-1 coding/framing details or demonstrate DCT acceptance. |
+| The OOB stream inventory includes EMM; Network (virtual channel map and NIT); code-download images; PAT/PMT; non-SCTE-18 EAS; guide data; and interactive data. | **Documented** (CableLabs Appendix I); individual Oob PIDs, payloads, and delivery behavior are **hypotheses until captured**. | Supplies a complete architecture-level inventory for `oob-mux` planning. It does not define GI message layouts, the guide payload format, or code-download object/carousel framing. |
+| LFG provides guide data; DAC builds EAS messages; RADD provides MPEG data for video operation; NC provides interactive data and responds to STB messages; OM performs OOB transport multiplexing/modulation. | **Documented** (CableLabs Appendix I); mapping to Oob crates is a **design hypothesis**, not a historical implementation claim. | Supports the existing component boundary: guide source, control/operations source, video-operation data source, interactive/return service, and transport. No Oob component is represented as an exact clone of those proprietary systems. |
+| STB polling and interactive signals travel upstream to a return-path demodulator, which emits IP packets for the NC. | **Documented** (CableLabs Appendix I); **not box-verified** for the fleet. | Corroborates W7's split between downstream OOB and STARVUE/return-path work. It does not reveal GI upstream packet bytes, polling cadence, or which messages a DCT will originate. |
+
+**What remains unknown:** exact GI/Motorola OOB message wire formats (including
+enrollment, control, EMM, and download-control families); DLS
+carousel/object framing; the resident guide-feed format; and entitlement-message
+authorship. None is inferred from this source. No claim in this note is
+box-verified, because this research produced no lab capture.
+
+**Gate/workstream consequence:** this reduces architectural uncertainty for
+G0.5 preparation and informs W1 (PHY/transport), W2 (stream inventory), and
+W7 (return path). It neither satisfies G0.5's reproducible-bench requirement
+nor advances a gate; capture-backed experiments remain required.
+
 ## 2. Already in hand: the message operations catalog (DAC manual §11)
 
 The DAC's per-terminal "Manage Operations" menu is effectively our backlog —
