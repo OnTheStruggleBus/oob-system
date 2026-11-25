@@ -255,7 +255,7 @@ added" question directly — and rules out a whole class of guesses:
 | W1 | PHY + carrier | M0.5–M1 | Acquire SCTE 55-1 (timeboxed 2 weeks, F3-1); GNU Radio QPSK flowgraph per spec; loopback BER test; box d 02 data-activity test | O7 preferred; oracle fallback defined (F3-1) |
 | W2 | oob-dac core + mux | M1 | TS writer (188B packets, async/null-stuffed), PID plan, **DCII-flavored** section assemblers (PAT/PMT/CAT/NIT + CA descriptors, F4-6 — O4 gains a DCII SI conformance row, documented/hypothesized/verified like the message layer; W2 exit: box d 15/d 16 shows our PMT with the expected CA descriptors), `lineup.yaml`, unit DB (DAC Define Terminal schema, §3.2), WireLink-verb admin API | — |
 | W3 | Message discovery lab | M1 | **Capture rig first (E1, F3-2):** camera OCR + capture card + RS-232 scrape, zero human interaction per experiment iteration, *before* connect experiments begin. Harness: message templates → SDR → box feedback capture; enrollment order per the E-code remedies: **factory-init → unit-creation → connect** (r4 F4-4, now manual-confirmed), then VCM/region/inband-processor/general, then the poll family + disconnect (§2). **System time/date is hunted from day one** as a hypothesized oob-msg message class (F5-8, absorbing F3-9); the capture rig notes any box-clock behavior during connect experiments | W1, W2 |
-| W4 | Clear-tier playout | M2 | ffmpeg/tsp playout → UDP/GigE → **SEM V8** (Annex B QAM, in hand); codec pin MPEG-2 MP@ML + MP2/AC-3 per census (F3-6/F5-7, §8); lineup consistency CI; time service | W3 (connect+VCM); SEM fallback = HackRF software QAM (F4-2) |
+| W4 | Clear-tier playout | M2 | ffmpeg/tsp playout → UDP/GigE → **SEM V8** (Annex B QAM, in hand); codec pin MPEG-2 MP@ML + MP2/AC-3 per census (F3-6/F5-7, §8); lineup consistency CI, extended to a schedule-DB drift alarm (W4 amendment below); time service | W3 (connect+VCM); SEM fallback = HackRF software QAM (F4-2) |
 | W5 | FPK tier via SEM | M3 | SEM ACP module in **FPK mode** (no EMMS required — manual §2); flavor = DES or CSA per box support; verify d 01 auth reason on encrypted tier; software scrambler demoted to optional | W4 |
 | W6 | CDL / DLS | M4 | .obj/.dat loader, carousel builder, download control in EMM stream; sacrificial-box protocol with verified flash recovery. **First download enable is gated on D0 validation** (F3-3) | W3, **D0** |
 | W7 | Return + polish | M5–M6 | STARFONE modem-bank bridge (mgetty NAS), STARVUE upstream demod, per-terminal **Configure Transmission Parameters** (RPD channel/freq, interactive IDs, impulse credit limits, **power-leveling** attempt tracking), d 12 sign-on state machine + d 13 MAC table as observables, EAS (**post-connect message-family work, reuses the W3 harness** — no separate discovery mechanism, F3-11; zero-weight M6 backlog entry: EAS message class + crawl on the guide channel, F5-9), NC stubs | W4 |
@@ -274,6 +274,60 @@ format is opaque — the d 14 message-ID enum registry points straight at the
 message handlers). Risk-register entry: if neither route works, mitigation
 is board-level practice on the sacrificial box plus alternate flash packages
 per board rev.
+
+### W4 amendment — schedule DB as the playout spine
+
+*Recorded from the strategy session 2026-11-24 (Marshal). This is a plan
+amendment. It sets deliverables and criteria for W4; it does not disposition
+any gate, and the gate exit criteria in the Milestones document are unchanged
+by it.*
+
+The clear-tier playout is driven by **one schedule database as the single
+source of truth**. Every consumer reads it; none keeps a private copy:
+
+1. **oob-playout** builds its playlist queues from the schedule.
+2. **The W8 listings synthesizer** derives guide listings from the same
+   schedule. The lineup consistency CI is inverted into a **drift alarm**:
+   it reports when on-air state, the listings and the mux output disagree
+   with the schedule, instead of only checking that the config files agree
+   with each other.
+3. **oob-dac operations.** A lineup change becomes a future-dated DAC
+   operation (Define Operations: Channel Map, Multiplex, PPV Window Auth,
+   carousel refresh; see the DAC-6000 Operations Reference, Oob design basis).
+   It is never a hot edit to live state.
+
+**Entities.** The schedule DB, held in the oob-dac store (SQLite, see the
+[oob-dac store](architecture/oob-dac-store.md) decision record), has five
+entities:
+
+- **Asset.** A transcoded file: MPEG-2 MP@ML video with MP2 or AC-3 audio,
+  per the codec census (§8). Asset metadata feeds the listings.
+- **Program.** A scheduled item built from one or more assets.
+- **Service.** A mux service with its PID plan and entitlement tier.
+- **Schedule.** Rotation, filler and sign-off rules that place programs on
+  services.
+- **PPV event epoch.** Barker or preview, then sale, event and replay windows.
+  Epochs come from this entity instead of the hand-simulated epochs in the
+  VOD & PPV Simulation Specification.
+  Re-pointing that specification is a follow-up; this amendment does not edit it.
+
+**Management interface.** The WireLink-verb admin API comes first. The Oob
+Console views are:
+
+- week grid and traffic view;
+- on-air-now per service, derived from mux feedback (continuity counters and
+  PTS), with a drift alarm when it disagrees with the schedule;
+- asset library with transcode status;
+- ops board: the Define Operations lifecycle queue;
+- fleet dashboard.
+
+**Non-goals.** No distributed components of any kind, no message broker, no
+hot playlist injection into a running queue, and no session-VOD. SQLite stays.
+
+**W4 exit criterion (set by this plan).** W4 is accepted only when clear-tier
+playout is driven through the schedule DB. An exercise that runs on
+`ops/lineup.yaml` alone does not satisfy it. Any box-visible claim about the
+playout still needs a capture under `lab/captures/` (AGENTS.md §2).
 
 ## 4.1 W8 — Guide, classic i-Guide (Marshal's requirement)
 
