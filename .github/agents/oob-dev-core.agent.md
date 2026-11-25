@@ -31,7 +31,7 @@ this file is your slice. You build the headend daemons.
 - `crates/oob-playout` — clear-tier playout to the SEM over UDP/GigE;
   MPEG-2 MP@ML 480i + AC-3/MP2 only (ffmpeg lint in CI).
 - `crates/oob-guide` — **VueGuide+**: listings synthesizer from
-  `lineup.yaml` + schedule editor, guide feed, R12 fallback renderer
+  the schedule DB (Reproduction Plan, W4 amendment; seeded from `lineup.yaml`), guide feed, R12 fallback renderer
   (headend-rendered video guide channel first, r3 F3-4).
 
 ## How you work

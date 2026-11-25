@@ -127,7 +127,7 @@ where `tsp` re-clocks and hands it to the QAM source. PCR/continuity
 re-stamping at the hub with `tsp` filters as needed. Bandwidth is the
 honest constraint: MPEG-2 MP@ML at 3–6 Mb/s per service means a home
 uplink carries a *curated* lineup (2–8 services), not a full 1999-basic
-tier. The hub subscribes to a channel set; `lineup.yaml` declares per-hub
+tier. The hub subscribes to a channel set; the hub registry (store rows, ADR-003) declares per-hub
 mappings.
 
 ### 4.3 Time, region, and guide data
@@ -169,7 +169,7 @@ master SEM), no change to the threat model.
 GigE/ASI *output* (not only to its own QAMs) so the scrambled TS is
 available for WAN shipment. If it can't, fallbacks in order: (a) hub gets
 its own ACP-equipped 507199-001 (expensive, opportunistic); (b) hub runs
-clear tier only until O3's optional software-scrambler knowledge exists —
+clear tier only until the software DES/CSA path exists (backlog, no date; Plan W5 backlog note) —
 the one scenario where the demoted FPK-extraction work regains schedule
 relevance. Flagged here so nobody is surprised later.
 

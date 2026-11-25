@@ -315,7 +315,9 @@ M2 = visibly working fleet. M3 + M4 = full parity per the agreed definition.
   identify the i-Guide application module and a donor unit.
 - **O13:** i-Guide listings format discovery — box-as-oracle loop seeded by the
   Gemstar/StarSight patent trove and DAC Source-ID semantics; self-authored
-  listings content from `lineup.yaml`.
+  listings content from `lineup.yaml`. Listings are now sourced from the
+  schedule DB (Reproduction Plan, W4 amendment, strategy session 2026-11-24);
+  this decision text is otherwise as recorded.
 
 ---
 

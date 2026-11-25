@@ -262,7 +262,7 @@ carry IPPV purchase uploads.
   implementing the §2.1 record: service (Program Provision = Externally
   Supplied, BSG service handle auto-issued ≥32768), programs (epoch fields,
   cost-in-units, antitaping flags), and per-business-system program handles.
-  `lineup.yaml` references PPV services by name; the VCM maps them like any
+  the lineup store rows (seeded from `lineup.yaml`) reference PPV services by name; the VCM maps them like any
   digital service; lineup-consistency CI covers them.
 - The scheduler implements **PPV Window Auth** as an auto-generated
   operation: at each program boundary, emit window authorizations per the
@@ -341,6 +341,8 @@ for Marshal, upload pattern per doctrine; no paywall bypass).
 
 ## 4. Data model and config (sketch)
 
+*Pointer (strategy session 2026-11-24): the schedule DB in the Reproduction Plan's W4 amendment is planned to supersede this section's program and epoch tables as the source. Re-pointing this section is a follow-up and is not done here.*
+
 - `oob-dac` sqlite: `services` (already implied by entitlements work) gains
   `program_provision`; new `programs` (epoch fields, cost_units,
   antitaping), `program_handles` (BS × program → handle, zero-handle
@@ -352,7 +354,7 @@ for Marshal, upload pattern per doctrine; no paywall bypass).
 - `units.yaml`: box-**type** defaults only (e.g. a type's default
   `terminal_type`, credit units and purchase limit) in the upstream
   box-type catalog; schema-validated in CI (ADR-003 §6).
-- `lineup.yaml`: `ppv:` service blocks (service name, source, provision =
+- Lineup store rows (seeded from `lineup.yaml`; edited in the Console): `ppv:` service blocks (service name, source, provision =
   externally-supplied, optional explicit BSG handle) and an `nvod:` block
   (source, instances, offset) expanded by playout; VCM unchanged in shape.
 - Console: program schedule editor (the Define Digital Programs window,

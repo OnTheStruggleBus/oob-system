@@ -52,8 +52,8 @@ DAC-documented per-service/per-program encryption modes:
    DCT2000-class boxes). One extraction serves the whole fleet. Candidate
    sources: box firmware analysis (DCT2500 Broadcom path), SEM documentation,
    or the surplus-hardware lab.
-3. Scrambling is ours to implement in the playout chain (DCII DES/CSA) once the
-   constant is known — tsduck and ffmpeg both have CSA/DES-CSA building blocks.
+3. Scrambling is ours to implement once the constant is known. The software
+   path is backlog work (Plan W5 note).
 4. **Full Encryption per-service addressability** remains the only mode that
    truly needs the KLS/ECC chain (§3) — now explicitly a stretch goal, not a
    gate.
@@ -193,7 +193,7 @@ format + segment framing to confirm against a live box."
 | Define Terminal / unit DB (§9) | `units` store (unit addr, serial, type, plants, features) |
 | Initialize / Cold Init / Disconnect / Clear PIN (§9) | `lifecycle` command emitter |
 | Authorize Services/Packages/IPPV (§9, §7) | `entitlements` (tiers, packages, credit) |
-| Channel maps (§8) | `lineup` (from `lineup.yaml`) |
+| Channel maps (§8) | `lineup` store rows (seeded from `lineup.yaml`) |
 | WireLink 600/700 (§4) | `admin-api` (same verbs/codes) |
 | DLS download stream (§12) | `cdl` carousel builder (.obj/.dat loader) |
 | EMM stream incl. download control (§12) | `emm` (Fixed-mode now; Full later) |
@@ -204,7 +204,7 @@ format + segment framing to confirm against a live box."
 | bsilog (§4) | `audit` log |
 | STARFONE modem banks (§1) | `starfone` (mgetty NAS bridge) — stretch |
 | RPD channel/frequency config (§9) | `starvue` upstream config — M6 |
-| SEM V8 scrambling (DES/CSA, FPK) | **SEM ACP** (FPK mode, DES or CSA) — no `playout` scrambler stage; oob-dac only records the tier matrix (SEM-ACP decision, Plan W5) |
+| SEM V8 scrambling (DES/CSA, FPK) | **SEM ACP** (FPK mode, DES or CSA) — no `playout` scrambler stage; oob-dac only records the tier matrix (SEM-ACP decision, Plan W5). The software DES/CSA path in oob-mux is backlog only (Plan W5 backlog note) |
 
 ## 10. Operation status (Define Operations, §11, p. 11-4)
 

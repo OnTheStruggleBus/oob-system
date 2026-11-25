@@ -110,6 +110,24 @@ exception — the SEM — collapsed our two largest risks (QAM modulation and
 MediaCipher FPK encryption) into a single period-correct appliance that was
 already in the estate.
 
+**Platform scope additions (strategy session 2026-11-24).** Three capabilities
+are proposed as platform scope, not stretch goals; gate placement is for Marshal:
+
+- **Programming** — the channel lineup, the service grid, sign-on and
+  sign-off, and the schedule that drives playout and the listings.
+- **Ad management** — avails, spots, campaigns and flights, trafficking, the
+  as-run log and the affidavit. All ads are spliced at the headend, because the
+  box has no per-subscriber ad path (hypothesized; see the Programming & Ad
+  Management Specification).
+- **Advanced encoding** — the MPEG-2 MP@ML 480i profile, closed-GOP splice
+  points, the CBR transport budget, PCR and PSI timing, captions, and the
+  verification checks. See the Encoding & Transport Specification.
+
+**Configuration is UI- and database-driven.** Every operator setting lives in
+oob-dac's store and is edited in the Oob Console or through the API. No
+operator edits a YAML file by hand. `ops/*.yaml` are seed and example data
+only (ADR-003).
+
 ## 4. Lab topology
 
 ```javascript
@@ -193,6 +211,68 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | S4 | **VOD/PPV simulation** — scheduled PPV + call-ahead (P1), impulse PPV (P2, rides S1's return path), NVOD (P3); true session VOD registered but unscoped | `VOD & PPV Simulation Specification — mini-headend.md` |
 | S5 | **Billing & subscriber management** — accounts, rate cards, immutable ledger, period-styled (fictitious) statements, fictitious payments, non-pay disconnect/reconnect driving DAC entitlements; fully documented Billing API. The theater layer: the subscribers are friends and the monthly bill is half the fun | `Billing & Subscriber Management Specification — mini-headend.md` |
 
+### 7.1 Expansion lanes
+
+*Recorded from the strategy session 2026-11-24 (Marshal). This is a planning
+construct. It orders candidate lanes and admits none of them to a gate. It
+does not disposition G0–G6.*
+
+Lanes are sorted by one question: was the set-top's trust rooted in a local
+headend (reproducible on a closed plant), or in a third-party service (not
+reproducible)?
+
+| Order | Lane | Trust root | Planning status |
+| --- | --- | --- | --- |
+| 1 | **SciAtl cable** | Local headend: DBDS/DNCS with PowerKEY. Explorer 2000, 3000 and 8000 set-tops. The DAVIC-derived Mode B PHY is covered by the Sci-Atlanta spec (§3). | Sequenced first |
+| 2 | **Satellite DCII** | Local headend: DCII, with DSR-4500-class IRDs and 4DTV receivers | Proposed to share the SciAtl CA workstream; the shared-lineage basis is open (see Sourcing) |
+| 3 | **IP STBs** | Third-party service | Per-box opportunistic rescue only. Zero gates, zero planning weight. |
+| 4 | **CableCARD** | Blocked at one anchor: the card factory CA and the PowerKEY/MediaCipher issuer hierarchy | Zero gates until the revival trigger below |
+
+- **SciAtl cable.** Sequenced first. Its CA workstream is the one the
+  satellite lane reuses.
+- **Satellite DCII.** The strategy session proposed one CA workstream for
+  both SciAtl and satellite. The shared-lineage basis is not relied on here;
+  see Sourcing.
+  Surplus headend hardware gives richer captures. An IRD can serve as a
+  headend element: demodulator, then ASI, then mux, then QAM. The L-band never
+  touches coax. If a physical satellite side is wanted, the LNB is its own
+  L-band side plant. Shaw Direct runs DCII today and is a living reference.
+  VideoCipher II is deprioritized. Attacks on live services are excluded by
+  doctrine (AGENTS.md §7 and §11).
+- **IP STBs.** Opportunistic per-box rescue only. This follows AGENTS.md §11:
+  surplus finds carry no planning weight.
+- **CableCARD.** The host side is reproducible: two commercial
+  implementations exist, SiliconDust HDHomeRun Prime and Ceton InfiniTV
+  (including SDV). The blocked anchor is the card's trust chain. Revival
+  trigger: acquire a CableLabs test-CA or development M-CARD. Any such key
+  material is handled under the secrets tier (AGENTS.md §5). Cheap referee: a
+  used HDHomeRun Prime, about $30, as a certified host for observing the
+  emulated DNCS. That purchase is Marshal's decision; nothing here orders it.
+
+**Sourcing.** The DAVIC-derived SCTE 55-2 Mode B PHY is covered by the
+Sci-Atlanta Ecosystem Specification (§3); DAVIC 1.x as a whole is not. The
+Explorer 2000, 3000 and 8000 model list, Shaw Direct's DCII service, the
+HDHomeRun Prime and Ceton InfiniTV host claims and the approximate $30 price
+are strategy-session input and are not yet sourced to a document. The
+shared PowerKEY lineage asserted for satellite DCII is contradicted by the
+Sci-Atlanta Ecosystem Specification §1 table (PowerKEY on the Scientific-Atlanta
+side, MediaCipher on the GI/Motorola side); it is not relied on here and is for
+Marshal to resolve. The
+standing searches in Prior Art §6.1 are where they get sourced.
+
+**Lane entry step (planning construct; not a gate).** Each lane has its own
+entry step, called "lane entry" here: donor box and docs acquired, plus a
+first capture. The stale-docs principle of AGENTS.md §1, rule 9 is applied to
+lane docs by analogy. It is not a gate rule and binds no gate. The gate
+sequence G0–G6 is unchanged and still owner-dispositioned.
+
+**Open tension (flagged for Marshal, not resolved here).** The document map
+row for the Sci-Atlanta specification, Prior Art §6 and the Hardware
+Acquisition List (item E) call the second front "far-future". This lane order
+sequences SciAtl first. The Sci-Atlanta Ecosystem Specification's own timing is
+the source to check against this order. Both statements stand until Marshal
+decides which governs.
+
 ## 8. Where everything lives (document map)
 
 | Document | What it is |
@@ -205,6 +285,8 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | `Remote Service Delivery Specification — Interconnect (Stretch Goal).md` | The S2 remote-delivery design |
 | `VOD & PPV Simulation Specification — mini-headend.md` | The S4 transactional layer: scheduled PPV + call-ahead, impulse PPV, NVOD, and the registered true-VOD stretch (proposed, awaiting disposition) |
 | `Billing & Subscriber Management Specification — mini-headend.md` | The S5 theater layer: accounts, rate cards, immutable ledger, period-styled fictitious statements, dunning-driven disconnect/reconnect, and the documented Billing API (proposed, awaiting disposition) |
+| `Programming & Ad Management Specification — mini-headend.md` | The platform's programming schedule, avails, spots, campaigns, trafficking, as-run and affidavit, with the UI-and-database configuration rule (proposed; gate placement for Marshal) |
+| `Encoding & Transport Specification — mini-headend.md` | The advanced encoding profile: MPEG-2 MP@ML 480i, closed-GOP splice points, CBR transport budget, PCR and PSI timing, captions, and the lab-side verification (proposed; gate placement for Marshal) |
 | `Management Console Specification — Oob Console.md` | The operator front-end — every setting, template, and campaign, API-first over the WireLink verbs |
 | `Project Milestones & Stage Gates — mini-headend.md` | The operating contract: milestone/gate map G0–G6 with entry/exit/evidence rules, enabling tracks, the living gate register, and the full development tool stack |
 | `Hardware Acquisition List — mini-headend.md` | The prioritized buy list: what to acquire, in P0→P3 order, and which gate or track each purchase unblocks |

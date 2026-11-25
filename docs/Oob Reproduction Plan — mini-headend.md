@@ -22,7 +22,7 @@ Formerly "rust-dac Reproduction Plan".*
 | PHY (QPSK 1.024 Msym/s @ 75.25/72.75/104.2 MHz + 7 more hunt carriers documented in the DCT2000 manual d 02; 1.5 MHz BW, −10…+5 dBmV at box input; coding/framing details) | **Acquirable** | ANSI/SCTE 55-1 (2009) — O7; carrier table + levels already in hand from the DCT2000 manual |
 | **GI OOB message wire formats** (connect, VCM, region, inband-processor, general, phone, EMM, download control) | **TO DISCOVER** | Box-as-oracle loop (§3) + SCTE 55-1 + patents (O10) |
 | DLS carousel segment framing | **TO DISCOVER** | Box-as-oracle + §12 object model |
-| FPK constant + scrambling flavor (DES vs CSA) | **RESOLVED IN HARDWARE** | SEM V8 in hand (2026-11-22): ACP module does FPK mode — no EMMS needed — with DES **or** CSA as a config choice; O3 extraction demoted to optional knowledge |
+| FPK constant + scrambling flavor (DES vs CSA) | **RESOLVED IN HARDWARE** (SEM route only; the software path's constant is open, W5 backlog note) | SEM V8 in hand (2026-11-22): ACP module does FPK mode — no EMMS needed — with DES **or** CSA as a config choice; O3 extraction demoted to optional knowledge |
 | i-Guide app residency per box | **CENSUS** | d 10 module list at O2 (O12) |
 | i-Guide listings data format | **TO DISCOVER** | Box-as-oracle + Gemstar/StarSight patent trove (O13); no public spec or hobbyist RE found |
 | STARFONE poll protocol | **TO DISCOVER** (stretch) | Simulated-line sniff + box counters (O5) |
@@ -248,6 +248,47 @@ added" question directly — and rules out a whole class of guesses:
   the address-field guide.
 
 
+## 3.3 Acquired binary artifacts — cleanroom doctrine
+
+*Recorded from the strategy session 2026-11-24 (Marshal). This applies if and
+when DCT-family firmware images surface. It is doctrine, not an acquisition:
+nothing here acquires or handles an image. The doctrine lives in this plan,
+not in AGENTS.md, which this session does not change.*
+
+**Seal on receipt.**
+
+1. Compute the SHA-256 immediately, before anything else is done with the file.
+2. Keep it only in the git-crypt tier. Never plaintext, never in chat, never
+   in a PR (AGENTS.md §5).
+3. Write a provenance-log entry, in the log described in Prior Art §6.1, with
+   honest provenance: source URL, date, tool and flags, and what is not known
+   about the file.
+
+**Extract facts, not code.** Permitted extractions are behavioral: version
+strings, error tables, diagnostic strings and expected OOB frequencies. Each
+goes into a corpus spec with its provenance, written as "extracted from
+acquired image, sha256:DIGEST", with the full digest in place of DIGEST. Wire-format constants are permitted.
+Key material is not a wire-format constant: an FPK constant or any other key
+material is secrets-tier under AGENTS.md §5 and never goes into a corpus spec.
+Whether corpus specs carry the full digest or a truncated one is for the owner
+to confirm, since a full digest fingerprints the artifact.
+Code and artwork are never copied. UI text is never copied verbatim: a
+diagnostic string the unit emits is recorded as a fact with provenance, while
+screen and menu copy is only described.
+
+**Solo cleanroom hygiene.** This is cleanroom discipline at solo weight, not a
+two-team clean room. Implementation works from the spec document. The binary
+is not open during implementation. The discipline is kept by process, not by
+a second team.
+
+**Validation is behavioral.** The box is the referee (AGENTS.md §2). Nothing
+is validated by diffing code against the image.
+
+**Optional, long term.** An emulator for the MC68331-class CPU (Musashi or a
+MAME-class core) could run the genuine image headlessly to generate traces.
+The CPU class is quoted, not verified (Prior Art §3.2). Emulated traces are
+hypotheses only. RF captures from real silicon confirm them.
+
 ## 4. Workstreams and build order
 
 | # | Workstream | Milestone | Key tasks | Depends on |
@@ -255,8 +296,8 @@ added" question directly — and rules out a whole class of guesses:
 | W1 | PHY + carrier | M0.5–M1 | Acquire SCTE 55-1 (timeboxed 2 weeks, F3-1); GNU Radio QPSK flowgraph per spec; loopback BER test; box d 02 data-activity test | O7 preferred; oracle fallback defined (F3-1) |
 | W2 | oob-dac core + mux | M1 | TS writer (188B packets, async/null-stuffed), PID plan, **DCII-flavored** section assemblers (PAT/PMT/CAT/NIT + CA descriptors, F4-6 — O4 gains a DCII SI conformance row, documented/hypothesized/verified like the message layer; W2 exit: box d 15/d 16 shows our PMT with the expected CA descriptors), `lineup.yaml`, unit DB (DAC Define Terminal schema, §3.2), WireLink-verb admin API | — |
 | W3 | Message discovery lab | M1 | **Capture rig first (E1, F3-2):** camera OCR + capture card + RS-232 scrape, zero human interaction per experiment iteration, *before* connect experiments begin. Harness: message templates → SDR → box feedback capture; enrollment order per the E-code remedies: **factory-init → unit-creation → connect** (r4 F4-4, now manual-confirmed), then VCM/region/inband-processor/general, then the poll family + disconnect (§2). **System time/date is hunted from day one** as a hypothesized oob-msg message class (F5-8, absorbing F3-9); the capture rig notes any box-clock behavior during connect experiments | W1, W2 |
-| W4 | Clear-tier playout | M2 | ffmpeg/tsp playout → UDP/GigE → **SEM V8** (Annex B QAM, in hand); codec pin MPEG-2 MP@ML + MP2/AC-3 per census (F3-6/F5-7, §8); lineup consistency CI; time service | W3 (connect+VCM); SEM fallback = HackRF software QAM (F4-2) |
-| W5 | FPK tier via SEM | M3 | SEM ACP module in **FPK mode** (no EMMS required — manual §2); flavor = DES or CSA per box support; verify d 01 auth reason on encrypted tier; software scrambler demoted to optional | W4 |
+| W4 | Clear-tier playout | M2 | ffmpeg/tsp playout → UDP/GigE → **SEM V8** (Annex B QAM, in hand); codec pin MPEG-2 MP@ML + MP2/AC-3 per census (F3-6/F5-7, §8); lineup consistency CI (kept; a G2 exit item) plus a schedule-DB drift alarm (W4 amendment below); time service | W3 (connect+VCM); SEM fallback = HackRF software QAM (F4-2) |
+| W5 | FPK tier via SEM | M3 | SEM ACP module in **FPK mode** (no EMMS required — manual §2); flavor = DES or CSA per box support; verify d 01 auth reason on encrypted tier; software DES/CSA scrambling path in oob-mux is backlog work (see the W5 backlog note below); its kill-criterion status is not decided here | W4 |
 | W6 | CDL / DLS | M4 | .obj/.dat loader, carousel builder, download control in EMM stream; sacrificial-box protocol with verified flash recovery. **First download enable is gated on D0 validation** (F3-3) | W3, **D0** |
 | W7 | Return + polish | M5–M6 | STARFONE modem-bank bridge (mgetty NAS), STARVUE upstream demod, per-terminal **Configure Transmission Parameters** (RPD channel/freq, interactive IDs, impulse credit limits, **power-leveling** attempt tracking), d 12 sign-on state machine + d 13 MAC table as observables, EAS (**post-connect message-family work, reuses the W3 harness** — no separate discovery mechanism, F3-11; zero-weight M6 backlog entry: EAS message class + crawl on the guide channel, F5-9), NC stubs | W4 |
 | W8 | **Guide — classic i-Guide** | M6 | See §4.1. App residency census → data-feed discovery → listings synthesizer; fidelity target is the TV Guide Interactive grid | W3, W4; donor path also D0 (F3-3/F4-3) |
@@ -274,6 +315,123 @@ format is opaque — the d 14 message-ID enum registry points straight at the
 message handlers). Risk-register entry: if neither route works, mitigation
 is board-level practice on the sacrificial box plus alternate flash packages
 per board rev.
+
+### W4 amendment — schedule DB as the playout spine
+
+*Recorded from the strategy session 2026-11-24 (Marshal). This is a plan
+amendment. It sets deliverables and criteria for W4; it does not disposition
+any gate, and the gate exit criteria in the Milestones document are unchanged
+by it.*
+
+The clear-tier playout is driven by **one schedule database as the single
+source of truth**. Every consumer reads it; none keeps a private copy:
+
+1. **oob-playout** builds its playlist queues from the schedule.
+2. **The W8 listings synthesizer** derives guide listings from the same
+   schedule. A **drift monitor** is added at runtime beside the lineup consistency CI job.
+   The lineup CI stays as it is and stays green (G2 exit). The alarm reports
+   when on-air state, the listings and the mux output disagree with the
+   schedule; the lineup CI only checks that the config files agree with each
+   other.
+3. **oob-dac operations.** A lineup change becomes a future-dated DAC
+   operation. Two operation names are taken verbatim from the DAC-6000
+   Operations Reference (section 5): Change Set-Top Channel Map and PPV
+   Authorization Update. The multiplex and carousel-refresh operations do not
+   appear under those names there; they are to be named when the ops board is
+   specified.
+   It is never a hot edit to live state.
+
+**Entities.** The schedule DB, held in the oob-dac store (SQLite, see the
+[oob-dac store](architecture/oob-dac-store.md) decision record), has five
+entities:
+
+- **Asset.** A transcoded file: MPEG-2 MP@ML video with MP2 or AC-3 audio,
+  per the codec census (§8). Asset metadata feeds the listings.
+- **Program.** A scheduled item built from one or more assets.
+- **Service.** A mux service with its PID plan and entitlement tier.
+- **Schedule.** Rotation, filler and sign-off rules that place programs on
+  services.
+- **PPV event epoch.** Barker or preview, then sale, event and replay windows.
+  Epochs come from this entity instead of the hand-simulated epochs in the
+  VOD & PPV Simulation Specification.
+  Re-pointing that specification is a follow-up; this amendment does not edit it.
+
+**Name collision (follow-up).** The VOD & PPV Simulation Specification (§3.1
+and §4) already defines a `programs` table and a program database in oob-dac.
+The Program and Service entities here are schedule-DB entities in the same
+store. The VOD spec's BSG service and program handles (§2.1) use the same
+words, so the Service entity collides with them as well. The lineup's PPV
+fields, once `ops/lineup.yaml` exists, are a further place to check. Reconciling the two sets of names is a follow-up for the owner. This
+amendment renames neither.
+
+**Management interface.** The WireLink-verb admin API comes first. The Oob
+Console views below are proposed here; the Management Console Specification
+does not list them yet:
+
+- week grid and traffic view;
+- on-air-now per service, derived from mux feedback (continuity counters and
+  PTS), with a drift alarm when it disagrees with the schedule;
+- asset library with transcode status;
+- ops board: the Define Operations lifecycle queue;
+- fleet dashboard.
+
+**Programming, ads and encoding.** The schedule-DB entities above are
+specified in the Programming & Ad Management Specification (grid, avails,
+spots, campaigns, trafficking, as-run, affidavit, and the on-air monitor). The
+encode profile, GOP and splice rules and the asset pipeline are in the
+Encoding & Transport Specification. **All operator configuration, including
+every row those specifications define, lives in the store and is edited in the
+Console or through the API. No operator hand-edits a file (ADR-003).**
+
+**Non-goals.** No distributed components of any kind, no message broker, no
+hot playlist injection into a running queue, and no session-VOD. SQLite stays.
+
+**Proposed W4 exit criterion (set by this plan; Milestones G2 is unchanged).** W4 counts as met only when clear-tier
+playout is driven through the schedule DB. An exercise that runs on
+`ops/lineup.yaml` alone does not satisfy it. Any box-visible claim about the
+playout still needs a capture under `lab/captures/` (AGENTS.md §2).
+
+Whether G2's exit needs this W4 deliverable is for Marshal to confirm. This
+amendment does not change the G2 exit criteria, which stay in the Milestones
+document.
+
+### W5 backlog note — software DES/CSA scrambling path
+
+*Recorded from the strategy session 2026-11-24 (Marshal). This is a backlog
+entry. It does not change the W5 row's gate placement, the M3 exit criteria,
+or any gate disposition.*
+
+W5 currently leans on the surplus SEM V8 ACP module as load-bearing for the
+whole FPK tier. That is backwards: a whole tier that depends on one surplus unit inherits
+that unit's availability. The backlog entry reverses the dependency.
+
+- **Implement the DES/CSA scrambling path in oob-mux** against the SEM V8
+  manual, which is in hand, as its design basis. This is backlog work. It is not
+  scheduled and does not start until the FPK-constant question below is
+  answered and Marshal schedules it. It does not depend on SEM availability.
+- **The box adjudicates parity.** The box's `d 01` auth state is the referee.
+  A parity claim is made only with a capture (AGENTS.md §2).
+- **The SEM is the preferred reference and capture source.** The software
+  path does not depend on it. The M3 gate still requires SEM ACP scrambling
+  under its exit criteria, so the SEM stays in W5.
+
+**Key material (AGENTS.md §5).** Any FPK constant the software path needs is
+secrets-tier material. It lives in git-crypt or outside git, never in
+plaintext and never in chat. Where that constant comes from is an open
+question for Marshal, and the software path cannot be built until it is
+answered.
+
+**Placement.** The path is written here as oob-mux work. ADR-002 does not
+list a scrambler under oob-mux or oob-playout. Placing it there is an ADR-002
+amendment for the owner to decide. Until then the tree and the DAC-6000
+Operations Reference both name oob-mux.
+
+**Gap.** The F4-2 HackRF fallback (W4) covers modulation only. It gives no
+scrambling path, so it does not close this gap.
+
+**Kill criterion.** Whether the software path counts as a route under the kill
+criterion (AGENTS.md §1, rule 5) is Marshal's call at the next gate review.
+This note does not classify it, and it is not counted here.
 
 ## 4.1 W8 — Guide, classic i-Guide (Marshal's requirement)
 
@@ -626,7 +784,7 @@ gives per-field feedback), plus the Gemstar/StarSight patent trove (~90 IPG
 patents), plus the DAC manual's Source-ID mapping semantics. Census must
 verify the default genre palette before colors are trusted as an oracle
 (Guide Colors Setup finding, frame 11). Source content: self-authored
-listings from `lineup.yaml` + a schedule editor; no real broadcaster data
+listings from the schedule DB (W4 amendment), seeded from `lineup.yaml`; no real broadcaster data
 needed.
 
 **Fallback (risk R12, re-priced by F3-4):** if the census finds *no* guide
@@ -635,7 +793,7 @@ in order: (a) source a donor object (fleet-external DCTs are cheap e-waste
 feedstock; census watches explicitly for **Passport Echo** modules — one
 artifact would satisfy residency *and* R12 theming, F5-3) and re-serve via
 CDL; (b) **headend-rendered video guide channel** — grid rendered from
-`lineup.yaml` server-side and played out as an ordinary MPEG-2 channel
+the schedule DB and lineup store rows server-side and played out as an ordinary MPEG-2 channel
 (Prevue/TV Guide Channel style, period-authentic by definition): zero
 box-side code, zero CDL dependency, works the day clear-tier playout works;
 (c) only if both fail, a **native substitute grid app** — explicitly
@@ -712,12 +870,12 @@ The platform matrix now has four rows: **DCT2000 (68k) · DCT2500
 ```javascript
 mini-headend/            # the Oob workspace
 ├── crates/
-│   ├── oob-dac/         # daemon: unit DB, entitlements, scheduler, admin API (WireLink verbs)
-│   ├── oob-mux/         # TS writer, PSI/SI assemblers, PID plan, insertion-bandwidth shaper
+│   ├── oob-dac/         # daemon: unit DB, entitlements, scheduler, schedule DB (W4 amendment), admin API (WireLink verbs)
+│   ├── oob-mux/         # TS writer, PSI/SI assemblers, PID plan, insertion-bandwidth shaper, software DES/CSA path (proposed placement; backlog, W5 note)
 │   ├── oob-msg/         # GI message layer: templates + discovered wire formats (the O4 protocol doc, as code)
 │   ├── oob-cdl/         # DLS: .obj/.dat loader, carousel builder, EMM download-control
 │   ├── oob-starfone/    # modem-bank bridge to mgetty NAS (stretch)
-│   ├── oob-playout/     # clear-tier playout → SEM GigE now; software scrambler optional at M3
+│   ├── oob-playout/     # clear-tier playout → SEM GigE now, driven from the schedule DB (W4 amendment)
 │   └── oob-guide/       # VueGuide+: listings synthesizer + guide feed + R12 fallback grid (W8)
 ├── flowgraphs/          # GNU Radio: qpsk_oob_tx.grc, starvue_rx.grc
 ├── lab/
@@ -747,9 +905,10 @@ d 14 is fleet-wide per the install manual, so this tier is no longer
 DCT2500-gated — plus the RS-232 console *if* the census yields an
 instrumentable unit (census designates the instrument or records its
 absence).
-- M3 routed through the physical SEM V8's ACP module in FPK mode (see §8)
-  instead of a software scrambler + extracted constant. **M3 exit amended
-  (F5-4):** EMM authorship gets an R11-style timebox + escalation ladder —
+- M3 routed through the physical SEM V8's ACP module in FPK mode (see §8),
+  as the preferred reference. The software DES/CSA path stays on the backlog
+  (W5 backlog note) rather than being dropped.
+  **M3 exit amended (F5-4):** EMM authorship gets an R11-style timebox + escalation ladder —
   (1) SEM manual re-read for EMM/ACP interfaces, (2) box-as-oracle against
   SEM-generated streams with the entitlement matrix varied, (3) surplus
   escalation (OM/RADD — one purchase covers both this and R11). Who authors
@@ -863,7 +1022,7 @@ passthrough or device-node juggling. Realtime tolerance: OOB is a
 1.024 Msym/s constant-rate stream; the flowgraph (not the daemons) owns
 timing. **Deployment notes (F4-7):** host networking (or macvlan) for the
 playout container so UDP multicast behaves; explicit multicast group/port
-convention in `lineup.yaml`; the managed switch (buy list) sits between
+convention in a store row (seeded from `lineup.yaml`); the managed switch (buy list) sits between
 playout host and SEM to keep multicast clean; a container-restart canary
 re-asserts the Pluto/iiod connection (the USB-net gadget's link-local
 addressing must survive restarts).
@@ -904,7 +1063,7 @@ OOB flowgraph ─►│ HackRF One   │── filter ────┴───�
   kill criteria revised in §6.
 - **Frequency housekeeping (F4-8):** the SEM tunes to 861 MHz but the box
   tuner passes 54–860 MHz — keep the lineup ≤860 MHz. STD vs HRC/IRC is our
-  free choice via the VCM; the SEM's plan setting, `lineup.yaml`, and the
+  free choice via the VCM; the SEM's plan setting, the lineup store row, and the
   VCM must agree — **STD is the default**, recorded here deliberately. Three
   hunt carriers (104.2/107.25/107.40 MHz) sit in the FM broadcast band — a
   closed, terminated plant radiates nothing of consequence, but this is a

@@ -154,3 +154,33 @@ back identical, and that observations are cleared.
 | Database path, busy timeout | Install settings (Layer 1, from the daemon configuration, #29) |
 | Terminal rows, events, audit rows | Runtime data (Layer 1, through the command layer and API, #22 and #25) |
 | Box-type IDs a terminal refers to | The upstream catalog (#30), read-only at runtime |
+
+## Decision record: SQLite stays (a design note, not a numbered ADR)
+
+*Recorded from the strategy session 2026-11-24 (Marshal). Logged so that
+this is not re-litigated.*
+
+The store stays on single-node SQLite. The system is single-node,
+write-light and runs on a closed plant, and for that shape SQLite is the
+correct engine. The pragmas and the single-writer rule under "One file, one
+writer" are what make it correct. They are not restated as new decisions.
+
+**Why not Postgres now.** A client-server database adds a server to operate,
+a network and a second failure domain. It buys no robustness for one process
+that owns one file. It would also turn ADR-003 §6 (the database is the
+installation, one file that can be backed up and exported whole) into a
+cluster problem. The schedule DB in the Reproduction Plan's W4 amendment
+lives in this same store, so no second engine is implied.
+
+**Revisit trigger (recorded honestly).** Revisit the engine only if either of
+these appears:
+
+- multiple networked write agents, or
+- multi-user Console writes.
+
+Until one of them appears, Postgres is complexity without robustness.
+
+**Durability.** Every table carries a durability class in the code registry
+(see the section above). The schedule DB tables from the W4 amendment are
+classified there when the schedule code lands. This record adds no new engine
+and no new durability rule.
