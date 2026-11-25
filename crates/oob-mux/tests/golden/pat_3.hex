@@ -1,2 +1,5 @@
+# status: hypothesized — regression lock, not box-verified
+# DCII-flavored table section built by the #17 assemblers; layout checked by the
+# independent decoder in tests/psi.rs, not hand-cross-checked.
 00 b0 15 00 07 c1 00 00 00 01 e1 00 00 02 e1 10
 00 03 e1 20 d5 f9 b3 ff

@@ -34,4 +34,24 @@ mod tests {
         assert_eq!(cc.next(b), 0);
         assert_eq!(cc.next(a), 1);
     }
+
+    proptest::proptest! {
+        /// F6-15: across any interleaving of PIDs, each PID's counter is
+        /// +1 mod 16 per packet, from 0, wrapping at 16; other PIDs never
+        /// disturb it. (The null PID never reaches here: `Pid` cannot hold
+        /// 0x1FFF, so null packets are exempt by construction.)
+        #[test]
+        fn counters_are_independent_and_wrap(
+            picks in proptest::collection::vec(0usize..5, 0..400)
+        ) {
+            const PIDS: [u16; 5] = [0x0000, 0x0001, 0x0100, 0x1D00, 0x1FFE];
+            let mut cc = ContinuityCounters::new();
+            let mut count = [0usize; 5];
+            for i in picks {
+                let pid = Pid::new(PIDS[i]).unwrap_or_else(|e| panic!("{e}"));
+                proptest::prop_assert_eq!(usize::from(cc.next(pid)), count[i] % 16);
+                count[i] += 1;
+            }
+        }
+    }
 }

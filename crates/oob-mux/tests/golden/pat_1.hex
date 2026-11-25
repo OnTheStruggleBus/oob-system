@@ -1,1 +1,15 @@
+# status: hypothesized — regression lock, not box-verified
+# PAT, TSID 7, one program (1 -> PMT PID 0x100). Section only (#17).
+# Hand cross-check against ISO/IEC 13818-1 §2.4.4.3 (#18, F6-15):
+#   00        table_id 0x00 (program_association_section)
+#   b0 0d     section_syntax_indicator 1, '0', reserved 11, section_length 13
+#             = tsid 2 + ver/cn 1 + sec# 1 + last# 1 + one program 4 + CRC 4
+#   00 07     transport_stream_id 7
+#   c1        reserved 11, version_number 0, current_next_indicator 1
+#   00 00     section_number 0, last_section_number 0
+#   00 01     program_number 1
+#   e1 00     reserved 111, program_map_PID 0x100
+#   35 fc 89 76  CRC_32, recomputed with an independent bitwise CRC-32/MPEG-2
+#             (poly 04C11DB7, init FFFFFFFF, no reflection, no final XOR; check
+#             value 0376E6E7 for "123456789"); the whole section checks to 0.
 00 b0 0d 00 07 c1 00 00 00 01 e1 00 35 fc 89 76
