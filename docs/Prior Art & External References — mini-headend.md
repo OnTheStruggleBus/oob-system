@@ -152,9 +152,11 @@ structural and diagnostic facts only.
 **Method.** Mirror with `wget --mirror --no-parent --page-requisites
 --warc-file=<name>` or HTTrack. Verify by counting the HTML pages and checking
 their content against the live site. Pack the tree and the WARC as a tar.gz
-into the project upload area, with a provenance log that records the URL,
+into the git-crypt tier or storage outside git (AGENTS.md §5), with a provenance log that records the URL,
 the date, the tool and flags, and known gaps. Public pages only: honor
-robots.txt, and do not use logins or bypass access controls.
+robots.txt, and do not use logins or bypass access controls. If a firmware image or
+other binary turns up in the mirror, it is sealed under Plan §3.3 at once and
+is never published or placed in the public repository.
 
 **Open item for Marshal.** The guide set includes the FAQ pages covered by
 §3.1's out-of-scope note. Whether to archive them at all is Marshal's call.
@@ -172,7 +174,7 @@ The DCT700 device page (§3.4) is on the same site but outside the DCT2000 guide
 
 **Adjacent donor.** The DMX (Digital Music Express) receiver is a period
 music-service receiver. Its display and feature set are not yet verified
-against a unit or a source. It is a future referee for oob-playout's synthesized audio services. Acquisition is
+against a unit or a source. It is a future referee for oob-playout's audio output, once that output is specified. Acquisition is
 opportunistic only (AGENTS.md §11).
 
 **Standing searches.**

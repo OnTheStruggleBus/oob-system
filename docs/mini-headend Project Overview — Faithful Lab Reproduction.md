@@ -229,15 +229,23 @@ reproducible)?
   used HDHomeRun Prime, about $30, as a certified host for observing the
   emulated DNCS. That purchase is Marshal's decision; nothing here orders it.
 
-**Lane-admission rule (planning construct).** A lane's own "G0" is: donor box
-and docs acquired, plus a first capture. "No gate passes with stale docs"
-(AGENTS.md §1, rule 9) applies per lane. The gate sequence G0–G6 is unchanged
-and still owner-dispositioned.
+**Sourcing.** The product and service facts in this section (Shaw Direct's
+DCII service, the Explorer 2000, 3000 and 8000 models, HDHomeRun Prime and
+Ceton InfiniTV) are strategy-session input and are not yet sourced to a
+document. The standing searches in Prior Art §6.1 are where they get sourced.
+
+**Lane entry step (planning construct; not gate G0).** Each lane has its own
+entry step, called "lane entry" here: donor box and docs acquired, plus a
+first capture. The stale-docs principle of AGENTS.md §1, rule 9 is applied to
+lane docs by analogy. It is not a gate rule and binds no gate. The gate
+sequence G0–G6 is unchanged and still owner-dispositioned.
 
 **Open tension (flagged for Marshal, not resolved here).** The document map
-row for the Sci-Atlanta specification and Prior Art §6 call the second front
-"far-future". This lane order sequences SciAtl first. Both statements stand
-until Marshal decides which governs.
+row for the Sci-Atlanta specification, Prior Art §6 and the Hardware
+Acquisition List (item E) call the second front "far-future". This lane order
+sequences SciAtl first. The Sci-Atlanta Ecosystem Specification's own timing is
+the source to check against this order. Both statements stand until Marshal
+decides which governs.
 
 ## 8. Where everything lives (document map)
 

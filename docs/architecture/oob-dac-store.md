@@ -180,6 +180,7 @@ these appears:
 
 Until one of them appears, Postgres is complexity without robustness.
 
-**Consistency.** This matches the architect's recent SQLite read-out from the
-same session. That read-out is not filed under `docs/`, so its reasoning is
-not repeated here; this record stands on the points above.
+**Durability.** Every table carries a durability class in the code registry
+(see the section above). The schedule DB tables from the W4 amendment are
+classified there when the schedule code lands. This record adds no new engine
+and no new durability rule.
