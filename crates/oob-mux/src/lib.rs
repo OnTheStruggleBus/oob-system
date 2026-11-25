@@ -56,8 +56,8 @@
 //! flowgraph's job, not this crate's (r6 F6-2).
 //!
 //! The seam endpoint ([`seam`], #15) serves the pull over a Unix socket:
-//! see `protocol/seam.md` in the book. The PSI assemblers (#17) arrive as
-//! a sibling module. Nothing here is hub-specific (AGENTS.md §9).
+//! see `protocol/seam.md` in the book. The DCII PSI assemblers (#17, [`psi`])
+//! and the runtime [`pid_plan`] feed it C0 carousels; see `protocol/dcii-si.md`. Nothing here is hub-specific (AGENTS.md §9).
 
 pub mod clock;
 pub mod config;
@@ -66,9 +66,12 @@ pub mod packet;
 pub mod packetizer;
 pub mod pdu;
 pub mod pid;
+pub mod pid_plan;
+pub mod psi;
 pub mod rate;
 pub mod scheduler;
 pub mod seam;
+pub mod status;
 
 pub use clock::{Clock, ManualClock, MonoTime, SystemClock, UtcTime};
 pub use config::ConfigError;
@@ -84,3 +87,4 @@ pub use pid::{Pid, PidError};
 pub use rate::PacketRate;
 pub use scheduler::{OutcomeReceiver, Scheduler, SchedulerConfig, SchedulerHandle, SubmitError};
 pub use seam::{SeamConfig, SeamError, SeamStats, SeamStatsSnapshot, ShutdownFlag};
+pub use status::Status;
