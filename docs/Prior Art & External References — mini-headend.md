@@ -168,11 +168,11 @@ the Reproduction Plan.
 **De-duplication.** Sections §3.1 (FAQ), §3.2 (cromwell-intl) and §3.4 (the
 usbjtag DCT700 device page) already record facts from this site family. The
 mirror adds no new facts to those tables until a box capture confirms them.
-§3.4 is not part of the DCT2000 guide set and is covered only there.
+The DCT700 device page (§3.4) is on the same site but outside the DCT2000 guide set, so it is recorded only in §3.4.
 
 **Adjacent donor.** The DMX (Digital Music Express) receiver is a period
-music-only box with a remote display of song, artist and album. It is a
-future referee for oob-playout's synthesized audio services. Acquisition is
+music-service receiver. Its display and feature set are not yet verified
+against a unit or a source. It is a future referee for oob-playout's synthesized audio services. Acquisition is
 opportunistic only (AGENTS.md §11).
 
 **Standing searches.**
