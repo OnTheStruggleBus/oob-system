@@ -95,4 +95,34 @@ mod tests {
         assert_eq!(packets_for(183 + 184 + 1), 3);
         assert_eq!(packets_for(4096), 23);
     }
+
+    /// A random section body with its CRC32 appended.
+    fn with_crc(body: &[u8]) -> Vec<u8> {
+        let mut s = body.to_vec();
+        s.extend_from_slice(&[0; 4]);
+        rewrite_crc(&mut s);
+        s
+    }
+
+    proptest::proptest! {
+        /// F6-15: any section with its CRC32 appended checks to zero ...
+        #[test]
+        fn crc_of_section_with_crc_is_zero(
+            body in proptest::collection::vec(proptest::num::u8::ANY, 0..4096)
+        ) {
+            proptest::prop_assert_eq!(crc32_mpeg2(&with_crc(&body)), 0);
+        }
+
+        /// ... and any single bit flip, in the body or the CRC, breaks it.
+        #[test]
+        fn any_single_bit_flip_is_detected(
+            body in proptest::collection::vec(proptest::num::u8::ANY, 1..512),
+            bit in 0usize..usize::MAX,
+        ) {
+            let mut s = with_crc(&body);
+            let bit = bit % (s.len() * 8);
+            s[bit / 8] ^= 1 << (bit % 8);
+            proptest::prop_assert_ne!(crc32_mpeg2(&s), 0);
+        }
+    }
 }

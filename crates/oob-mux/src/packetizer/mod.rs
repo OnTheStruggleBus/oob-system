@@ -240,4 +240,47 @@ mod tests {
         assert!(!p.in_flight());
         assert!(p.next_packet().is_none());
     }
+
+    proptest::proptest! {
+        /// F6-15: a section of any legal length is `packets_for(len)`
+        /// packets; reassembly returns the original bytes; every
+        /// payload-unit-start packet has pointer_field 0 and is the first
+        /// of the section only; the last packet's tail is 0xFF.
+        #[test]
+        fn spans_packets_for_len_and_reassembles(len in 12usize..=MAX_SECTION_LEN) {
+            let bytes = section(len);
+            let mut p = Packetizer::new();
+            p.start(&pdu(bytes.clone()), UtcTime::default()).unwrap();
+            let pkts = drain(&mut p);
+            proptest::prop_assert_eq!(pkts.len(), packets_for(len));
+            proptest::prop_assert!(pkts[0].pusi());
+            proptest::prop_assert_eq!(pkts[0].payload_bytes()[0], 0);
+            proptest::prop_assert!(pkts[1..].iter().all(|k| !k.pusi()));
+            proptest::prop_assert_eq!(reassemble(&pkts, len), bytes);
+            proptest::prop_assert!(!p.in_flight());
+        }
+
+        /// Counters run +1 mod 16 per PID across any sequence of sections
+        /// on interleaved PIDs; a section never disturbs another PID's count.
+        #[test]
+        fn counters_follow_packets_per_pid(
+            seq in proptest::collection::vec((0usize..3, 12usize..800), 1..30)
+        ) {
+            const PIDS: [u16; 3] = [0x20, 0x21, 0x22];
+            let mut p = Packetizer::new();
+            let mut packets = [0usize; 3];
+            for (i, len) in seq {
+                let mut d = pdu(section(len));
+                d.pid = Pid::new(PIDS[i]).unwrap();
+                p.start(&d, UtcTime::default()).unwrap();
+                for k in drain(&mut p) {
+                    proptest::prop_assert_eq!(
+                        usize::from(k.continuity_counter()),
+                        packets[i] % 16
+                    );
+                    packets[i] += 1;
+                }
+            }
+        }
+    }
 }

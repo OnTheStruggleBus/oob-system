@@ -2,6 +2,8 @@
 //! values only: real budgets are runtime configuration (ADR-003 Layer 1).
 #![allow(dead_code)]
 
+pub mod golden;
+
 use std::sync::Arc;
 use std::time::Duration;
 

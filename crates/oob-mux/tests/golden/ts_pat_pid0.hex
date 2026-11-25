@@ -1,0 +1,21 @@
+# status: hypothesized — regression lock, not box-verified
+# One packet carrying the PAT section (golden pat_1) on PID 0, counter 0.
+# Hand cross-check against ISO/IEC 13818-1 §2.4.3.2 / §2.4.4 (#18, F6-15):
+#   47 | 40 00 | 10   sync; TEI 0, PUSI 1, priority 0, PID 0x0000; scrambling 00,
+#                      payload only, continuity_counter 0
+#   00                 pointer_field 0 (the section starts here)
+#   00 b0 0d ... 89 76 the 16-byte PAT section of pat_1.hex (decoded by hand there)
+#   ff ...             stuffing to 188 bytes
+# tstables (tsduck 3.45) decodes this packet as PAT, TSID 7, program 1 -> PID 0x100, CRC valid.
+47 40 00 10 00 00 b0 0d 00 07 c1 00 00 00 01 e1
+00 35 fc 89 76 ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff

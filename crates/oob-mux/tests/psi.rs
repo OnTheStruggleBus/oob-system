@@ -10,7 +10,6 @@
 mod common;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use oob_mux::pid_plan::{
@@ -142,46 +141,7 @@ fn parse_ca(d: &(u8, Vec<u8>)) -> (u16, u16, Vec<u8>) {
 
 // ---- golden vectors ----
 
-fn golden_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/golden")
-}
-
-fn hex(b: &[u8]) -> String {
-    let mut s = String::new();
-    for (i, c) in b.chunks(16).enumerate() {
-        if i > 0 {
-            s.push('\n');
-        }
-        s.push_str(
-            &c.iter()
-                .map(|x| format!("{x:02x}"))
-                .collect::<Vec<_>>()
-                .join(" "),
-        );
-    }
-    s.push('\n');
-    s
-}
-
-fn golden(name: &str, bytes: &[u8]) {
-    let path = golden_dir().join(format!("{name}.hex"));
-    if std::env::var_os("OOB_BLESS").is_some() {
-        std::fs::write(&path, hex(bytes)).unwrap();
-        return;
-    }
-    let want = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("missing golden {}: {e}", path.display()));
-    let want: Vec<u8> = want
-        .split_whitespace()
-        .map(|h| u8::from_str_radix(h, 16).unwrap())
-        .collect();
-    assert_eq!(
-        bytes,
-        want.as_slice(),
-        "golden {name} differs; hex now:\n{}",
-        hex(bytes)
-    );
-}
+use common::golden::check as golden;
 
 fn build(p: &PidPlan, kind: TableKind) -> Vec<u8> {
     let v = validate(p).unwrap();

@@ -1,0 +1,20 @@
+# status: hypothesized — regression lock, not box-verified
+# The null packet (PID 0x1FFF), 188 bytes; the pacer's stuffing.
+# Hand cross-check against ISO/IEC 13818-1 §2.4.3.2 (#18, F6-15), not pasted from the encoder:
+#   47        sync_byte
+#   1f ff     transport_error 0, payload_unit_start 0, priority 0, PID 0x1FFF
+#   10        scrambling 00, adaptation_field_control 01 (payload only), continuity_counter 0
+#   ff x184   payload, all 0xFF (stuffing)
+# The continuity_counter of a null packet is not meaningful and is never advanced.
+47 1f ff 10 ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+ff ff ff ff ff ff ff ff ff ff ff ff

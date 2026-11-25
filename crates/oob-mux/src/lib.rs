@@ -55,6 +55,19 @@
 //! verifies it. SCTE 55-1 coding, interleaving and randomization are the
 //! flowgraph's job, not this crate's (r6 F6-2).
 //!
+//! # Box-free stream verification (#18, r6 F6-15)
+//!
+//! CI checks the stream without a box, in layers: golden vectors
+//! (`tests/golden/*.hex`: the null packet, one packet per PID class, section
+//! boundaries) lock the exact bytes; `proptest` properties cover CRC32,
+//! continuity counters, `pointer_field` and `pull(n)`; and the example
+//! `gen_stream` writes a deterministic fixed-length stream that tsduck
+//! analyzes in the CI job `tsduck analyze`. Every vector is
+//! `hypothesized` (a regression lock, not box-verified), and tsduck proves
+//! generic MPEG-2 conformance only: it cannot vouch for the DCII-flavored
+//! bits, which d 15 / d 16 on a box referee (r4 F4-6). See
+//! `protocol/oob-mux-pipeline.md` in the book.
+//!
 //! The seam endpoint ([`seam`], #15) serves the pull over a Unix socket:
 //! see `protocol/seam.md` in the book. The DCII PSI assemblers (#17, [`psi`])
 //! and the runtime [`pid_plan`] feed it C0 carousels; see `protocol/dcii-si.md`. Nothing here is hub-specific (AGENTS.md §9).
