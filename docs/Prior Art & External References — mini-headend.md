@@ -138,4 +138,52 @@ As far as the public record shows, Oob is the first attempt at any of these — 
 - Research desk: usbjtag DCT700 page (§3.4) logged as vendor-stated and unverified; it hints at a Broadcom MIPS family and informs D0 recovery planning and #33. Flash write-back stays a destructive operation under §7.
 - Citations into oob-msg: CableLabs R-OOB Appendix I (§2.3) is citable corroboration for the stream inventory and RF plan when the protocol document grows its references section.
 
+### 6.1 Acquisition plan (DCT2000 prior art)
+
+*Recorded from the strategy session 2026-11-24 (Marshal). This section
+records a plan only. The mirror is **not** run in this documentation session,
+and no archive exists yet.*
+
+**Target.** The usbjtag.com DCT2000 guide set (`https://www.usbjtag.com/dct2000/`)
+covers DCT2000 BDM, SPI, NVRAM and diagnostics. The site is abandonware, last
+updated 2016-12-31. Its FAQ is §3.1 above, and §3.1's scope rule still applies:
+structural and diagnostic facts only.
+
+**Method.** Mirror with `wget --mirror --no-parent --page-requisites
+--warc-file=<name>` or HTTrack. Verify by counting the HTML pages and checking
+their content against the live site. Pack the tree and the WARC as a tar.gz
+into the project upload area, with a provenance log that records the URL,
+the date, the tool and flags, and known gaps. Public pages only: honor
+robots.txt, and do not use logins or bypass access controls.
+
+**Open item for Marshal.** The guide set includes the FAQ pages covered by
+§3.1's out-of-scope note. Whether to archive them at all is Marshal's call.
+If they are archived, they stay out of the public repository and nothing from
+them is reproduced or adopted.
+
+**Purpose and limit.** The mirror corroborates D0 (the BDM and TL866
+extraction routes). It does **not** extend D0's scope. D0 stays as defined in
+the Reproduction Plan.
+
+**De-duplication.** Sections §3.1 (FAQ), §3.2 (cromwell-intl) and §3.4 (the
+usbjtag DCT700 device page) already record facts from this site family. The
+mirror adds no new facts to those tables until a box capture confirms them.
+§3.4 is not part of the DCT2000 guide set and is covered only there.
+
+**Adjacent donor.** The DMX (Digital Music Express) receiver is a period
+music-only box with a remote display of song, artist and album. It is a
+future referee for oob-playout's synthesized audio services. Acquisition is
+opportunistic only (AGENTS.md §11).
+
+**Standing searches.**
+
+- CableLabs test-CA or development CableCARD (M-CARD) availability. This feeds
+  the CableCARD revival trigger in the Overview, §7.1.
+- DNCS and Explorer service documentation.
+- DCII IRD and mux-modulator surplus.
+
+**Open tension (flagged, not resolved).** The G5 note in §6 calls the
+Sci-Atlanta second front "far-future". The expansion-lane order in the Overview,
+§7.1, sequences SciAtl first. Both statements stand until Marshal decides.
+
 Cross-references: Oob Reproduction Plan (methodology), Milestones & Stage Gates (G0.5 research-desk duties), Hardware Acquisition List (standards/textbook purchases are not on it — see item 4 above), Sci-Atlanta Ecosystem Specification (the 55-2 world §2.1 lives in).
