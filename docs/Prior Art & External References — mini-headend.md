@@ -138,6 +138,8 @@ As far as the public record shows, Oob is the first attempt at any of these — 
 - Research desk: usbjtag DCT700 page (§3.4) logged as vendor-stated and unverified; it hints at a Broadcom MIPS family and informs D0 recovery planning and #33. Flash write-back stays a destructive operation under §7.
 - Citations into oob-msg: CableLabs R-OOB Appendix I (§2.3) is citable corroboration for the stream inventory and RF plan when the protocol document grows its references section.
 
+Cross-references: Oob Reproduction Plan (methodology), Milestones & Stage Gates (G0.5 research-desk duties), Hardware Acquisition List (standards/textbook purchases are not on it — see item 4 above), Sci-Atlanta Ecosystem Specification (the 55-2 world §2.1 lives in).
+
 ### 6.1 Acquisition plan (DCT2000 prior art)
 
 *Recorded from the strategy session 2026-11-24 (Marshal). This section
@@ -191,4 +193,3 @@ opportunistic only (AGENTS.md §11).
 Sci-Atlanta second front "far-future". The expansion-lane order in the Overview,
 §7.1, sequences SciAtl first. Both statements stand until Marshal decides.
 
-Cross-references: Oob Reproduction Plan (methodology), Milestones & Stage Gates (G0.5 research-desk duties), Hardware Acquisition List (standards/textbook purchases are not on it — see item 4 above), Sci-Atlanta Ecosystem Specification (the 55-2 world §2.1 lives in).

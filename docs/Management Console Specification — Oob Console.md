@@ -287,8 +287,8 @@ the substitute grid. This section is its control room.*
 
 - **Residency census view:** d 10 modules across the fleet, per platform
   (r4 F4-5 language: which platforms have which guide build).
-- **Listings pipeline:** schedule DB (self-authored listings from
-  the schedule DB in oob-dac's store, W4 amendment) → synthesizer → carousel; transport status (OOB vs
+- **Listings pipeline:** self-authored listings from the schedule DB in
+  oob-dac's store (W4 amendment) → synthesizer → carousel; transport status (OOB vs
   in-band, per the F3-5 identification experiment); opacity-check
   results (r4 F4-3) surfaced as pipeline warnings.
 - **Presentation config:** genre palette (factory defaults from the

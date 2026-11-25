@@ -260,9 +260,9 @@ not in AGENTS.md, which this session does not change.*
 1. Compute the SHA-256 immediately, before anything else is done with the file.
 2. Keep it only in the git-crypt tier. Never plaintext, never in chat, never
    in a PR (AGENTS.md §5).
-3. Write an acquisition-log entry with honest provenance: source, date, method,
-   and what is not known about the file. Entries go in the provenance log
-   described in Prior Art §6.1.
+3. Write a provenance-log entry, in the log described in Prior Art §6.1, with
+   honest provenance: source URL, date, tool and flags, and what is not known
+   about the file.
 
 **Extract facts, not code.** Permitted extractions are behavioral: version
 strings, error tables, diagnostic strings and expected OOB frequencies. Each
@@ -272,7 +272,9 @@ Key material is not a wire-format constant: an FPK constant or any other key
 material is secrets-tier under AGENTS.md §5 and never goes into a corpus spec.
 Whether corpus specs carry the full digest or a truncated one is for the owner
 to confirm, since a full digest fingerprints the artifact.
-Code, artwork and UI text are never copied verbatim.
+Code and artwork are never copied. UI text is never copied verbatim: a
+diagnostic string the unit emits is recorded as a fact with provenance, while
+screen and menu copy is only described.
 
 **Solo cleanroom hygiene.** This is cleanroom discipline at solo weight, not a
 two-team clean room. Implementation works from the spec document. The binary
@@ -394,8 +396,9 @@ whole FPK tier. That is backwards: a whole tier that depends on one surplus unit
 that unit's availability. The backlog entry reverses the dependency.
 
 - **Implement the DES/CSA scrambling path in oob-mux** against the SEM V8
-  manual, which is in hand, as its design basis. This proceeds regardless of
-  SEM availability.
+  manual, which is in hand, as its design basis. This is backlog work. It is not
+  scheduled and does not start until the FPK-constant question below is
+  answered and Marshal schedules it. It does not depend on SEM availability.
 - **The box adjudicates parity.** The box's `d 01` auth state is the referee.
   A parity claim is made only with a capture (AGENTS.md §2).
 - **The SEM is the preferred reference and capture source.** The software
