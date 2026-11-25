@@ -374,7 +374,7 @@ Console views are:
 **Non-goals.** No distributed components of any kind, no message broker, no
 hot playlist injection into a running queue, and no session-VOD. SQLite stays.
 
-**W4 exit criterion (set by this plan).** W4 counts as met only when clear-tier
+**Proposed W4 exit criterion (set by this plan; Milestones G2 is unchanged).** W4 counts as met only when clear-tier
 playout is driven through the schedule DB. An exercise that runs on
 `ops/lineup.yaml` alone does not satisfy it. Any box-visible claim about the
 playout still needs a capture under `lab/captures/` (AGENTS.md §2).
@@ -858,7 +858,7 @@ The platform matrix now has four rows: **DCT2000 (68k) · DCT2500
 mini-headend/            # the Oob workspace
 ├── crates/
 │   ├── oob-dac/         # daemon: unit DB, entitlements, scheduler, schedule DB (W4 amendment), admin API (WireLink verbs)
-│   ├── oob-mux/         # TS writer, PSI/SI assemblers, PID plan, insertion-bandwidth shaper, software DES/CSA path (backlog, W5 note)
+│   ├── oob-mux/         # TS writer, PSI/SI assemblers, PID plan, insertion-bandwidth shaper, software DES/CSA path (proposed placement; backlog, W5 note)
 │   ├── oob-msg/         # GI message layer: templates + discovered wire formats (the O4 protocol doc, as code)
 │   ├── oob-cdl/         # DLS: .obj/.dat loader, carousel builder, EMM download-control
 │   ├── oob-starfone/    # modem-bank bridge to mgetty NAS (stretch)

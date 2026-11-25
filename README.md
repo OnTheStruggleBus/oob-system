@@ -139,7 +139,7 @@ here claims working code until the gate evidence says so — see
 - Web front-end, API-first: generated types from `openapi.json`, no logic
   the admin API doesn't expose.
 - Fleet registry (the Define Terminal schema), ops views mirroring the
-  DAC's operation lifecycle, program schedule editor, purchase ledger and
+  DAC's operation lifecycle, program schedule editor (over the schedule DB, W4 amendment), purchase ledger and
   orphan-purchase queue, per-terminal credit display, Clear PIN op.
 - **Born as the experiment workbench** — Console phase C0 is a G1 exit
   requirement, because the discovery gate's evidence pack demands it.

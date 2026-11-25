@@ -229,10 +229,10 @@ reproducible)?
   used HDHomeRun Prime, about $30, as a certified host for observing the
   emulated DNCS. That purchase is Marshal's decision; nothing here orders it.
 
-**Sourcing.** The product and service facts in this section (Shaw Direct's
-DCII service, the Explorer 2000, 3000 and 8000 models, HDHomeRun Prime and
-Ceton InfiniTV) are strategy-session input and are not yet sourced to a
-document. The standing searches in Prior Art §6.1 are where they get sourced.
+**Sourcing.** DAVIC 1.x is covered by the Sci-Atlanta Ecosystem Specification
+(§3). The Explorer 2000, 3000 and 8000 model list, Shaw Direct's DCII service,
+the HDHomeRun Prime and Ceton InfiniTV host claims and the approximate $30
+price are strategy-session input and are not yet sourced to a document. The standing searches in Prior Art §6.1 are where they get sourced.
 
 **Lane entry step (planning construct; not gate G0).** Each lane has its own
 entry step, called "lane entry" here: donor box and docs acquired, plus a
