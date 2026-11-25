@@ -2,7 +2,7 @@
 
 **Faithful lab reproduction of a GI/Motorola cable television headend, for home-lab use**
 
-- **Date:** 2026-11-22
+- **Date:** 2026-11-22 (status section updated 2026-11-24)
 - **Status:** Living document — orientation layer over the plan, ADR, reviews, and specs
 - **Owner:** Marshal (@Marshal)
 
@@ -223,8 +223,28 @@ Reviews are part of the process, not an obstacle course: every round so
 far has ended with "the approach survives; here are deltas," and the deltas
 get folded in at the next revision.
 
-## 9. Status snapshot (2026-11-22, updated post-dispositions)
+## 9. Status snapshot (2026-11-24; base 2026-11-22, post-dispositions)
 
+- **Progress since 2026-11-22 (status only; gate states are unchanged —
+  G0 PASS, G0.5 open):** Slices C and D are under way on the ADR-002
+  schedule Marshal ruled on 2026-11-23. Merged to `main`: the foundation
+  slice, #14 (PR #42), #21 (PR #43), #15 (PR #47), #22 (PR #51), #16
+  (PR #52) and #17 (PR #55). Merge-ready but not yet merged: #23 (PR #57,
+  the oob-dac policy layer), with CI still finishing on its head. The
+  Slice C/D issue-by-issue tracking is in the Milestones & Stage Gates doc
+  §4.1.
+- **Follow-ups opened (Backlog):** #53 (replace the linear scheduler
+  candidate scan with a heap or index if queue depth grows; deferred until
+  a bench trigger fires), #54 (WireLink vocabulary cross-check page against
+  the Oracle DAC 6000 cartridge vocabulary), and #56 (research: source the
+  GI/Motorola DCII `CA_system_id` for the PSI CA descriptors).
+- **WireLink corpus:** a WireLink v3.0 corpus document has been ingested on
+  branch `docs/wirelink-v3-corpus`, not yet merged. Open item **O15** (the
+  full WireLink 600/700 dialect reference) is therefore partly acquired;
+  its §4 and §5 are still missing, and the O15 wording stays open.
+- **Next steps:** Slice C — #18 (box-free stream verification with tsduck
+  analysis in CI), then #19 and #20; Slice D — #25 (runtime configuration
+  store), then #26, #27, #24 and #29.
 - Documentation base: **done** (M0). Two manuals mined in full (DAC 6000
   V3.1, SEM V8 7.1.x), DCT2000 Installation Manual in hand and folded in.
 - Tech stack: **decided** — Rust workspace, Docker deployment, GNU Radio

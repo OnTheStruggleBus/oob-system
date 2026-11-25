@@ -237,6 +237,39 @@ gate rules (§5).
 | **E3 — F0 census** (O2/O12) | G2 exit; G6 fidelity call | Every fleet box's d-screen set recorded; platform table built; guide residency known per platform; CPSC 02-227 cord check logged |
 | **E4 — SEM bench** (r4 F4-2) | G2 entry; G3 entry (license) | ACP presence + **license state** verified (FPK selectable, not greyed); SEM-EM jar + MIBs archived to git; tsp loop via GigE → RF out confirmed on the meter; W4 fallback re-documented |
 
+### 4.1 Slice C/D tracking (status, 2026-11-24)
+
+Marshal's 2026-11-23 ruling schedules ADR-002's Slices C (oob-mux and
+oob-msg) and D (oob-dac) now. This subsection records progress only. It
+sets no gate state and changes no entry, exit or kill criterion; the G0.5
+exit work and the G1 entry criteria are unaffected.
+
+| Issue | Slice | Status at 2026-11-24 |
+| --- | --- | --- |
+| #14 scheduler → packetizer → pacer skeleton (oob-mux) | C | merged (PR #42) |
+| #15 mux ↔ PHY pull-seam contract and Rust endpoint | C | merged (PR #47) |
+| #16 class-based insertion scheduler C0–C5 | C | merged (PR #52) |
+| #17 DCII-flavored PSI assemblers | C | merged (PR #55) |
+| #18 box-free stream verification (tsduck analyze in CI) | C | next (Slice C) |
+| #19 message catalog as data (oob-msg) | C | open |
+| #20 mdBook protocol chapters from the catalog | C | open |
+| #21 sqlite store (oob-dac) | D | merged (PR #43) |
+| #22 command layer (oob-dac) | D | merged (PR #51) |
+| #23 policy layer (oob-dac) | D | merge-ready, not yet merged (PR #57; CI finishing on its head) |
+| #24 whole-file backup, restore and export | D | open |
+| #25 configuration store with revision history | D | next (Slice D) |
+| #26 save-path validators and guardrails | D | open |
+| #27 REST adapter and the `openapi drift` job | D | open |
+| #29 daemon binary | D | open |
+
+The merged issues stay open until oob-po records acceptance on each issue
+(AGENTS.md §14 step 8, §12). Follow-ups opened alongside the slices, all in
+Backlog: #53 (scheduler candidate scan, deferred until a bench trigger
+fires), #54 (WireLink vocabulary cross-check page) and #56 (sourcing the
+GI/Motorola DCII `CA_system_id`). The WireLink v3.0 corpus document has
+been ingested on branch `docs/wirelink-v3-corpus` (not yet merged); open
+item O15 is partly acquired, with its §4 and §5 still missing.
+
 ## 5. Console & Interconnect gates inherit these rules
 
 - **Console C0–C5** (Console spec §5): each phase closes with its section
