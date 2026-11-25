@@ -692,6 +692,19 @@ impl StorePolicy {
                                 return Ok(c);
                             }
                         }
+                        // CP-4: a present but malformed value (anything but
+                        // exactly "0" or "1") reads as ON; overwriting it
+                        // would report success over a damaged row. Fail
+                        // closed instead: the error rolls back the token
+                        // spend, the write and the audit row.
+                        if let Some(v) = setting(tx, LOCK_KEY)?
+                            && v != "0"
+                            && v != "1"
+                        {
+                            return Err(StoreError::Corrupt(format!(
+                                "the {LOCK_KEY} setting is malformed; the lock was not changed"
+                            )));
+                        }
                         let before = lock_on(tx)?;
                         let rows = tx.conn().execute(
                             "UPDATE install_setting SET value = ?1 WHERE key = ?2",

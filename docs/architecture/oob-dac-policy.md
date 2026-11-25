@@ -163,8 +163,9 @@ safe: a failure can burn a token, never the reverse.
   and a token for `CDL LOCK OFF <install id>` **and nothing else**. The product
   imposes no D0 or evidence check (ADR-003 section 5, Marshal QA-7). The token
   is spent in the same transaction that changes the setting, which is audited
-  with before and after values. The change must update exactly one row: a
-  missing or damaged `cdl_sacrificial_only` row fails the call with
+  with before and after values. The change must update exactly one row,
+  and the stored value must be exactly `0` or `1`: a missing or malformed
+  (e.g. `garbage`) `cdl_sacrificial_only` row fails the call with
   `policy-store-error` and rolls the transaction back (no token spent, no `ok`
   row), because that state reads as ON and must never be reported as changed
   (#59 CP-4).

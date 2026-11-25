@@ -1417,3 +1417,41 @@ fn cp4_a_missing_lock_row_fails_the_change_and_rolls_back() {
         .count();
     assert_eq!(ok, 1);
 }
+
+#[test]
+fn cp4_a_malformed_lock_value_fails_closed_and_rolls_back() {
+    let f = fix();
+    let t = f.issue(DestructiveOp::CdlLockOff, f.install());
+    f.sql("UPDATE install_setting SET value = 'garbage' WHERE key = 'cdl_sacrificial_only'");
+
+    let e = f
+        .policy
+        .set_cdl_lock(&with(owner(), &t), false)
+        .unwrap_err();
+    assert_eq!(e.reason, "policy-store-error");
+    assert_eq!(f.unspent(), 1, "the rollback kept the token unspent");
+    let e = f.policy.set_cdl_lock(&owner(), true).unwrap_err();
+    assert_eq!(e.reason, "policy-store-error");
+    assert_eq!(
+        f.count(
+            "SELECT count(*) FROM install_setting \
+             WHERE key = 'cdl_sacrificial_only' AND value = 'garbage'"
+        ),
+        1,
+        "the damaged value was not overwritten"
+    );
+    assert!(
+        f.rows("set-cdl-lock")
+            .iter()
+            .all(|r| r.entry.outcome != "ok")
+    );
+    assert!(
+        f.policy.cdl_lock_on().unwrap(),
+        "a malformed value reads as ON"
+    );
+
+    // Repair the row: the same token still works.
+    f.sql("UPDATE install_setting SET value = '1' WHERE key = 'cdl_sacrificial_only'");
+    f.policy.set_cdl_lock(&with(owner(), &t), false).unwrap();
+    assert!(!f.policy.cdl_lock_on().unwrap());
+}
