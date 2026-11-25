@@ -193,6 +193,52 @@ Prevue-style video guide channel as the zero-box-side-code option.
 | S4 | **VOD/PPV simulation** — scheduled PPV + call-ahead (P1), impulse PPV (P2, rides S1's return path), NVOD (P3); true session VOD registered but unscoped | `VOD & PPV Simulation Specification — mini-headend.md` |
 | S5 | **Billing & subscriber management** — accounts, rate cards, immutable ledger, period-styled (fictitious) statements, fictitious payments, non-pay disconnect/reconnect driving DAC entitlements; fully documented Billing API. The theater layer: the subscribers are friends and the monthly bill is half the fun | `Billing & Subscriber Management Specification — mini-headend.md` |
 
+### 7.1 Expansion lanes
+
+*Recorded from the strategy session 2026-11-24 (Marshal). This is a planning
+construct. It orders candidate lanes and admits none of them to a gate. It
+does not disposition G0–G6.*
+
+Lanes are sorted by one question: was the set-top's trust rooted in a local
+headend (reproducible on a closed plant), or in a third-party service (not
+reproducible)?
+
+| Order | Lane | Trust root | Planning status |
+| --- | --- | --- | --- |
+| 1 | **SciAtl cable** | Local headend: DBDS/DNCS with PowerKEY. Explorer 2000, 3000 and 8000 set-tops. DAVIC 1.x is public. | Sequenced first |
+| 2 | **Satellite DCII** | Local headend: DCII, with DSR-4500-class IRDs and 4DTV receivers | Rides the SciAtl CA workstream (shared PowerKEY lineage) |
+| 3 | **IP STBs** | Third-party service | Per-box opportunistic rescue only. Zero gates, zero planning weight. |
+| 4 | **CableCARD** | Blocked at one anchor: the card factory CA and the PowerKEY/MediaCipher issuer hierarchy | Zero gates until the revival trigger below |
+
+- **SciAtl cable.** Sequenced first. Its CA workstream is the one the
+  satellite lane reuses.
+- **Satellite DCII.** One CA workstream feeds both SciAtl and satellite.
+  Surplus headend hardware gives richer captures. An IRD can serve as a
+  headend element: demodulator, then ASI, then mux, then QAM. The L-band never
+  touches coax. If a physical satellite side is wanted, the LNB is its own
+  L-band side plant. Shaw Direct runs DCII today and is a living reference.
+  VideoCipher II is deprioritized. Attacks on live services are excluded by
+  doctrine (AGENTS.md §7 and §11).
+- **IP STBs.** Opportunistic per-box rescue only. This follows AGENTS.md §11:
+  surplus finds carry no planning weight.
+- **CableCARD.** The host side is reproducible: two commercial
+  implementations exist, SiliconDust HDHomeRun Prime and Ceton InfiniTV
+  (including SDV). The blocked anchor is the card's trust chain. Revival
+  trigger: acquire a CableLabs test-CA or development M-CARD. Any such key
+  material is handled under the secrets tier (AGENTS.md §5). Cheap referee: a
+  used HDHomeRun Prime, about $30, as a certified host for observing the
+  emulated DNCS. That purchase is Marshal's decision; nothing here orders it.
+
+**Lane-admission rule (planning construct).** A lane's own "G0" is: donor box
+and docs acquired, plus a first capture. "No gate passes with stale docs"
+(AGENTS.md §1, rule 9) applies per lane. The gate sequence G0–G6 is unchanged
+and still owner-dispositioned.
+
+**Open tension (flagged for Marshal, not resolved here).** The document map
+row for the Sci-Atlanta specification and Prior Art §6 call the second front
+"far-future". This lane order sequences SciAtl first. Both statements stand
+until Marshal decides which governs.
+
 ## 8. Where everything lives (document map)
 
 | Document | What it is |
