@@ -256,7 +256,7 @@ added" question directly — and rules out a whole class of guesses:
 | W2 | oob-dac core + mux | M1 | TS writer (188B packets, async/null-stuffed), PID plan, **DCII-flavored** section assemblers (PAT/PMT/CAT/NIT + CA descriptors, F4-6 — O4 gains a DCII SI conformance row, documented/hypothesized/verified like the message layer; W2 exit: box d 15/d 16 shows our PMT with the expected CA descriptors), `lineup.yaml`, unit DB (DAC Define Terminal schema, §3.2), WireLink-verb admin API | — |
 | W3 | Message discovery lab | M1 | **Capture rig first (E1, F3-2):** camera OCR + capture card + RS-232 scrape, zero human interaction per experiment iteration, *before* connect experiments begin. Harness: message templates → SDR → box feedback capture; enrollment order per the E-code remedies: **factory-init → unit-creation → connect** (r4 F4-4, now manual-confirmed), then VCM/region/inband-processor/general, then the poll family + disconnect (§2). **System time/date is hunted from day one** as a hypothesized oob-msg message class (F5-8, absorbing F3-9); the capture rig notes any box-clock behavior during connect experiments | W1, W2 |
 | W4 | Clear-tier playout | M2 | ffmpeg/tsp playout → UDP/GigE → **SEM V8** (Annex B QAM, in hand); codec pin MPEG-2 MP@ML + MP2/AC-3 per census (F3-6/F5-7, §8); lineup consistency CI, extended to a schedule-DB drift alarm (W4 amendment below); time service | W3 (connect+VCM); SEM fallback = HackRF software QAM (F4-2) |
-| W5 | FPK tier via SEM | M3 | SEM ACP module in **FPK mode** (no EMMS required — manual §2); flavor = DES or CSA per box support; verify d 01 auth reason on encrypted tier; software scrambler demoted to optional | W4 |
+| W5 | FPK tier via SEM | M3 | SEM ACP module in **FPK mode** (no EMMS required — manual §2); flavor = DES or CSA per box support; verify d 01 auth reason on encrypted tier; software DES/CSA scrambling path in oob-mux stays on the backlog, not optional (see the W5 backlog note below) | W4 |
 | W6 | CDL / DLS | M4 | .obj/.dat loader, carousel builder, download control in EMM stream; sacrificial-box protocol with verified flash recovery. **First download enable is gated on D0 validation** (F3-3) | W3, **D0** |
 | W7 | Return + polish | M5–M6 | STARFONE modem-bank bridge (mgetty NAS), STARVUE upstream demod, per-terminal **Configure Transmission Parameters** (RPD channel/freq, interactive IDs, impulse credit limits, **power-leveling** attempt tracking), d 12 sign-on state machine + d 13 MAC table as observables, EAS (**post-connect message-family work, reuses the W3 harness** — no separate discovery mechanism, F3-11; zero-weight M6 backlog entry: EAS message class + crawl on the guide channel, F5-9), NC stubs | W4 |
 | W8 | **Guide — classic i-Guide** | M6 | See §4.1. App residency census → data-feed discovery → listings synthesizer; fidelity target is the TV Guide Interactive grid | W3, W4; donor path also D0 (F3-3/F4-3) |
@@ -328,6 +328,38 @@ hot playlist injection into a running queue, and no session-VOD. SQLite stays.
 playout is driven through the schedule DB. An exercise that runs on
 `ops/lineup.yaml` alone does not satisfy it. Any box-visible claim about the
 playout still needs a capture under `lab/captures/` (AGENTS.md §2).
+
+### W5 backlog note — software DES/CSA scrambling path
+
+*Recorded from the strategy session 2026-11-24 (Marshal). This is a backlog
+entry. It does not change the W5 row's gate placement, the M3 exit criteria,
+or any gate disposition.*
+
+W5 currently leans on the surplus SEM V8 ACP module as load-bearing for the
+whole FPK tier. That is backwards from the premise above: software first, and
+surplus is opportunism. The backlog entry reverses the dependency.
+
+- **Implement the DES/CSA scrambling path in oob-mux** against the SEM V8
+  manual, which is in hand, as its design basis. This proceeds regardless of
+  SEM availability.
+- **The box adjudicates parity.** The box's `d 01` auth state is the referee.
+  A parity claim is made only with a capture (AGENTS.md §2).
+- **The SEM is the preferred reference and capture source.** It is never a
+  dependency.
+
+**Key material (AGENTS.md §5).** Any FPK constant the software path needs is
+secrets-tier material. It lives in git-crypt or outside git, never in
+plaintext and never in chat. Where that constant comes from is an open
+question for Marshal, and the software path cannot be built until it is
+answered.
+
+**Gap.** The F4-2 HackRF fallback (W4) covers modulation only. It gives no
+scrambling path, so it does not close this gap.
+
+**Kill criterion.** The software path is backlog work, not a new route under
+the kill criterion (AGENTS.md §1, rule 5). Whether it should count as an
+additional route is Marshal's call at the next gate review. It is not counted
+here.
 
 ## 4.1 W8 — Guide, classic i-Guide (Marshal's requirement)
 
@@ -771,7 +803,7 @@ mini-headend/            # the Oob workspace
 │   ├── oob-msg/         # GI message layer: templates + discovered wire formats (the O4 protocol doc, as code)
 │   ├── oob-cdl/         # DLS: .obj/.dat loader, carousel builder, EMM download-control
 │   ├── oob-starfone/    # modem-bank bridge to mgetty NAS (stretch)
-│   ├── oob-playout/     # clear-tier playout → SEM GigE now; software scrambler optional at M3
+│   ├── oob-playout/     # clear-tier playout → SEM GigE now; software scrambler on backlog (W5 note)
 │   └── oob-guide/       # VueGuide+: listings synthesizer + guide feed + R12 fallback grid (W8)
 ├── flowgraphs/          # GNU Radio: qpsk_oob_tx.grc, starvue_rx.grc
 ├── lab/
@@ -802,7 +834,7 @@ DCT2500-gated — plus the RS-232 console *if* the census yields an
 instrumentable unit (census designates the instrument or records its
 absence).
 - M3 routed through the physical SEM V8's ACP module in FPK mode (see §8)
-  instead of a software scrambler + extracted constant. **M3 exit amended
+  as the preferred reference; the software DES/CSA path stays on the backlog (W5 backlog note) rather than being dropped. **M3 exit amended
   (F5-4):** EMM authorship gets an R11-style timebox + escalation ladder —
   (1) SEM manual re-read for EMM/ACP interfaces, (2) box-as-oracle against
   SEM-generated streams with the entitlement matrix varied, (3) surplus
