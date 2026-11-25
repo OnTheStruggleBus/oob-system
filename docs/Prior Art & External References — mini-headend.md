@@ -26,6 +26,8 @@ Relevance: DCII/MediaCipher is the family our SEM's FPK module and the DCT secur
 
 **Confidence: documented.** This is authoritative, public corroboration of the *architecture and stream categories*, not a GI/Motorola wire-format specification and not evidence that an Oob-generated stream is accepted by a box. It does not identify GI message bytes, DLS carousel/object framing, guide-feed syntax, or the author of entitlement messages. Those remain discovery work and require the project's box-as-oracle evidence before any behavior is marked verified. It informs W1/W2's MPEG-over-QPSK transport boundary and W7's downstream/return-path division; it does not change their gate criteria.
 
+Revision note: the Appendix I claims in this section are cited to I08 (CM-SP-R-OOB-I08-171220) only; ADR-001 cites I03 and the Scientific-Atlanta document cites I06, and those citations are left as recorded here. The differences between the three revisions have not been compared.
+
 ### 2.4 Standards and period silicon
 
 ANSI/SCTE 55-1 2019 (R2024) — the Mode A standard itself, current and purchasable from SCTE; the ANSI preview shows the normative TOC (OOB transmission format, coding scheme, QPSK mapping, modulator RF output, receiver input power, return-path modem): <https://webstore.ansi.org/preview-pages/SCTE/preview_ANSI+SCTE+55-1+2019.pdf>. Purchase decision logged as optional (§6) — the DCT2000 manual, R-OOB (§2.3), and the box-as-oracle loop may suffice.
@@ -136,7 +138,7 @@ As far as the public record shows, Oob is the first attempt at any of these — 
 - Research desk: cromwell-intl write-up (§3.2) logged as community-tier. Its Message Types PIDs and message IDs are hypothesized leads for #19 and #17, to be cross-checked per Reproduction Plan §3; the 19-screen list is to be checked against the Capture Rig d-screen map. Live-network actions are out of scope (§7, §11).
 - Research desk: drew1440 index (§3.3) logged as secondary and lowest authority; model lineage and middleware names are context for #30 and W8, to be verified against primary material.
 - Research desk: usbjtag DCT700 page (§3.4) logged as vendor-stated and unverified; it hints at a Broadcom MIPS family and informs D0 recovery planning and #33. Flash write-back stays a destructive operation under §7.
-- Citations into oob-msg: CableLabs R-OOB Appendix I (§2.3) is citable corroboration for the stream inventory and RF plan when the protocol document grows its references section.
+- Citations into oob-msg: CableLabs R-OOB Appendix I (§2.3) is citable corroboration for the stream inventory when the protocol document grows its references section.
 
 Cross-references: Oob Reproduction Plan (methodology), Milestones & Stage Gates (G0.5 research-desk duties), Hardware Acquisition List (standards/textbook purchases are not on it — see item 4 above), Sci-Atlanta Ecosystem Specification (the 55-2 world §2.1 lives in).
 

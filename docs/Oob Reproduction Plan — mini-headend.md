@@ -43,7 +43,7 @@ claim below is therefore **documented**, not box-verified.
 
 | Claim | Project status | Design consequence / boundary |
 | --- | --- | --- |
-| An OM receives OOB source streams, forms an MPEG transport stream, and QPSK-modulates the downstream OOB RF signal. | **Documented** (CableLabs Appendix I); **not box-verified** for Oob. | Confirms W1/W2's MPEG-over-QPSK separation and the mux/flowgraph division. It does not supply the SCTE 55-1 coding/framing details or demonstrate DCT acceptance. |
+| An OM receives OOB source streams, forms an MPEG transport stream, and QPSK-modulates the downstream OOB RF signal. | **Documented** (CableLabs Appendix I); **not box-verified** for Oob. | Corroborates (is consistent with) the MPEG-over-QPSK separation between W2's oob-mux and W1's flowgraph, and the mux/flowgraph division. It does not supply the SCTE 55-1 coding/framing details or demonstrate DCT acceptance. |
 | The OOB stream inventory includes EMM; Network (virtual channel map and NIT); code-download images; PAT/PMT; non-SCTE-18 EAS; guide data; and interactive data. | **Documented** (CableLabs Appendix I); individual Oob PIDs, payloads, and delivery behavior are **hypotheses until captured**. | Supplies a complete architecture-level inventory for `oob-mux` planning. It does not define GI message layouts, the guide payload format, or code-download object/carousel framing. |
 | LFG provides guide data; DAC builds EAS messages; RADD provides MPEG data for video operation; NC provides interactive data and responds to STB messages; OM performs OOB transport multiplexing/modulation. | **Documented** (CableLabs Appendix I); mapping to Oob crates is a **design hypothesis**, not a historical implementation claim. | Supports the existing component boundary: guide source, control/operations source, video-operation data source, interactive/return service, and transport. No Oob component is represented as an exact clone of those proprietary systems. |
 | STB polling and interactive signals travel upstream to a return-path demodulator, which emits IP packets for the NC. | **Documented** (CableLabs Appendix I); **not box-verified** for the fleet. | Corroborates W7's split between downstream OOB and STARVUE/return-path work. It does not reveal GI upstream packet bytes, polling cadence, or which messages a DCT will originate. |
@@ -55,7 +55,7 @@ authorship. None is inferred from this source. No claim in this note is
 box-verified, because this research produced no lab capture.
 
 **Gate/workstream consequence:** this reduces architectural uncertainty for
-G0.5 preparation and informs W1 (PHY/transport), W2 (stream inventory), and
+G0.5 preparation and informs W1 (PHY/transport), W2 (oob-mux stream inventory, within oob-dac core + mux), and
 W7 (return path). It neither satisfies G0.5's reproducible-bench requirement
 nor advances a gate; capture-backed experiments remain required.
 
