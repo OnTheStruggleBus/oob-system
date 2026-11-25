@@ -42,7 +42,7 @@ any table is unclassified or if any registry entry has no table.
 | --- | --- | --- |
 | Precious | Nothing can regenerate it; it is backed up with the file | Never touched |
 | DerivedFromEvents | A pure fold of `event_log` | Dropped, recreated, replayed exactly |
-| DerivedObserved | A cache of what the plant reports | Recreated with no observations; polls and d-screen scrapes refill it |
+| DerivedObserved | A cache of what the plant reports, or ephemeral security state that is correct to lose (a confirmation token) | Recreated empty; polls and d-screen scrapes refill a plant cache, and a lost token is simply re-issued |
 
 The first tables (migration `0001_initial`):
 
@@ -53,6 +53,13 @@ The first tables (migration `0001_initial`):
 | `event_log` | Precious, append-only | The outbox: sequence number, time, kind, JSON payload, actor |
 | `derive_watermark` | DerivedFromEvents | How far each deriver has folded `event_log` |
 | `audit_log` | Precious, append-only | The bsilog equivalent (DAC Reference §8): actor, role, front door, command, target, outcome, before and after |
+
+Migration `0002_policy` (#23) adds the policy layer's two tables:
+
+| Table | Class | Content |
+| --- | --- | --- |
+| `confirmation_token` | DerivedObserved | Short-lived F6-10 confirmation tokens, stored as a SHA-256 only; worthless after a restart, so losing them on a restore is correct |
+| `install_setting` | Precious | Per-install owner settings: the sacrificial-only CDL lock (seeded ON) and the random install ID. See [the policy layer](oob-dac-policy.md) |
 
 Append-only is enforced by the schema. On both journals, `BEFORE UPDATE`
 and `BEFORE DELETE` triggers abort the statement, and a `BEFORE INSERT`

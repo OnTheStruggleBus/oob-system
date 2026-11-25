@@ -26,6 +26,7 @@
   - [seam](protocol/seam.md)
 - [Architecture](architecture/README.md)
   - [oob-dac-command](architecture/oob-dac-command.md)
+  - [oob-dac-policy](architecture/oob-dac-policy.md)
   - [oob-dac-store](architecture/oob-dac-store.md)
 - [Runbook](runbook/README.md)
   - [2026-11-22-docs-build-scaffold](runbook/2026-11-22-docs-build-scaffold.md)

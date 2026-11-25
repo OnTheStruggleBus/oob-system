@@ -21,3 +21,6 @@ sub-chapter automatically.
 - `oob-dac-command.md`: the oob-dac command layer (the §11 catalog and Define
   Operations, targeting, the status lifecycle, campaign pacing as per-PDU
   release times, the sole path to the scheduler).
+- `oob-dac-policy.md`: the oob-dac policy layer (roles, the destructive
+  classes, confirmation tokens, the dry-run default, the sacrificial-only CDL
+  lock, the audit log).

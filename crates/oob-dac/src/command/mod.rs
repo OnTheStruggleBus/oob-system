@@ -16,7 +16,7 @@
 //! | [`target`] | All / Terminal-ID range / Single plus the Plan §2 filters, over a [`TerminalDirectory`] (store-backed or fake) |
 //! | [`lifecycle`] | the operation status state machine (`documented` names, `hypothesized` transitions) |
 //! | [`campaign`] | release-time planning: delay ≥ 250 ms, Repeat-Every |
-//! | [`policy`] | the hook #23 implements |
+//! | [`policy`] | the hook; the real implementation is [`crate::policy::StorePolicy`] (#23) |
 //! | [`exec`] | encoding under `catch_unwind` |
 //!
 //! # Pipeline
@@ -93,9 +93,11 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use oob_mux::{
-    Clock, MonoTime, Outcome, OutcomeEvent, Pdu, PduId, SchedulerHandle, Submission, SubmitError,
+    MonoTime, Outcome, OutcomeEvent, Pdu, PduId, SchedulerHandle, Submission, SubmitError,
     TrafficClass,
 };
+
+pub use oob_mux::Clock;
 
 use crate::store::{StoreError, TerminalId};
 
@@ -199,9 +201,34 @@ pub struct DefineOperation {
     /// Stop after this long; an operation still Active then is Marked
     /// Completed (p. 11-4).
     pub run_for: Option<Duration>,
-    /// Report what would happen and send nothing. Bulk operations default
-    /// to this in the Console; #23 enforces the default (F6-10).
+    /// Report what would happen and send nothing. [`DefineOperation::new`]
+    /// sets it: a bulk operation executes only when the caller opts in with
+    /// [`execute`](Self::execute) (the F6-10 dry-run default, #23).
     pub dry_run: bool,
+}
+
+impl DefineOperation {
+    /// A bulk operation that is a **dry run** (the F6-10 default): the
+    /// minimum delay, no repeat, no end time, no filters. Opt in to sending
+    /// with [`execute`](Self::execute).
+    pub fn new(kind: OperationKind, target: Target) -> Self {
+        Self {
+            kind,
+            target,
+            filters: Filters::default(),
+            delay_between: MIN_INTER_TERMINAL_DELAY,
+            repeat_every: None,
+            run_for: None,
+            dry_run: true,
+        }
+    }
+
+    /// Opts in to sending (clears the dry-run default).
+    #[must_use]
+    pub fn execute(mut self) -> Self {
+        self.dry_run = false;
+        self
+    }
 }
 
 /// A command that produces no PDU.
@@ -238,7 +265,32 @@ pub enum Command {
     Control(ControlCommand),
 }
 
+/// What the bus learned about a command while dispatching it, for the audit
+/// row: how many terminals it resolved to and its target (a terminal ID or
+/// a plan digest; never a serial).
+#[derive(Default)]
+struct Seen {
+    terminals: usize,
+    target: Option<String>,
+}
+
 impl Command {
+    /// The operation's stable name for audit rows (`cold-initialize`,
+    /// `refresh`, `code-download`, ...), where [`kind_name`](Self::kind_name)
+    /// is only the command's kind.
+    pub fn operation_name(&self) -> &'static str {
+        match self {
+            Self::Terminal { op, .. } => op.name(),
+            Self::Operation(def) => def.kind.name(),
+            Self::Auto(op) => op.name(),
+            Self::Lab(_) => "lab",
+            Self::Control(ControlCommand::Ping) => "ping",
+            Self::Control(ControlCommand::Cancel(_)) => "cancel",
+            #[allow(unreachable_patterns)]
+            _ => "non-pdu",
+        }
+    }
+
     /// A stable kind name for audit rows.
     pub fn kind_name(&self) -> &'static str {
         match self {
@@ -360,6 +412,10 @@ pub struct DryRunReport {
     pub class: TrafficClass,
     /// The message family.
     pub family: String,
+    /// The digest of the resolved terminal set ([`crate::policy::plan_digest`]).
+    /// A destructive bulk token is bound to it, so it is what the caller
+    /// types the confirmation phrase against.
+    pub plan_digest: String,
 }
 
 /// Why a command was refused or failed. Every variant has a stable
@@ -756,8 +812,8 @@ impl CommandBus {
     /// Failed or Timeout, logged, and named by
     /// [`CommandError::OperationFailed`]. The process is unaffected.
     pub fn submit(&self, ctx: &CommandContext, cmd: Command) -> Result<Submitted, CommandError> {
-        let mut resolved = 0;
-        let result = self.dispatch(ctx, &cmd, &mut resolved);
+        let mut seen = Seen::default();
+        let result = self.dispatch(ctx, &cmd, &mut seen);
         let outcome = match &result {
             Ok(Submitted::DryRun(_)) => "dry-run",
             Ok(_) => "ok",
@@ -767,7 +823,9 @@ impl CommandBus {
             ctx,
             &AuditNote {
                 command: cmd.kind_name(),
-                terminals: resolved,
+                operation: cmd.operation_name(),
+                target: seen.target,
+                terminals: seen.terminals,
                 outcome,
             },
         );
@@ -805,13 +863,14 @@ impl CommandBus {
         &self,
         ctx: &CommandContext,
         cmd: &Command,
-        resolved_count: &mut usize,
+        seen: &mut Seen,
     ) -> Result<Submitted, CommandError> {
         match cmd {
             Command::Terminal { op, terminal } => {
+                seen.target = Some(format!("terminal:{}", terminal.get()));
                 require(op.name(), op.support())?;
                 let refs = self.resolve(&Target::Single(*terminal), &Filters::default())?;
-                *resolved_count = refs.len();
+                seen.terminals = refs.len();
                 self.admit(ctx, cmd, &refs)?;
                 self.run(Spec {
                     work: Work::Terminal(*op),
@@ -826,7 +885,11 @@ impl CommandBus {
                 require(def.kind.name(), def.kind.support())?;
                 validate_delay(def.delay_between)?;
                 let refs = self.resolve(&def.target, &def.filters)?;
-                *resolved_count = refs.len();
+                seen.terminals = refs.len();
+                seen.target = Some(format!(
+                    "plan:{}",
+                    crate::policy::plan_digest(def.kind.name(), &refs)
+                ));
                 validate_repeat(def.repeat_every, def.delay_between, refs.len())?;
                 self.admit(ctx, cmd, &refs)?;
                 let work = match def.kind {
@@ -842,6 +905,7 @@ impl CommandBus {
                         last_release: times.last().copied().unwrap_or(t0),
                         class: TrafficClass::C1Addressed,
                         family: work.name(),
+                        plan_digest: crate::policy::plan_digest(&work.name(), &refs),
                     }));
                 }
                 self.run(Spec {
@@ -854,6 +918,12 @@ impl CommandBus {
                 })
             }
             Command::Auto(op) => {
+                if *op == AutoOp::CodeDownload {
+                    seen.target = Some(format!(
+                        "plan:{}",
+                        crate::policy::plan_digest(op.name(), &[])
+                    ));
+                }
                 require(op.name(), op.support())?;
                 self.admit(ctx, cmd, &[])?;
                 self.run(Spec {
@@ -870,7 +940,8 @@ impl CommandBus {
                     return Err(CommandError::LabModeOff);
                 }
                 let refs = self.resolve(&inj.target, &inj.filters)?;
-                *resolved_count = refs.len();
+                seen.terminals = refs.len();
+                seen.target = Some(format!("plan:{}", crate::policy::plan_digest("lab", &refs)));
                 self.admit(ctx, cmd, &refs)?;
                 self.run(Spec {
                     work: Work::Lab(inj.template.0.clone()),
