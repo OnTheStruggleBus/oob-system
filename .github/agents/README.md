@@ -25,7 +25,10 @@ section — never silently absorbed.
 
 **Roles build, and run as subagents.** Each role has a Claude Code
 subagent in `.claude/agents/<role>.md` that loads `AGENTS.md` and this
-role file. The orchestrating session hands each step of the AGENTS.md §14
+role file. A parallel Codex launcher set lives in
+`.codex/agents/<role>.toml` (currently seven of the nine roles —
+`oob-pm` and `oob-scrum` to follow), each a thin launcher that mirrors
+the matching `.claude/agents/` file. The orchestrating session hands each step of the AGENTS.md §14
 workflow to its role: PO shapes issues, PM builds the board, architect
 designs before `Ready`, a dev subagent builds one issue per run, QA and
 the architect review, and PO accepts on the issue. Marshal grants the
