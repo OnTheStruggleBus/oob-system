@@ -20,11 +20,13 @@ Relevance to Oob: proof that the OOB channel is tractable with hobbyist SDR and 
 
 Relevance: DCII/MediaCipher is the family our SEM's FPK module and the DCT security silicon implement. This talk is the deep-end escalation path for D0/O13 and the best map of what the security hardware actually does — and a reminder of why we use the period ACP in the SEM rather than attacking the CA ourselves. Required viewing before the sacrificial-box teardown.
 
-### 2.3 CableLabs R-OOB specification (CM-SP-R-OOB-I01-150615, 2015) — vendor-side corroboration
+### 2.3 CableLabs R-OOB specification (CM-SP-R-OOB-I08-171220, 2017) — authoritative architectural corroboration
 
-<https://account.cablelabs.com/server/alfresco/553724f3-caa8-41b8-94e1-bafc12e73888> — the Remote Out-of-Band spec's Appendix I describes today's 55-1 OOB delivery and confirms our architecture map from the industry side: the OM creates the OOB signal; the component set is LFG (guide data), DAC (EAS), RADD (MPEG data for video operation), NC (interactive applications and STB message responses), OM; the OOB carries EMM, Network (virtual channel map / NIT), code-download images, PAT/PMT, EAS, guide data, and interactive data; downstream sits at 70–130 MHz, "typically 75.25 MHz or 104.25 MHz"; upstream is 5–42 MHz with 1 × 3.2 MHz + 3 × 192 kHz channels.
+[CableLabs, *Remote Out-of-Band Specification*, Appendix I, "SCTE 55-1 OOB System Notes" (informative), CM-SP-R-OOB-I08-171220, 2017-12-20](https://account.cablelabs.com/server/alfresco/3d13de37-7bf4-4b06-bae0-c0e28ef445eb) is the public source used for this entry. Its Appendix I documents a legacy SCTE 55-1 architecture in which an OM multiplexes source streams into an MPEG transport stream, QPSK-modulates the downstream OOB RF signal, and sends it through the combining network. It inventories EMM, Network (virtual channel map and NIT), code-download images, PAT/PMT, non-SCTE-18 EAS, guide, and interactive data. It also assigns LFG to guide data, DAC to EAS-message construction, RADD to MPEG data for video operation, and NC to interactive data and responses to STB messages. Its return-path description places STB polling and interactive signals upstream of a return-path demodulator, which converts them to IP packets for the NC.
 
-Relevance: independent confirmation of the Reproduction Plan's component inventory, the oob-mux stream list, our hunt-table anchors, and the STARVUE upstream window — free, authoritative, and citable in oob-msg's protocol document.
+**Confidence: documented.** This is authoritative, public corroboration of the *architecture and stream categories*, not a GI/Motorola wire-format specification and not evidence that an Oob-generated stream is accepted by a box. It does not identify GI message bytes, DLS carousel/object framing, guide-feed syntax, or the author of entitlement messages. Those remain discovery work and require the project's box-as-oracle evidence before any behavior is marked verified. It informs W1/W2's MPEG-over-QPSK transport boundary and W7's downstream/return-path division; it does not change their gate criteria.
+
+Revision note: the Appendix I claims in this section are cited to I08 (CM-SP-R-OOB-I08-171220) only; ADR-001 cites I03 and the Scientific-Atlanta document cites I06, and those citations are left as recorded here. The differences between the three revisions have not been compared.
 
 ### 2.4 Standards and period silicon
 
@@ -136,7 +138,7 @@ As far as the public record shows, Oob is the first attempt at any of these — 
 - Research desk: cromwell-intl write-up (§3.2) logged as community-tier. Its Message Types PIDs and message IDs are hypothesized leads for #19 and #17, to be cross-checked per Reproduction Plan §3; the 19-screen list is to be checked against the Capture Rig d-screen map. Live-network actions are out of scope (§7, §11).
 - Research desk: drew1440 index (§3.3) logged as secondary and lowest authority; model lineage and middleware names are context for #30 and W8, to be verified against primary material.
 - Research desk: usbjtag DCT700 page (§3.4) logged as vendor-stated and unverified; it hints at a Broadcom MIPS family and informs D0 recovery planning and #33. Flash write-back stays a destructive operation under §7.
-- Citations into oob-msg: CableLabs R-OOB Appendix I (§2.3) is citable corroboration for the stream inventory and RF plan when the protocol document grows its references section.
+- Citations into oob-msg: CableLabs R-OOB Appendix I (§2.3) is citable corroboration for the stream inventory when the protocol document grows its references section.
 
 Cross-references: Oob Reproduction Plan (methodology), Milestones & Stage Gates (G0.5 research-desk duties), Hardware Acquisition List (standards/textbook purchases are not on it — see item 4 above), Sci-Atlanta Ecosystem Specification (the 55-2 world §2.1 lives in).
 
