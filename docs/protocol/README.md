@@ -30,4 +30,4 @@ documents the structure and semantics of the GI conditional-access
 messages — ECM40, ECM41 and EMM95 — plus the key-hierarchy roles and the
 box-internal ACP oracle. Synthesized from reverse-engineering research, it
 carries structure and field roles only: no key values, no Unit Addresses,
-and every family at `documented` or `hypothesized`, never `verified`.
+and every family at `hypothesized`, never `documented` and never `verified`.
