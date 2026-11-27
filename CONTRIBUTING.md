@@ -40,6 +40,27 @@ uv run --python 3.12 python3 ops/install-agent-guards.py
 
 It adds the entry from `ops/agent-guard.kimi.toml` to `~/.kimi-code/config.toml`. Re-running it updates the entry.
 
+### Other platforms (wire the guard yourself)
+
+These platforms are not yet in the committed hook set (AGENTS.md §14), so they are not enforced by CI's `agent-guard` job. Wire the guard locally anyway. It is still the baseline. A future AGENTS.md update may add them.
+
+For any tool with a pre-command or pre-shell hook, the call is the same, and it is stable:
+
+```sh
+python3 ops/agent-guard.py --check "<command>"   # exit 0 allows; exit 2 blocks, reason on stderr
+```
+
+The entry point differs by tool. The paths below are where to look, not verified file paths. Consult each tool's hook or config documentation for the exact file. Getting a path wrong is worse than being under-specific.
+
+- **Grok CLI / Grok Code (xAI).** Add the call to the tool's pre-command hook configuration. A project-level or user-level hooks file is the usual place. Check Grok's documentation for the exact file.
+- **Qwen Code (Alibaba).** Add the call to the user-level configuration, the same model as Kimi Code above. Check Qwen Code's documentation for the file and the hook key.
+- **Windsurf (Codeium).** Add the call to a workspace or settings-level hook for shell commands, if Windsurf exposes one for your version. Check its documentation.
+- **Aider.** Aider has no pre-shell hook that this file can confirm. If your setup routes Aider's shell commands through a wrapper, call the guard from that wrapper. Otherwise, consult Aider's documentation (`aider.conf.yml` and its command options) before assuming any enforcement.
+- **Continue (continue.dev).** Add the call to the shell-tool wrapper if Continue provides one. A system-prompt instruction alone is not enforcement, so prefer a tool-level hook where the docs describe one.
+- **Zed AI / Zed Agent.** Look for a command or tool hook in Zed's agent settings and documentation. Do not assume a command-palette entry is a hook.
+
+Where a platform offers no hook at all, the guard does not run for that tool. You are then relying on the written rules in AGENTS.md §11 and §14 alone, and you should say so in your PR description.
+
 Two things to know:
 
 - The guard is best effort, not a sandbox. Pattern matching can be evaded on purpose. It stops mistakes and casual misbehaviour. Do not treat it as a security boundary.
