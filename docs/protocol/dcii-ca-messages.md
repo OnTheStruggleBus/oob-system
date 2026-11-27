@@ -49,15 +49,33 @@ constants in the deck carry the author's own caveat (~0.04 %/bit optical
 extraction error, not uniformly checksum-verified), so they are
 strong-but-not-absolute.
 
+**Why the higher discovery tiers don't supply these layouts.** SCTE 55-1
+fixes only OOB transport framing, not CA payload structure; DAC §11 is
+semantic (what a Define Operation means), not bit-level ECM/EMM/ACP layout;
+and the O10 patent pass is still open. Item 12 (community / firmware-RE
+tier) is therefore the lowest tier that actually carries these ECM/EMM/ACP
+layouts, which is why every family in this chapter is `hypothesized`. This
+is a logged skip-ahead under the ADR-001 §4 order, not a silent one.
+**Promotion gate:** no family here moves above `hypothesized` until its
+layout and the `0x4749` `CA_system_id` candidate are cross-checked against
+the O10 patents and DAC §11 (the constant is tracked on #56; the
+box-capture promotion path on #80).
+
 ## 1. CA constants and where they live
 
 | Constant | Role | Status |
 | --- | --- | --- |
 | DCII `CA_system_id` candidate `0x4749` ("GI" ASCII) | Identifies the GI/Motorola CA system inside the `CA_descriptor`; dvbsnoop labels it "General Instrument" | `hypothesized` (sourced candidate; see note below) |
 | PSI/SI table-id set | PAT `0x00`, CAT `0x01`, PMT `0x02`, ECM40 `0x40`, ECM41 `0x41`, EMM95 `0x95` | `hypothesized` |
-| `CA_descriptor` (PMT) | Tag `0x09`: `CA_system_id(16)`, `111`+`CA_PID(13)`, private bytes — points a program/stream at its ECM PID | `hypothesized` |
+| `CA_descriptor` (PMT) | Tag `0x09`: `CA_system_id(16)`, `111`+`CA_PID(13)`, optional private bytes (empty by default; see below) — points a program/stream at its ECM PID | `hypothesized` |
 | CAT on PID 1 | Table `0x01`; indexes the EMM streams and their provider IDs | `hypothesized` |
 | EMM carriage on cable | EMMs are delivered **out-of-band** on cable (in-band on satellite) — the Oob OOB stream carries them | `hypothesized` |
+
+The one cited GI `CA_descriptor` decode had `descriptor_length = 4` — exactly
+`CA_system_id` + `CA_PID`, i.e. **no private bytes**. Private-byte carriage is
+an Oob construction option, `hypothesized`, empty by default (aligning with
+[dcii-si.md](dcii-si.md)); do not encode private bytes as evidenced GI
+structure or the box may reject at `d 16`.
 
 **`CA_system_id` note — do not flip here.** The DCII PSI/SI chapter
 ([dcii-si.md](dcii-si.md)) and the `oob_mux::psi` constant currently carry
