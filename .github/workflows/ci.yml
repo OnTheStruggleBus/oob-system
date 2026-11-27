@@ -213,3 +213,11 @@ jobs:
           tsp --version
       - name: generate the stream, analyze it, and prove the checker rejects corrupted copies
         run: python3 ops/ci/tsduck-analyze.py --self-test
+
+  launcher-hardening:
+    name: launcher hardening
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: launcher prompt-injection hardening present and identical across launchers (AGENTS.md §6/§14)
+        run: python3 ops/check-launcher-hardening.py
