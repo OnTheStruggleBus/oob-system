@@ -8,7 +8,10 @@ This file is for people contributing development work, usually with their own AI
 
 - [`AGENTS.md`](AGENTS.md): the process. Stage gates (§1), evidence and box-as-oracle (§2), same-commit docs (§3), reviews and PRs (§6), the role roster and workflow (§13, §14).
 - The role file for the work you are doing, under [`.github/agents/`](.github/agents/README.md). The roster and the project board rules are in [`.github/agents/README.md`](.github/agents/README.md).
-- The one or two documents in [`docs/`](docs/) for the workstream you are touching. Start with the [project overview](docs/mini-headend%20Project%20Overview%20—%20Faithful%20Lab%20Reproduction.md), the [stage gates](docs/Project%20Milestones%20&%20Stage%20Gates%20—%20mini-headend.md), and the [reproduction plan](docs/Oob%20Reproduction%20Plan%20—%20mini-headend.md) (workstreams W1–W8). The Console spec and the interconnect spec cover their own areas.
+- The three documents that AGENTS.md §0 requires before your first task, all in [`docs/`](docs/):
+  1. the [project overview](docs/mini-headend%20Project%20Overview%20—%20Faithful%20Lab%20Reproduction.md), for orientation;
+  2. the [stage gates](docs/Project%20Milestones%20&%20Stage%20Gates%20—%20mini-headend.md), the operating contract;
+  3. the workstream document(s) for your work: the [reproduction plan](docs/Oob%20Reproduction%20Plan%20—%20mini-headend.md) (W1–W8), the [Console spec](docs/Management%20Console%20Specification%20—%20Oob%20Console.md) (C0–C5), or the [interconnect spec](docs/Remote%20Service%20Delivery%20Specification%20—%20Interconnect%20(Stretch%20Goal).md) (R0–R5, post-G6 only).
 
 ## 2. Set up the agent guard first
 
@@ -61,9 +64,12 @@ Check the gate on every issue. The gate plan in [`docs/Project Milestones & Stag
 
 Every change is credited to one role. Human or agent, you work as exactly one role per branch, and the role is recorded in the commit.
 
+The role system is defined for agents (AGENTS.md §13). Human contributors act through an agent role for a given branch: you pick the role that matches the step, and your agent works as that role, one role per branch.
+
 - Add the `Oob-Role:` trailer to every commit. It is required (AGENTS.md §6, rule 2). Use the role that matches the step: `oob-dev-core`, `oob-dev-rf`, `oob-dev-console`, and so on. Use `orchestrator` only for a main session that routes work between roles.
-- Reviewers check the trailers, with `git log --no-merges`. A review counts only if the reviewing role authored none of the PR's commits. A commit with no trailer is a finding until the PR description accounts for it.
-- If you launch subagents through `.claude/agents/` or `.codex/agents/`, use the launcher that matches the step. One role per subagent run. Do not switch roles mid-task.
+- Reviewers check the trailers, with `git log --no-merges`. A review counts only if the reviewing role authored none of the PR's commits.
+- A commit without an `Oob-Role:` trailer is a finding until the PR description lists it in the form `<sha> → <role or Marshal>` in the review-routing section. Only merge commits are exempt (AGENTS.md §6, rule 2).
+- If you launch subagents, use the launcher that matches the step: `.claude/agents/<role>.md`, or the parallel `.codex/agents/<role>.toml`. AGENTS.md §1 and §14 currently name only `.claude/agents/`; the `.codex/agents/` set was added later and is wired by the same launcher-hardening lint. One role per subagent run. Do not switch roles mid-task.
 
 ## 5. Branch, build, commit
 
@@ -72,7 +78,7 @@ Every change is credited to one role. Human or agent, you work as exactly one ro
 **Commit messages** use a conventional prefix with the project flavour:
 
 ```text
-feat(oob-mux): add PID plan shaper for class C0 traffic
+feat(oob-mux): DCII CA descriptor on PMT for GI CA_system_id
 
 implements F4-6
 Oob-Role: oob-dev-core
@@ -85,28 +91,36 @@ Examples of the prefix: `feat(oob-mux): …`, `fix(oob-msg): …`, `docs: …`, 
 
 **Evidence.** A claim about box behaviour needs a capture under `lab/captures/`, referenced from the commit or PR. A claim without a capture is not evidence (AGENTS.md §2). Each experiment is a commit.
 
-**Before you push**, run the checks locally. CI runs the same ones with warnings denied.
+**Before you push**, run the checks locally. These match the required CI jobs (AGENTS.md §6, rule 6):
 
 ```sh
-cargo build
-cargo clippy -- -D warnings
-cargo test
-cargo doc                 # warnings denied
+cargo fmt --all -- --check
+cargo clippy --all-targets --locked -- -D warnings
+cargo nextest run --locked
+cargo test --doc --locked
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+cargo deny check
 python3 ops/docs-summary.py --check && mdbook build && python3 ops/docs-anchors.py && python3 ops/docs-facts.py
 ```
+
+The `agent-guard`, `gitleaks`, `openapi drift` and `mdbook (link check)` CI jobs run server-side and don't need a pre-push equivalent. Just don't weaken the hook files.
 
 `mdbook` must be the pinned version (0.4.52) with `mdbook-linkcheck` 0.7.7 (AGENTS.md §10). `ops/docs-summary.py --check` fails on a stale `docs/SUMMARY.md`. `ops/docs-facts.py` checks prose against [`docs/facts.yaml`](docs/facts.yaml). If it flags a true false positive, allowlist it in `ops/docs-facts.toml` with a reason. Do not silence it by rewording the fact.
 
 ## 6. Open the PR
 
-Open the PR against `main` and fill in **all** of [`.github/pull_request_template.md`](.github/pull_request_template.md). Delete nothing from it. An incomplete template is not reviewable (AGENTS.md §6, rule 4). The sections are:
+Open the PR against `main` and fill in **all** of [`.github/pull_request_template.md`](.github/pull_request_template.md). Delete nothing from it. An incomplete template is not reviewable (AGENTS.md §6, rule 4). Its sections, in order:
 
-- **Gate / workstream**: which gate and workstream the change serves, and the board item.
-- **Findings and open items touched**: `implements F…`, `refs O…`, or `none`.
+- **Summary**: what the PR does, in operator-visible terms.
+- **Gate / Workstream**: the gate and workstream served, and the board item.
+- **Findings & open items touched**: `implements F…`, `refs O…`, or `none`.
 - **Evidence**: links to captures and the harness log, or `n/a`.
-- **Docs checklist**, **test evidence**, and **safety declarations** (see section 10).
-- **Review routing**: the authoring role, the issue number, and the two reviews.
-- **Disputed findings** and **merge readiness**.
+- **Docs (same-commit rule)**: the docs checklist.
+- **Test evidence**: nextest, clippy, fmt, cargo-deny, and CI status.
+- **Safety declarations**: see section 9.
+- **Review routing (required before merge)**: the authoring role, the issue, the two reviews, and any commits without an `Oob-Role:` trailer.
+- **Disputed findings**: finding ID plus reason, or `none`.
+- **Merge readiness**: the merge checklist.
 
 Direct pushes to `main` are blocked. Every change goes through a PR. Docs-only typo fixes take the light path: a PR with green checks and Marshal's merge, no review comments required (AGENTS.md §6).
 
@@ -138,7 +152,7 @@ Acceptance is recorded by the PO role on the linked issue, against its acceptanc
 
 Read these every time. They have legal weight (AGENTS.md §7).
 
-- **Closed plant, always.** RF lives in terminated coax. Use a dummy load first on every new transmit path, and run a leakage sweep before connecting the plant. OOB carriers sit in the FM broadcast band (around 104 MHz), so shielding and termination are policy. A hub or bench that radiates gets shut down.
+- **Closed plant, always.** RF lives in terminated coax. Use a dummy load first on every new transmit path, and run a leakage sweep before connecting the plant. OOB carriers sit in the FM broadcast band (the OOB carriers at 104.2, 107.25 and 107.40 MHz), so shielding and termination are policy. A hub or bench that radiates gets shut down.
 - **Destructive box operations default to the sacrificial unit.** That covers code download campaigns, cold initialize, and flash write-back. Each needs typed confirmation from Marshal first. State exactly what will happen, then wait for an explicit yes.
 - **Flash recovery before download.** No download enable until a dump and a verified restore work by two routes (TL866 and 68k BDM). The recovery path (D0) is verified before any fleet box is touched.
 - **Never commit secrets.** No firmware, flash dumps, serials, Unit Addresses, key material, or the FPK in plaintext git, in chat, in issues, or in PRs. Box-identifying captures and key material live in the git-crypt tier or outside git, and are referenced by path only (AGENTS.md §5). gitleaks runs in CI.
@@ -151,6 +165,8 @@ Read these every time. They have legal weight (AGENTS.md §7).
 - Bypassing paywalls or fetching restricted documents such as SCTE 55-1. Flag the need to Marshal as an open item (AGENTS.md §11, open item O7).
 - "Improving" period-authentic behaviour: guide redraw lag, carousel freeze on outage, `E 01` on OOB loss. These are fidelity targets (AGENTS.md §8).
 - Starting work whose gate entry criteria are unmet (AGENTS.md §1, rule 3).
+- Pushing directly to `main`. Docs-only typo fixes included; they take the light PR path instead (AGENTS.md §6).
+- Giving surplus-hardware finds any planning weight. They are opportunism only, never a schedule assumption (AGENTS.md §11).
 - Editing or removing a `waived by Marshal` line.
 - Weakening the agent guard or its hooks, or running anything that does (AGENTS.md §14).
 - Touching live cable plant, licensed services, or anyone else's content.
