@@ -40,8 +40,11 @@ layout only.
 
 Under the ADR-001 §4 discovery order (SCTE 55-1 spec → structure-guided
 construction from the DAC §11 semantic payloads → patents → firmware-
-assisted parsing → community captures), this is the **last-resort
-community-captures / primary-research tier**. That tier is not a
+assisted parsing → community captures; see AGENTS.md §2), this source is the
+**firmware-assisted parsing tier, published through community channels**:
+its optical ROM extraction and IDA disassembly are firmware-assisted
+parsing, and the deck reached the public through conference and community
+channels. That tier is not a
 manual-sourced authority, so the structure it sources and the encoders it
 seeds are `hypothesized`, not `documented`; it cannot establish box
 acceptance. The ROM-sourced
@@ -49,17 +52,30 @@ constants in the deck carry the author's own caveat (~0.04 %/bit optical
 extraction error, not uniformly checksum-verified), so they are
 strong-but-not-absolute.
 
-**Why the higher discovery tiers don't supply these layouts.** SCTE 55-1
-fixes only OOB transport framing, not CA payload structure; DAC §11 is
-semantic (what a Define Operation means), not bit-level ECM/EMM/ACP layout;
-and the O10 patent pass is still open. Item 12 (community / firmware-RE
-tier) is therefore the lowest tier that actually carries these ECM/EMM/ACP
-layouts, which is why every family in this chapter is `hypothesized`. This
-is a logged skip-ahead under the ADR-001 §4 order, not a silent one.
-**Promotion gate:** no family here moves above `hypothesized` until its
-layout and the `0x4749` `CA_system_id` candidate are cross-checked against
-the O10 patents and DAC §11 (the constant is tracked on #56; the
-box-capture promotion path on #80).
+**Discovery-order log: skipped tiers are unchecked, not disproved.** This
+chapter's layouts come from the firmware-assisted tier above, which is later
+in the ADR-001 §4 order than three tiers that have **not been checked**:
+
+- SCTE 55-1 spec (tier 1): not in the repo; acquisition is open item O7.
+  Whether it specifies any CA payload structure is unchecked.
+- DAC §11 structure-guided construction (tier 2): DAC §11 is semantic (what a
+  Define Operation means). A bit-level cross-check of ECM/EMM/ACP layout
+  against it has not been run.
+- Patents, O10 (tier 3): the patent search has not been run, so no patent
+  has been checked.
+
+Because these legs are unchecked, this chapter does not claim the higher
+tiers lack these layouts. Item 12 is the only source in hand for them, which
+is why every family here is `hypothesized`.
+
+**Promotion gate (what a passed cross-check earns).** A passed cross-check
+against SCTE 55-1, DAC §11 or the O10 patents strengthens provenance and
+confidence in a family's layout and in the `0x4749` `CA_system_id` candidate
+(tracked on #56). It does **not** by itself lift a family above
+`hypothesized`. Per AGENTS.md §2, `documented` is manual-sourced and needs
+the manual (DAC §11 or SCTE 55-1) in hand; `verified` is box-accepted and
+needs a box capture (d 15 / d 16, promotion path on #80). Until one of those
+holds, every family stays `hypothesized`.
 
 ## 1. CA constants and where they live
 
@@ -71,11 +87,14 @@ box-capture promotion path on #80).
 | CAT on PID 1 | Table `0x01`; indexes the EMM streams and their provider IDs | `hypothesized` |
 | EMM carriage on cable | EMMs are delivered **out-of-band** on cable (in-band on satellite) — the Oob OOB stream carries them | `hypothesized` |
 
-The one cited GI `CA_descriptor` decode had `descriptor_length = 4` — exactly
-`CA_system_id` + `CA_PID`, i.e. **no private bytes**. Private-byte carriage is
-an Oob construction option, `hypothesized`, empty by default (aligning with
-[dcii-si.md](dcii-si.md)); do not encode private bytes as evidenced GI
-structure or the box may reject at `d 16`.
+The one cited GI `CA_descriptor` decode (corpus item 12, the 33c3 talk
+`33c3-8127`; the slide locator is not yet recorded in the repo and should be
+added on re-check) had `descriptor_length = 4`, exactly `CA_system_id` +
+`CA_PID`, i.e. **no private bytes**. Private-byte carriage is an Oob
+construction option, `hypothesized`, empty by default (aligning with
+[dcii-si.md](dcii-si.md)). Do not encode private bytes as evidenced GI
+structure. Whether a box would reject private bytes at `d 16` is untested
+here; treat it as an unverified risk, not an observed behavior.
 
 **`CA_system_id` note — do not flip here.** The DCII PSI/SI chapter
 ([dcii-si.md](dcii-si.md)) and the `oob_mux::psi` constant currently carry
