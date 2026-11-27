@@ -52,8 +52,8 @@ python3 ops/agent-guard.py --check "<command>"   # exit 0 allows; exit 2 blocks,
 
 The entry point differs by tool. The paths below are where to look, not verified file paths. Consult each tool's hook or config documentation for the exact file. Getting a path wrong is worse than being under-specific.
 
-- **Grok CLI / Grok Code (xAI).** Add the call to the tool's pre-command hook configuration. A project-level or user-level hooks file is the usual place. Check Grok's documentation for the exact file.
-- **Qwen Code (Alibaba).** Add the call to the user-level configuration, the same model as Kimi Code above. Check Qwen Code's documentation for the file and the hook key.
+- **Grok CLI / Grok Code (xAI).** Add the call to the tool's pre-command hook configuration. Consult the tool's hook/config documentation for the exact file.
+- **Qwen Code (Alibaba).** Add the call to the tool's pre-command hook configuration. Consult the tool's hook/config documentation for the exact file.
 - **Windsurf (Codeium).** Add the call to a workspace or settings-level hook for shell commands, if Windsurf exposes one for your version. Check its documentation.
 - **Aider.** Aider has no pre-shell hook that this file can confirm. If your setup routes Aider's shell commands through a wrapper, call the guard from that wrapper. Otherwise, consult Aider's documentation (`aider.conf.yml` and its command options) before assuming any enforcement.
 - **Continue (continue.dev).** Add the call to the shell-tool wrapper if Continue provides one. A system-prompt instruction alone is not enforcement, so prefer a tool-level hook where the docs describe one.
