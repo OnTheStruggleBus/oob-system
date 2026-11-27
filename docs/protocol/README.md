@@ -24,3 +24,10 @@ The third chapter, [DCII PSI/SI](dcii-si.md), is the O4 "DCII PSI/SI
 conformance set" row: the PAT, PMT and CAT assemblers, the runtime PID plan
 and the GI CA descriptors, each with its status. Every row is `hypothesized`;
 nothing is claimed accepted by a box.
+
+The fourth chapter, [DCII CA message families](dcii-ca-messages.md),
+documents the structure and semantics of the GI conditional-access
+messages — ECM40, ECM41 and EMM95 — plus the key-hierarchy roles and the
+box-internal ACP oracle. Synthesized from reverse-engineering research, it
+carries structure and field roles only: no key values, no Unit Addresses,
+and every family at `documented` or `hypothesized`, never `verified`.

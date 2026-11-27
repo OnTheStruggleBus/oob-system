@@ -27,6 +27,13 @@ CAT plus the pacer's nulls. Feeding these tables into the in-band path for
 the d 16 check is a later issue. NIT, the DCII master guide table (PID
 8187) and Huffman descriptor text are out of scope (F5-6 backlog).
 
+The CA message families that these tables point at — ECM40, ECM41 and
+EMM95 — and the key-hierarchy roles are documented in
+[DCII CA message families](dcii-ca-messages.md). That chapter also records
+a sourced `CA_system_id` candidate (`0x4749`) expected to supersede the
+`0x0700` placeholder below, pending issue #56 and a box capture; the
+placeholder value here is unchanged until that gated dev PR lands.
+
 ## Conformance table
 
 | Item | Status | Basis |
