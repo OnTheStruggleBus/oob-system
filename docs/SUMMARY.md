@@ -22,6 +22,7 @@
 - [Prior Art & External References — mini-headend](Prior%20Art%20&%20External%20References%20—%20mini-headend.md)
 - [ADR-002 — Oob Runtime Architecture](ADR-002%20—%20Oob%20Runtime%20Architecture.md)
 - [ADR-003 — Configuration, Extensibility and Distribution Model](ADR-003%20—%20Configuration,%20Extensibility%20and%20Distribution%20Model.md)
+- [ADR-004 — Dependency Licensing Tiers and External-Component Packaging](ADR-004%20—%20Dependency%20Licensing%20Tiers%20and%20External-Component%20Packaging.md)
 - [Protocol](protocol/README.md)
   - [dcii-ca-messages](protocol/dcii-ca-messages.md)
   - [dcii-si](protocol/dcii-si.md)
