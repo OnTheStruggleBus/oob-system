@@ -13,10 +13,12 @@ Unit Addresses, and no captured hex that embeds any of those** (AGENTS.md
 §5, §11). Encrypted-key fields are named as opaque N-byte blobs and go no
 further.
 
-**Nothing on this page is box-verified.** Every family below is
-`documented` (structure sourced from evidence) or `hypothesized`
-(constructed from that structure, not yet box-accepted) — **never**
-`verified`. There is no capture from *our* box behind any of it. Promotion
+**Nothing on this page is box-verified.** The oob-msg taxonomy is
+`documented` (manual-sourced) / `hypothesized` (constructed, unverified) /
+`verified` (box-accepted) (AGENTS.md §2). This chapter's sole source is a
+community-tier research deck, not a manual, so every family below is
+`hypothesized` — never `documented` and **never** `verified`. There is no
+capture from *our* box behind any of it. Promotion
 to `verified` needs a d 15 / d 16 (or upstream-sniffer) capture from an Oob
 box committed under `lab/captures/` and referenced from the message family
 in `oob-msg`; the box is the referee (AGENTS.md §2). The crate is the
@@ -39,9 +41,10 @@ layout only.
 Under the ADR-001 §4 discovery order (SCTE 55-1 spec → structure-guided
 construction from the DAC §11 semantic payloads → patents → firmware-
 assisted parsing → community captures), this is the **last-resort
-community-captures / primary-research tier**. That tier can source
-structure (hence `documented`) and seed constructed encoders (hence
-`hypothesized`); it cannot establish box acceptance. The ROM-sourced
+community-captures / primary-research tier**. That tier is not a
+manual-sourced authority, so the structure it sources and the encoders it
+seeds are `hypothesized`, not `documented`; it cannot establish box
+acceptance. The ROM-sourced
 constants in the deck carry the author's own caveat (~0.04 %/bit optical
 extraction error, not uniformly checksum-verified), so they are
 strong-but-not-absolute.
@@ -50,11 +53,11 @@ strong-but-not-absolute.
 
 | Constant | Role | Status |
 | --- | --- | --- |
-| DCII `CA_system_id` candidate `0x4749` ("GI" ASCII) | Identifies the GI/Motorola CA system inside the `CA_descriptor`; dvbsnoop labels it "General Instrument" | `documented` (sourced candidate; see note below) |
-| PSI/SI table-id set | PAT `0x00`, CAT `0x01`, PMT `0x02`, ECM40 `0x40`, ECM41 `0x41`, EMM95 `0x95` | `documented` |
-| `CA_descriptor` (PMT) | Tag `0x09`: `CA_system_id(16)`, `111`+`CA_PID(13)`, private bytes — points a program/stream at its ECM PID | `documented` |
-| CAT on PID 1 | Table `0x01`; indexes the EMM streams and their provider IDs | `documented` |
-| EMM carriage on cable | EMMs are delivered **out-of-band** on cable (in-band on satellite) — the Oob OOB stream carries them | `documented` |
+| DCII `CA_system_id` candidate `0x4749` ("GI" ASCII) | Identifies the GI/Motorola CA system inside the `CA_descriptor`; dvbsnoop labels it "General Instrument" | `hypothesized` (sourced candidate; see note below) |
+| PSI/SI table-id set | PAT `0x00`, CAT `0x01`, PMT `0x02`, ECM40 `0x40`, ECM41 `0x41`, EMM95 `0x95` | `hypothesized` |
+| `CA_descriptor` (PMT) | Tag `0x09`: `CA_system_id(16)`, `111`+`CA_PID(13)`, private bytes — points a program/stream at its ECM PID | `hypothesized` |
+| CAT on PID 1 | Table `0x01`; indexes the EMM streams and their provider IDs | `hypothesized` |
+| EMM carriage on cable | EMMs are delivered **out-of-band** on cable (in-band on satellite) — the Oob OOB stream carries them | `hypothesized` |
 
 **`CA_system_id` note — do not flip here.** The DCII PSI/SI chapter
 ([dcii-si.md](dcii-si.md)) and the `oob_mux::psi` constant currently carry
@@ -77,10 +80,10 @@ design inputs.**
 
 | Role | Lifetime | Delivered / derived by | Status |
 | --- | --- | --- | --- |
-| Seed keys (×3) | Box lifespan | Injected at personalization (factory) — **inaccessible** | `documented` |
-| Category key | ~1 month (epoch) | Carried by **EMM95**, encrypted under the seed keys | `documented` |
-| Program key | 1 day or 1 PPV event | Carried by **ECM41**, encrypted under the category key | `documented` |
-| Working key | 133 ms – 1 s | Derived from the **ECM40** incrementing frame count, under the program key | `documented` |
+| Seed keys (×3) | Box lifespan | Injected at personalization (factory) — **inaccessible** | `hypothesized` |
+| Category key | ~1 month (epoch) | Carried by **EMM95**, encrypted under the seed keys | `hypothesized` |
+| Program key | 1 day or 1 PPV event | Carried by **ECM41**, encrypted under the category key | `hypothesized` |
+| Working key | 133 ms – 1 s | Derived from the **ECM40** incrementing frame count, under the program key | `hypothesized` |
 
 - **Epochs and key-select.** Category and program keys roll by epoch with a
   **current + next** key-select carried in the messages, so a box can hold
@@ -107,14 +110,14 @@ Field roles and ordering, enough to build an encoder. **No raw captured
 hex, key payloads or Unit Addresses are reproduced**; encrypted-key fields
 are named as opaque blobs.
 
-### ECM40 — Working-Key ECM — table `0x40` — `documented` structure / `hypothesized` encoder
+### ECM40 — Working-Key ECM — table `0x40` — `hypothesized` structure / `hypothesized` encoder
 
 Field roles, in capture order: `table_id 0x40`; section/length framing;
 **Service ID** (per channel); **frame count** (incrementing — drives the
 working key); **hardware crypto-mode selector**; trailing **checksum**
 byte. Emitted in sequential triplets ~133 ms apart and paired with ECM41.
 
-### ECM41 — Program-Key ECM — table `0x41` — `documented` structure / `hypothesized` encoder
+### ECM41 — Program-Key ECM — table `0x41` — `hypothesized` structure / `hypothesized` encoder
 
 Field roles: `table_id 0x41`; framing; **8-byte initialization vector**;
 **Provider ID**; **hardware crypto select**; **Service ID**; **category
@@ -123,7 +126,7 @@ acceptable tiers** followed by that many **4-byte tier entries**;
 **validity start**; **valid period** (about 24 h); and an **8-byte
 encrypted program-key blob** (opaque; secret — not reproduced).
 
-### EMM95 — Entitlement / Category EMM — table `0x95` — `documented` structure / `hypothesized` encoder
+### EMM95 — Entitlement / Category EMM — table `0x95` — `hypothesized` structure / `hypothesized` encoder
 
 Multi-part (observed in four parts). **Individually addressed** to one box
 by its **40-bit Unit Address** — there are **no group keys; every EMM is
@@ -135,7 +138,7 @@ per-UA**. Field roles per part: `table_id 0x95`; length; **Unit Address**;
 not reproduced); and **tier-bank** data. It carries the box's access
 rights and the encrypted category key.
 
-### ACP local SPI access-rights protocol — `documented` structure — **NOT headend-emitted**
+### ACP local SPI access-rights protocol — `hypothesized` structure — **NOT headend-emitted**
 
 This is the command/response bus between the box controller (SPI master)
 and the ACP secure element (SPI slave): the host sends `80 <cmd> …`, the
@@ -156,7 +159,7 @@ a message family to emit would be a scope error.
 
 | Family / artifact | Owning crate | Responsibility |
 | --- | --- | --- |
-| ECM40, ECM41, EMM95 definitions (layouts, status labels, evidence backrefs) | **oob-msg** (W3) | The O4 protocol-doc-as-code: each family at `documented` / `hypothesized`, promoted to `verified` only on a capture (F6-6 / F6-7) |
+| ECM40, ECM41, EMM95 definitions (layouts, status labels, evidence backrefs) | **oob-msg** (W3) | The O4 protocol-doc-as-code: each family at `hypothesized`, promoted to `verified` only on a capture (F6-6 / F6-7) |
 | EMM / ECM **emission paths** — per-UA EMM cycling, category-epoch management, ECM-pair cadence | **oob-dac** | Drives *when* and *to whom* families are emitted; the KLS/ukl lifecycle and category epochs |
 | PSI/SI assembly — `CA_descriptor` in PMT, CAT on PID 1 indexing the EMM streams, PID plan | **oob-mux** (W2) | Already builds PAT/PMT/CAT ([dcii-si.md](dcii-si.md)); this chapter sources the `CA_system_id` candidate (§1) and the CAT→EMM indexing role |
 | Encrypted-tier scrambling **rotation cadence** → SEM | **oob-playout → SEM (GigE)** | For the Fixed-PK tier (O3): the cadence is a headend concern; the FPK constant itself stays in the git-crypt tier / O3, never here |
