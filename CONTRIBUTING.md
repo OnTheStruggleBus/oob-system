@@ -11,7 +11,7 @@ This file is for people contributing development work, usually with their own AI
 - The three documents that AGENTS.md §0 requires before your first task, all in [`docs/`](docs/):
   1. the [project overview](docs/mini-headend%20Project%20Overview%20—%20Faithful%20Lab%20Reproduction.md), for orientation;
   2. the [stage gates](docs/Project%20Milestones%20&%20Stage%20Gates%20—%20mini-headend.md), the operating contract;
-  3. the workstream document(s) for your work: the [reproduction plan](docs/Oob%20Reproduction%20Plan%20—%20mini-headend.md) (W1–W8), the [Console spec](docs/Management%20Console%20Specification%20—%20Oob%20Console.md) (C0–C5), or the [interconnect spec](docs/Remote%20Service%20Delivery%20Specification%20—%20Interconnect%20(Stretch%20Goal).md) (R0–R5, post-G6 only).
+  3. the workstream document(s) for your work: the [reproduction plan](docs/Oob%20Reproduction%20Plan%20—%20mini-headend.md) (W1–W8), the [Console spec](docs/Management%20Console%20Specification%20—%20Oob%20Console.md) (C0–C5), or the [interconnect spec](docs/Remote%20Service%20Delivery%20Specification%20—%20Interconnect%20(Stretch%20Goal).md) (R0–R5, post-M6 only).
 
 ## 2. Set up the agent guard first
 
@@ -62,9 +62,7 @@ Check the gate on every issue. The gate plan in [`docs/Project Milestones & Stag
 
 ## 4. The role you act as
 
-Every change is credited to one role. Human or agent, you work as exactly one role per branch, and the role is recorded in the commit.
-
-The role system is defined for agents (AGENTS.md §13). Human contributors act through an agent role for a given branch: you pick the role that matches the step, and your agent works as that role, one role per branch.
+The role is always an agent-role (AGENTS.md §13). When you contribute, your agent acts as one role for the branch (architect, PO, PM, dev-core, dev-rf, dev-console, QA, scrum, expert, or orchestrator), and the `Oob-Role:` trailer records which one. Humans contribute through agents; the role stays the agent's.
 
 - Add the `Oob-Role:` trailer to every commit. It is required (AGENTS.md §6, rule 2). Use the role that matches the step: `oob-dev-core`, `oob-dev-rf`, `oob-dev-console`, and so on. Use `orchestrator` only for a main session that routes work between roles.
 - Reviewers check the trailers, with `git log --no-merges`. A review counts only if the reviewing role authored none of the PR's commits.
@@ -98,7 +96,7 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo nextest run --locked
 cargo test --doc --locked
-RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 cargo deny check
 python3 ops/docs-summary.py --check && mdbook build && python3 ops/docs-anchors.py && python3 ops/docs-facts.py
 ```
