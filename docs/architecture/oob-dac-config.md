@@ -253,11 +253,21 @@ latest revision.
   with `unit-reinstate` (owner role, no token): it returns with the same
   terminal ID, identity, operational record and revision history, and is a
   target again. No code path deletes a unit row (a source scan enforces it).
-  The only refusal is a live unit holding the same unit address or serial
-  (`duplicate-unit-address`, `duplicate-serial`), which lasts only until that
-  unit is retired; a box type that has left the catalog does not block it.
-  The validator (#26) may refuse a reinstate only for a conflict the owner
-  can fix, never as a permanent rule.
+  A reinstate can be refused only for reasons the owner can clear:
+  - a live unit holding the same unit address or serial
+    (`duplicate-unit-address`, `duplicate-serial`), until that unit is
+    retired;
+  - a singleton head that does not decode (`doc-schema-too-new`,
+    `doc-undecodable`): like every other change, a reinstate fails closed
+    until the owner saves or rolls back that kind (step 3 of the save
+    sequence);
+  - a validator refusal or panic (`config-refused`, `validator-panic`): the
+    validator (#26) may refuse a reinstate only for a conflict the owner can
+    fix, never as a permanent rule;
+  - the policy layer: a reinstate needs the owner role and cannot come from
+    the DAC's own timers (`owner-required`, `guest-read-only`).
+
+  A box type that has left the catalog does not block it.
 
 ## Policy
 
