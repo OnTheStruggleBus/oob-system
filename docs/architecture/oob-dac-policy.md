@@ -57,7 +57,9 @@ operational record changes only through the [configuration
 store](oob-dac-config.md), which writes a revision and a journal row with
 every change, so the policy prices the transition (the base revision the
 caller edited was not sacrificial and the new record is) and spends the token
-before the save runs. Unmarking, retiring and reinstating are owner-only.
+before the save runs. Unmarking needs the owner through the REST or Lab
+door, as the destructive classes do, but no token; retiring and reinstating
+need the owner role only.
 `StorePolicy::mark_sacrificial`, which wrote the flag directly, was removed
 with #25.
 
@@ -158,10 +160,13 @@ one first, and a refusal spends no token.
 **A spent token is not refunded.** The token is spent by the policy check, and
 the operation can still fail afterwards (an encode error, a scheduler
 refusal, or a configuration validator refusal of a `mark-sacrificial`
-change). A failure already decidable in the spend transaction spends nothing:
-a retired target (`terminal-retired`), and for a configuration change a base
-revision that is not the head (`conflict`) or an unknown unit. The token is then gone and the user requests a new one. That errs
+change). The token is then gone and the user requests a new one. That errs
 safe: a failure can burn a token, never the reverse.
+
+A failure already decidable in the spend transaction spends nothing: a
+retired target (`terminal-retired`) or an unknown one (`unknown-terminal`),
+and for a configuration change a base revision that is not the head
+(`conflict`).
 
 ## The sacrificial-only CDL lock (QA-7)
 
@@ -184,7 +189,8 @@ safe: a failure can burn a token, never the reverse.
   row), because that state reads as ON and must never be reported as changed
   (#59 CP-4).
 - **Turning it ON** needs the owner role only.
-- **Marking a unit sacrificial** is D-hard; unmarking is owner-only.
+- **Marking a unit sacrificial** is D-hard; unmarking needs the owner through
+  the REST or Lab door and no token.
 
 This governs the product's CDL campaigns only. AGENTS.md section 7
 (flash recovery before download) still binds this project's own lab and

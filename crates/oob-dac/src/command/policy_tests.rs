@@ -1771,3 +1771,26 @@ fn qa10_a_mark_that_cannot_commit_spends_no_token() {
     f.mark(&with(owner(), &t), 2, true).unwrap();
     assert_eq!(f.unspent(), 0);
 }
+
+#[test]
+fn a12_authorize_revalidates_every_terminal_target() {
+    let f = fix();
+    let tgt = TokenTarget::Terminal(tid(3));
+    let t = f.issue(DestructiveOp::FactoryInit, tgt.clone());
+    f.retire(3);
+    assert_eq!(
+        rule(
+            f.policy
+                .authorize(&with(owner(), &t), DestructiveOp::FactoryInit, tgt.clone())
+        ),
+        "terminal-retired"
+    );
+    assert_eq!(f.unspent(), 1, "a refusal spends no token");
+    // Reinstated, the same token authorizes.
+    f.bus
+        .submit(&owner(), Command::Admin(AdminOp::UnitReinstate(tid(3))))
+        .unwrap();
+    f.policy
+        .authorize(&with(owner(), &t), DestructiveOp::FactoryInit, tgt)
+        .unwrap();
+}

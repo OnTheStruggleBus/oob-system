@@ -125,6 +125,13 @@ impl AdminOp {
     /// The proposal as JSON, for a refusal's journal row (no identity).
     fn proposal(&self) -> String {
         match self {
+            // A unit document refused under a singleton key would land in
+            // a journal row outside `BOX_IDENTIFYING_ROWS`: name its kind only.
+            Self::ConfigSave { key, doc, .. }
+                if doc.kind() == ConfigKind::Unit && key.kind.is_singleton() =>
+            {
+                "{\"doc_kind\":\"unit\"}".to_owned()
+            }
             Self::ConfigSave { doc, .. } => doc.canonical_json(),
             Self::ConfigSaveBatch(c) => {
                 let items: Vec<serde_json::Value> = c
@@ -132,8 +139,14 @@ impl AdminOp {
                     .map(|c| {
                         serde_json::json!({
                             "key": c.key.to_string(),
-                            "doc": serde_json::from_str::<serde_json::Value>(&c.doc.canonical_json())
-                                .unwrap_or(serde_json::Value::Null),
+                            // Batches take singletons only; a unit
+                            // document here is refused and named by kind.
+                            "doc": if c.doc.kind() == ConfigKind::Unit {
+                                serde_json::json!({"doc_kind": "unit"})
+                            } else {
+                                serde_json::from_str::<serde_json::Value>(&c.doc.canonical_json())
+                                    .unwrap_or(serde_json::Value::Null)
+                            },
                         })
                     })
                     .collect();

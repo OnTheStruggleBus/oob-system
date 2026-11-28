@@ -111,14 +111,18 @@ part of the unit document.
 | `unit.reinstate` | a reinstate (likewise) |
 
 A refusal stores nothing, so its journal row is written in its own
-transaction. **Every** refused change gets one, whichever check refused it:
+transaction. Every change **the configuration store** refuses gets one,
+whichever of its checks refused it:
 the same command and target, outcome `refused:<rule,rule…>` for a validator
 refusal or `refused:<code>` for any other (`conflict`, `unknown-box-type`,
 `sacrificial-at-enroll`, `doc-too-large`, …), and the refused proposal as
 `after`. A store failure (`store-error`) gets none, since nothing was decided.
 The bus also writes its usual policy audit row for every outcome (#23). A
 refused **seed**, which does not pass through the bus, gets a `config.seed`
-row with the seed's actor and the bundle as `after`, its only audit row.
+row with the seed's actor and the bundle as `after`, its only audit row. A
+change the **policy layer** refuses (role, door, token, and a mark's
+`conflict`, `terminal-retired` or `unknown-terminal`) never reaches the
+store, so it has the bus audit row only, without the proposal.
 
 ## The save sequence
 
@@ -239,6 +243,15 @@ latest revision.
   retired unit is out of targeting (not in All or a range; a Single ID of one
   is an unknown terminal) and refuses updates and rollbacks (`unit-retired`)
   until it is reinstated.
+- **Retirement is never permanent.** Any retired unit can be recommissioned
+  with `unit-reinstate` (owner role, no token): it returns with the same
+  terminal ID, identity, operational record and revision history, and is a
+  target again. No code path deletes a unit row (a source scan enforces it).
+  The only refusal is a live unit holding the same unit address or serial
+  (`duplicate-unit-address`, `duplicate-serial`), which lasts only until that
+  unit is retired; a box type that has left the catalog does not block it.
+  The validator (#26) may refuse a reinstate only for a conflict the owner
+  can fix, never as a permanent rule.
 
 ## Policy
 
@@ -317,8 +330,8 @@ Every refusal has a stable code (`ConfigError::reason`), which is also
 | `wrong-kind` | key and document do not fit (a unit saved as a singleton, a key twice in a batch) |
 | `sacrificial-at-enroll` | a unit is enrolled non-sacrificial |
 | `doc-schema-too-new` | a stored document is newer than this build |
-| `duplicate-unit-address` | another unit has that unit address |
-| `duplicate-serial` | another unit has that serial |
+| `duplicate-unit-address` | another unit in service has that unit address |
+| `duplicate-serial` | another unit in service has that serial |
 | `terminal-id-exhausted` | all 24-bit terminal IDs are spent |
 | `invalid-field` | a field outside its domain |
 | `doc-undecodable` | a stored document does not decode (damage or a bug) |

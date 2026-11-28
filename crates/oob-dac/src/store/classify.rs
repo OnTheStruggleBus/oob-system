@@ -114,7 +114,7 @@ pub const BOX_IDENTIFYING_ROWS: &[(&str, &str)] = &[
     (
         "audit_log",
         "command IN ('unit.enroll', 'unit.update', 'unit.retire', 'unit.reinstate') \
-         OR (command = 'config.rollback' AND target LIKE 'unit/%')",
+         OR (command IN ('config.save', 'config.rollback') AND target LIKE 'unit/%')",
     ),
 ];
 

@@ -31,6 +31,12 @@ pub enum ApplyStatus {
 }
 
 /// Applies committed revisions. Implemented by the daemon (#29).
+///
+/// The configuration runtime calls it inside the critical section that
+/// also covers the commit, so revisions arrive in commit order. An applier
+/// must therefore **return promptly** and **must not submit a
+/// configuration command** (`Command::Admin`) itself: that would wait on
+/// the section it is running in and deadlock. It may read the store.
 pub trait ConfigApplier: Send + Sync {
     /// Applies `doc`, now revision `revision` of `key`. Called after commit
     /// only; must not panic on a document the running system cannot take.

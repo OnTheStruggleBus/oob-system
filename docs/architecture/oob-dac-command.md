@@ -89,7 +89,8 @@ of leaving it in Downloaded or Active forever.
   moves its handle in. No other `oob-dac` module receives one.
   `SchedulerHandle` is `Clone` and public in `oob-mux`, so the guarantee
   within `oob-dac` is a convention held by the source scan below, not by the
-  type. #25's budget apply and #17's assemblers also need a handle; #29
+  type. The configuration applier's budget apply (#29) and #17's assemblers
+  also need a handle; #29
   decides between a bus pass-through and a daemon-held clone.
 - The sink module and the encode guard are private. Two `compile_fail`
   doctests show an adapter cannot name them.

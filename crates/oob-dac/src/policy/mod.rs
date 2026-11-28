@@ -582,6 +582,8 @@ impl StorePolicy {
                     (Some(vec![t]), Some(*id))
                 }
                 _ if op.is_cdl() => (Some(Vec::new()), None),
+                // A-12: every terminal target must exist and be in service.
+                TokenTarget::Terminal(id) => (None, Some(*id)),
                 _ => (None, None),
             };
             // Revalidated inside the spend transaction (#59 CP-2).
@@ -795,8 +797,9 @@ impl StorePolicy {
     /// owner role (an operator is refused; the DAC's own timers cannot
     /// originate one), and when the change turns a unit sacrificial, the
     /// `mark-sacrificial` token bound to that terminal, spent in the same
-    /// transaction that revalidates it exists. Unmarking, retiring and
-    /// reinstating need the owner role only.
+    /// transaction that revalidates it exists and can still commit.
+    /// Unmarking needs the owner through the REST or Lab door and no token;
+    /// retiring and reinstating need the owner role only.
     fn check_admin(&self, ctx: &CommandContext, op: &AdminOp) -> Result<Grant, PolicyDenied> {
         let probe = op.clone();
         let touch = self

@@ -2323,3 +2323,136 @@ fn qa1_the_same_identity_can_be_retired_and_enrolled_twice() {
         .collect();
     assert_eq!(ids, [third]);
 }
+
+// ---- recommissioning: retirement is never permanent -------------------------
+
+#[test]
+fn a_retired_unit_can_always_be_recommissioned_with_its_record_intact() {
+    let dir = TempDir::new();
+    let mut store = open(&dir);
+    let svc = structural();
+    let id = try_enroll(&mut store, &svc, &unit_with(7, 0, "GI0000000007")).unwrap();
+    let key = ObjectKey::unit(id);
+    for round in 0..3u32 {
+        // Change the record while in service, then retire and reinstate.
+        let rev = head(&store, key).unwrap().meta.revision;
+        let mut d = UnitDoc::new("Two-Way", "dct2000");
+        d.account_number = Some(format!("ROUND{round}"));
+        store
+            .write_with(|tx| svc.update_unit(tx, &owner(), id, &d, BaseRevision::At(rev)))
+            .unwrap();
+        retire(&mut store, &svc, id);
+        assert!(
+            store
+                .write_with(|tx| svc.set_retired(tx, &owner(), id, false))
+                .unwrap(),
+            "round {round}: reinstate refused"
+        );
+        // Back in service with the same ID, identity and full history.
+        let t = reader(&store).terminal(id).unwrap().unwrap();
+        assert!(t.retired_utc.is_none());
+        assert_eq!(t.record.serial, "GI0000000007");
+        assert_eq!(
+            t.record.account_number.as_deref(),
+            Some(format!("ROUND{round}").as_str())
+        );
+        assert_eq!(head(&store, key).unwrap().meta.revision, rev + 1);
+        let d = StoreDirectory::new(reader(&store));
+        assert_eq!(
+            d.resolve(&Target::Single(id), &Filters::default())
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+    // A collision with a live unit only defers it: retire that one and the
+    // old record comes back.
+    retire(&mut store, &svc, id);
+    let other = try_enroll(&mut store, &svc, &unit_with(7, 0, "GI0000000008")).unwrap();
+    let e = store
+        .write_with(|tx| svc.set_retired(tx, &owner(), id, false))
+        .unwrap_err();
+    assert_eq!(e.reason(), "duplicate-unit-address");
+    retire(&mut store, &svc, other);
+    assert!(
+        store
+            .write_with(|tx| svc.set_retired(tx, &owner(), id, false))
+            .unwrap()
+    );
+    // A box type that left the catalog while retired does not block it.
+    let narrow = ConfigService::new(
+        Arc::new(StructuralValidator),
+        Arc::new(InMemoryCatalog::new(["dct1700"])),
+        ConfigLimits::default(),
+    );
+    retire(&mut store, &narrow, id);
+    assert!(
+        store
+            .write_with(|tx| narrow.set_retired(tx, &owner(), id, false))
+            .unwrap()
+    );
+}
+
+#[test]
+fn no_code_path_deletes_a_unit_record() {
+    // Retirement is never permanent because a unit row is never removed.
+    let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut stack = vec![src];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).unwrap() {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                stack.push(p);
+                continue;
+            }
+            let name = p.file_name().unwrap().to_string_lossy().to_string();
+            if p.extension().is_none_or(|x| x != "rs") || name.ends_with("tests.rs") {
+                continue;
+            }
+            let flat = std::fs::read_to_string(&p)
+                .unwrap()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_ascii_lowercase();
+            for bad in [
+                "delete from terminal ",
+                "delete from terminal\"",
+                "delete from terminal;",
+                "delete from \"terminal\"",
+                "drop table terminal",
+                "replace into terminal ",
+            ] {
+                assert!(!flat.contains(bad), "{}: {bad}", p.display());
+            }
+        }
+    }
+}
+
+#[test]
+fn a_misfiled_unit_document_is_named_not_journaled() {
+    let dir = TempDir::new();
+    let store = open(&dir);
+    let (handle, _t) = store.spawn_writer(8).unwrap();
+    let admin = ConfigAdmin::from_service(handle.clone(), structural(), Arc::new(NoApplier));
+    let mut d = UnitDoc::new("One-Way", "dct2000");
+    d.account_number = Some("ACCT-PRIVATE".into());
+    let e = admin
+        .run(
+            &owner(),
+            &AdminOp::ConfigSave {
+                key: LINEUP,
+                doc: Doc::Unit(d),
+                base: BaseRevision::None,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(e.reason(), "wrong-kind");
+    let audit = handle
+        .call_blocking(|s| s.reader()?.audit_records())
+        .unwrap();
+    assert_eq!(
+        audit[0].entry.after.as_deref(),
+        Some("{\"doc_kind\":\"unit\"}")
+    );
+}
