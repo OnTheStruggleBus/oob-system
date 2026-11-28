@@ -61,7 +61,20 @@ Migration `0002_policy` (#23) adds the policy layer's two tables:
 | `confirmation_token` | DerivedObserved | Short-lived F6-10 confirmation tokens, stored as a SHA-256 only; worthless after a restart, so losing them on a restore is correct |
 | `install_setting` | Precious | Per-install owner settings: the sacrificial-only CDL lock (seeded ON) and the random install ID. See [the policy layer](oob-dac-policy.md) |
 
-Append-only is enforced by the schema. On both journals, `BEFORE UPDATE`
+Migration `0003_config` (#25) adds the configuration store's tables and
+retires units without deleting them:
+
+| Table | Class | Content |
+| --- | --- | --- |
+| `config_revision` | Precious, append-only | Every revision of every configuration object (lineup, PID plan, class budgets, mux settings, unit records), with its canonical JSON, digest, schema version, origin and journal row. See [the configuration store](oob-dac-config.md) |
+| `psi_table_version` | Precious | The PSI version counters and last-emitted section bytes (#17), upserted and never pruned, so a restart continues the mod-32 count |
+| `terminal.retired_utc` (column) | Precious | When a unit was retired; a retired unit is never deleted and is out of targeting |
+
+Terminal rows are created only by the configuration store's enroll
+(`Tx::create_terminal` is crate-internal since #25), so the row and the
+unit's latest revision never disagree.
+
+Append-only is enforced by the schema. On every journal, `BEFORE UPDATE`
 and `BEFORE DELETE` triggers abort the statement, and a `BEFORE INSERT`
 trigger aborts any insert that targets an existing sequence number. The
 last one closes `REPLACE` and `INSERT OR REPLACE`, which would otherwise
@@ -74,9 +87,23 @@ DCT700 and DCT1700 install manuals under "d 05: Unit Address" (cited in
 oob-expert's research note on issue #21); applying it to the DCT2000 is
 same-family inference. The check-digit algorithm is unknown, so
 `ua_check` stores the printed digits verbatim. Oob never computes,
-validates or generates them. `unit_address`, the 40-bit value of the
-address digits, is the unique identity, and the printed form round-trips
-without loss, so a later correction needs only a forward migration.
+validates or generates them. `unit_address` is the 40-bit value of the
+address digits, and the printed form round-trips without loss, so a later
+correction to the split needs only a forward migration.
+
+**Identity** (since #25, per oob-architect ruling on PR #87 QA-1): a
+record's permanent identity is its `terminal_id`. `unit_address` and
+`serial` are unique **among units in service** (partial unique indexes
+`terminal_live_unit_address` and `terminal_live_serial`, `WHERE retired_utc
+IS NULL`), so a unit enrolled with a wrong identity is retired and enrolled
+again correctly: a new ID, revision 1, non-sacrificial, nothing carried
+over. Identity stays immutable per row, and a retired record keeps its
+identity and history. Reinstating a retired record is refused
+(`duplicate-unit-address`, `duplicate-serial`) while a live unit holds
+either value, and any lookup by unit address or serial selects live rows
+only. Migration `0003` rebuilds `terminal` to get there (the `0001` column
+constraints are replaced), keeping every row, the `terminal_status` rows
+and the ID high-water mark.
 
 The other precious tables in the F6-5 list (the entitlement-change
 journal, the purchase ledger, the campaign ledger) arrive with the issues
@@ -92,7 +119,11 @@ they may seed install settings (#23 seeds the sacrificial-only CDL lock),
 but never a row in a box-identifying table. Those tables are listed in
 `store::BOX_IDENTIFYING` (today only `terminal`), and a test checks that a
 fresh store has none of their rows and that no migration inserts into
-them. Unit addresses and serials identify real boxes, so they live only in
+them. Since #25, shared tables also hold per-box records at row level:
+unit revisions in `config_revision` and the unit journal rows in
+`audit_log` (a unit's operational record, keyed by terminal ID, without
+unit address or serial). They are listed in `store::BOX_IDENTIFYING_ROWS`
+as (table, condition), and a test checks that a seeded store has none. Unit addresses and serials identify real boxes, so they live only in
 the store file (ADR-003 §4).
 
 ## The outbox

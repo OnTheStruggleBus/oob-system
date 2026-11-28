@@ -33,7 +33,17 @@
 //! target), dry-run default, the sacrificial-only CDL lock (seeded ON,
 //! turned off with owner plus token alone, QA-7), and an audit row for every
 //! outcome.
+//!
+//! # The configuration store (ADR-003 section 2, r6 F6-3, F6-4, F6-5)
+//!
+//! [`config`] holds the Layer 1 objects an operator changes at runtime (the
+//! lineup, the PID plan, the class budgets, the mux settings and each
+//! unit's operational record) with revision history, rollback, an
+//! append-only journal on the same audit path as F6-10, and a mandatory
+//! validation hook (#26). Changes enter as `Command::Admin` through the
+//! command bus.
 
 pub mod command;
+pub mod config;
 pub mod policy;
 pub mod store;

@@ -22,6 +22,9 @@
 //!   the owner role and a confirmation token and nothing else (Marshal,
 //!   QA-7: the product imposes no D0 evidence check; AGENTS.md section 7
 //!   still binds this project's own lab).
+//! - **Configuration** (`Command::Admin`, #25) is owner-only; turning a unit
+//!   sacrificial (an update or a unit rollback) is the D-hard
+//!   `mark-sacrificial` class.
 //! - **Audit.** Every command outcome, token issuance and setting change is
 //!   appended to the precious `audit_log`. A refusal names its rule.
 //!
@@ -56,6 +59,7 @@ use rusqlite::OptionalExtension;
 use crate::command::policy::{AuditNote, Grant, Policy, PolicyDenied};
 use crate::command::target::TerminalRef;
 use crate::command::{Clock, Command, CommandContext, ConfirmationToken, FrontDoor, Role};
+use crate::config::{AdminOp, SacrificialChange};
 use crate::store::{AuditEntry, StoreError, StoreHandle, TerminalId, Tx};
 
 pub use classes::{CLASSES, ClassRow, DestructiveOp, TargetKind, Tier, classify_terminal_op};
@@ -112,6 +116,14 @@ pub enum RuleId {
     UnknownTerminal,
     /// The store failed; policy fails closed.
     StoreUnavailable,
+    /// The terminal is retired: no token, no destructive operation (#25).
+    TerminalRetired,
+    /// A configuration change's base revision is not the head, so it cannot
+    /// commit; its token is not spent (#25).
+    Conflict,
+    /// A unit rollback names a revision that does not exist; its token is
+    /// not spent (#25, QA-11).
+    UnknownRevision,
 }
 
 impl RuleId {
@@ -133,11 +145,14 @@ impl RuleId {
             Self::CdlLockNonSacrificial => "cdl-lock-non-sacrificial",
             Self::UnknownTerminal => "unknown-terminal",
             Self::StoreUnavailable => "policy-store-error",
+            Self::TerminalRetired => "terminal-retired",
+            Self::Conflict => "conflict",
+            Self::UnknownRevision => "unknown-revision",
         }
     }
 
     /// Every rule, for the docs drift test.
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 18] = [
         Self::OwnerRequired,
         Self::GuestReadOnly,
         Self::SystemCannotOriginate,
@@ -153,6 +168,9 @@ impl RuleId {
         Self::CdlLockNonSacrificial,
         Self::UnknownTerminal,
         Self::StoreUnavailable,
+        Self::TerminalRetired,
+        Self::Conflict,
+        Self::UnknownRevision,
     ];
 
     fn deny(self, detail: impl Into<String>) -> PolicyDenied {
@@ -187,6 +205,14 @@ impl RuleId {
             }
             Self::UnknownTerminal => "no such terminal",
             Self::StoreUnavailable => "the policy store failed; refusing (fail closed)",
+            Self::TerminalRetired => "the terminal is retired",
+            Self::Conflict => {
+                "the configuration changed since it was read; read the head and try again \
+                 (no token was spent)"
+            }
+            Self::UnknownRevision => {
+                "the rollback names a revision that does not exist (no token was spent)"
+            }
         })
     }
 }
@@ -429,30 +455,68 @@ impl StorePolicy {
         token: Option<&ConfirmationToken>,
         op: DestructiveOp,
         target: TokenTarget,
-        cdl: Option<&[TerminalRef]>,
-        must_exist: Option<TerminalId>,
+        scope: SpendScope,
     ) -> Result<(), PolicyDenied> {
         let (now, tok) = (self.now_ms(), token.map(|t| t.0.clone()));
         let row = Self::entry(ctx, op.name(), Some(target.key()), "authorized");
-        let cdl: Option<Vec<TerminalRef>> = cdl.map(<[TerminalRef]>::to_vec);
+        let SpendScope {
+            cdl,
+            must_exist,
+            live,
+            admin,
+        } = scope;
         let denied = self
             .store
             .call_blocking(move |s| {
                 s.write(|tx| {
-                    let sac = |id: TerminalId| -> Result<Option<bool>, StoreError> {
+                    // (sacrificial, retired) as the store has it now.
+                    let state = |id: TerminalId| -> Result<Option<(bool, bool)>, StoreError> {
                         Ok(tx
                             .conn()
                             .query_row(
-                                "SELECT sacrificial FROM terminal WHERE terminal_id = ?1",
+                                "SELECT sacrificial, retired_utc IS NOT NULL FROM terminal \
+                                 WHERE terminal_id = ?1",
                                 [id.get()],
-                                |r| r.get::<_, bool>(0),
+                                |r| Ok((r.get::<_, bool>(0)?, r.get::<_, bool>(1)?)),
                             )
                             .optional()?)
                     };
-                    if let Some(id) = must_exist
-                        && sac(id)?.is_none()
+                    let sac = |id: TerminalId| -> Result<Option<bool>, StoreError> {
+                        // A retired unit is never a target, so never
+                        // sacrificial for the lock.
+                        Ok(state(id)?.map(|(s, retired)| s && !retired))
+                    };
+                    // QA-5: every terminal the operation names must exist
+                    // and be in service, read in the spend transaction.
+                    for id in must_exist.iter().chain(live.iter()) {
+                        match state(*id)? {
+                            None => return Ok(Some(RuleId::UnknownTerminal.deny_default())),
+                            Some((_, true)) => {
+                                return Ok(Some(
+                                    RuleId::TerminalRetired
+                                        .deny(format!("terminal ID {} is retired", id.get())),
+                                ));
+                            }
+                            Some((_, false)) => {}
+                        }
+                    }
+                    // QA-10: a configuration change that cannot commit
+                    // (stale base, unknown or retired unit) spends nothing.
+                    if let Some(op) = &admin
+                        && let Some(doomed) = crate::config::admin_precheck(tx, op)?
                     {
-                        return Ok(Some(RuleId::UnknownTerminal.deny_default()));
+                        return Ok(Some(match doomed {
+                            crate::config::Doomed::Conflict => RuleId::Conflict.deny_default(),
+                            crate::config::Doomed::Retired => {
+                                RuleId::TerminalRetired.deny_default()
+                            }
+                            crate::config::Doomed::Unknown => {
+                                RuleId::UnknownTerminal.deny_default()
+                            }
+                            crate::config::Doomed::UnknownRevision => {
+                                RuleId::UnknownRevision.deny_default()
+                            }
+                        }));
                     }
                     if let Some(resolved) = cdl
                         && lock_on(tx)?
@@ -529,6 +593,8 @@ impl StorePolicy {
                     (Some(vec![t]), Some(*id))
                 }
                 _ if op.is_cdl() => (Some(Vec::new()), None),
+                // A-12: every terminal target must exist and be in service.
+                TokenTarget::Terminal(id) => (None, Some(*id)),
                 _ => (None, None),
             };
             // Revalidated inside the spend transaction (#59 CP-2).
@@ -537,8 +603,11 @@ impl StorePolicy {
                 ctx.confirmation.as_ref(),
                 op,
                 target.clone(),
-                cdl.as_deref(),
-                must_exist,
+                SpendScope {
+                    cdl,
+                    must_exist,
+                    ..SpendScope::default()
+                },
             )
         };
         match run() {
@@ -602,16 +671,20 @@ impl StorePolicy {
                         // CP-3: the terminal must exist, checked in the
                         // transaction that inserts the token.
                         if let Some(id) = terminal {
-                            let known: Option<i64> = tx
+                            let retired: Option<bool> = tx
                                 .conn()
                                 .query_row(
-                                    "SELECT 1 FROM terminal WHERE terminal_id = ?1",
+                                    "SELECT retired_utc IS NOT NULL FROM terminal \
+                                     WHERE terminal_id = ?1",
                                     [id.get()],
                                     |r| r.get(0),
                                 )
                                 .optional()?;
-                            if known.is_none() {
-                                return Ok(Err(RuleId::UnknownTerminal));
+                            match retired {
+                                None => return Ok(Err(RuleId::UnknownTerminal)),
+                                // QA-5: no token for a retired unit.
+                                Some(true) => return Ok(Err(RuleId::TerminalRetired)),
+                                Some(false) => {}
                             }
                         }
                         tx.conn().execute(
@@ -731,75 +804,67 @@ impl StorePolicy {
         res.map_err(|d| self.refuse(ctx, cmd, key, d))
     }
 
-    /// Marks or unmarks a terminal as the sacrificial unit. Marking widens
-    /// what CDL can reach, so it is D-hard (owner plus a token for
-    /// `MARK SACRIFICIAL <terminal id>`); unmarking is owner-only.
-    ///
-    /// # Errors
-    ///
-    /// [`PolicyDenied`] naming the rule.
-    pub fn mark_sacrificial(
-        &self,
-        ctx: &CommandContext,
-        terminal: TerminalId,
-        sacrificial: bool,
-    ) -> Result<(), PolicyDenied> {
-        let cmd = "mark-sacrificial";
-        let target = TokenTarget::Terminal(terminal);
-        let key = Some(target.key());
-        let run = || -> Result<(), PolicyDenied> {
-            Self::gate_destructive(ctx)?;
-            let token = if sacrificial {
-                Some(
-                    ctx.confirmation
-                        .as_ref()
-                        .ok_or_else(|| RuleId::TokenMissing.deny_default())?
-                        .0
-                        .clone(),
-                )
-            } else {
-                None
-            };
-            let now = self.now_ms();
-            let mut audit = Self::entry(ctx, cmd, key.clone(), "ok");
-            let tgt = target.clone();
-            let res = self
-                .store
-                .call_blocking(move |s| {
-                    s.write(|tx| {
-                        let before: Option<bool> = tx
-                            .conn()
-                            .query_row(
-                                "SELECT sacrificial FROM terminal WHERE terminal_id = ?1",
-                                [terminal.get()],
-                                |r| r.get(0),
-                            )
-                            .optional()?;
-                        let Some(before) = before else {
-                            return Ok(Some(RuleId::UnknownTerminal));
-                        };
-                        if let Some(t) = token {
-                            let c =
-                                token::consume(tx, &t, DestructiveOp::MarkSacrificial, &tgt, now)?;
-                            if c.is_some() {
-                                return Ok(c);
-                            }
-                        }
-                        tx.conn().execute(
-                            "UPDATE terminal SET sacrificial = ?1 WHERE terminal_id = ?2",
-                            rusqlite::params![sacrificial, terminal.get()],
-                        )?;
-                        audit.before = Some(format!("{{\"sacrificial\":{before}}}"));
-                        audit.after = Some(format!("{{\"sacrificial\":{sacrificial}}}"));
-                        tx.append_audit(&audit)?;
-                        Ok(None)
-                    })
-                })
-                .map_err(|e| store_denied(&e))?;
-            res.map_or(Ok(()), |rule| Err(rule.deny_default()))
-        };
-        run().map_err(|d| self.refuse(ctx, cmd, key.clone(), d))
+    /// The gate for a configuration change (`Command::Admin`, #25): the
+    /// owner role (an operator is refused; the DAC's own timers cannot
+    /// originate one), and when the change turns a unit sacrificial, the
+    /// `mark-sacrificial` token bound to that terminal, spent in the same
+    /// transaction that revalidates it exists and can still commit.
+    /// Unmarking needs the owner through the REST or Lab door and no token;
+    /// retiring and reinstating need the owner role only.
+    fn check_admin(&self, ctx: &CommandContext, op: &AdminOp) -> Result<Grant, PolicyDenied> {
+        let probe = op.clone();
+        let touch = self
+            .store
+            .call_blocking(move |s| s.write(|tx| crate::config::sacrificial_change(tx, &probe)))
+            .map_err(|e| store_denied(&e))?;
+        match touch {
+            SacrificialChange::None => {
+                if ctx.front_door == FrontDoor::Auto {
+                    return Err(RuleId::OwnerRequired
+                        .deny("the DAC's own timers may issue auto-generated operations only"));
+                }
+                if ctx.role != Role::Owner {
+                    return Err(
+                        RuleId::OwnerRequired.deny("a configuration change needs the owner role")
+                    );
+                }
+            }
+            // QA-9: unmarking keeps the door gate the removed
+            // `mark_sacrificial` had (owner through REST or Lab); A-4: from
+            // the timers it is `system-cannot-originate`.
+            SacrificialChange::Unmark(_) => Self::gate_destructive(ctx)?,
+            SacrificialChange::Mark(id) => {
+                Self::gate_destructive(ctx)?;
+                self.spend_checked(
+                    ctx,
+                    ctx.confirmation.as_ref(),
+                    DestructiveOp::MarkSacrificial,
+                    TokenTarget::Terminal(id),
+                    SpendScope {
+                        must_exist: Some(id),
+                        admin: Some(op.clone()),
+                        ..SpendScope::default()
+                    },
+                )?;
+            }
+        }
+        Ok(Grant::new())
     }
+}
+
+/// What a token spend must revalidate in its own transaction.
+#[derive(Default)]
+struct SpendScope {
+    /// For a CDL class: the resolved set the lock checks.
+    cdl: Option<Vec<TerminalRef>>,
+    /// A terminal that must exist and be in service.
+    must_exist: Option<TerminalId>,
+    /// Every terminal the operation resolved to: each must exist and be in
+    /// service (QA-5).
+    live: Vec<TerminalId>,
+    /// A configuration change whose save must still be able to commit
+    /// (QA-10).
+    admin: Option<AdminOp>,
 }
 
 impl Policy for StorePolicy {
@@ -811,6 +876,9 @@ impl Policy for StorePolicy {
     ) -> Result<Grant, PolicyDenied> {
         if ctx.role == Role::Guest {
             return Err(RuleId::GuestReadOnly.deny_default());
+        }
+        if let Command::Admin(op) = cmd {
+            return self.check_admin(ctx, op);
         }
         let Some(need) = classes::need(cmd, resolved) else {
             Self::gate_plain(ctx, cmd)?;
@@ -829,8 +897,12 @@ impl Policy for StorePolicy {
             ctx.confirmation.as_ref(),
             need.op,
             need.target,
-            need.op.is_cdl().then_some(resolved),
-            None,
+            SpendScope {
+                cdl: need.op.is_cdl().then(|| resolved.to_vec()),
+                must_exist: None,
+                live: resolved.iter().map(|t| t.id).collect(),
+                admin: None,
+            },
         )?;
         Ok(Grant::new())
     }

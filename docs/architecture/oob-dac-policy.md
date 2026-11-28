@@ -27,7 +27,7 @@ default policy, so an adapter must pass a `StorePolicy`.
 | Actor | May do |
 | --- | --- |
 | Guest (museum mode) | nothing: every command is refused with `guest-read-only`. Reads do not pass through the command layer; the REST adapter (#27) enforces them |
-| Operator | non-destructive commands, except a Lab injection |
+| Operator | non-destructive commands, except a Lab injection and any configuration change (`Command::Admin`, #25: owner only, `owner-required`) |
 | Owner through REST or Lab | everything, subject to the token rules below |
 | Billing, WireLink-wire | non-destructive commands only; they cannot obtain a token, so they cannot run any destructive class, **Disconnect included** (Marshal, 2026-11-23: Disconnect stays owner plus token; revisit when S5 billing is dispositioned) |
 | The DAC's own timers (Auto) | auto-generated operations only; they can never originate a destructive class (`system-cannot-originate`) |
@@ -49,8 +49,19 @@ plan digest, or the install ID.
 | `code-download-enable` | D-hard | `CDL ENABLE` | terminal | `StorePolicy::authorize` (parameter-level; needs #19) |
 | `cdl-campaign` | D-hard | `CDL CAMPAIGN` | plan | `Command::Auto(CodeDownload)` |
 | `cdl-lock-off` | D-hard | `CDL LOCK OFF` | install | `StorePolicy::set_cdl_lock` |
-| `mark-sacrificial` | D-hard | `MARK SACRIFICIAL` | terminal | `StorePolicy::mark_sacrificial` |
+| `mark-sacrificial` | D-hard | `MARK SACRIFICIAL` | terminal | `Command::Admin` (`UnitUpdate` or a unit `ConfigRollback` that sets `sacrificial`) |
 | `store-restore` | D-hard | `STORE RESTORE` | install | `StorePolicy::authorize` (the restore itself is #24) |
+
+Marking a unit sacrificial is a configuration change since #25: the unit's
+operational record changes only through the [configuration
+store](oob-dac-config.md), which writes a revision and a journal row with
+every change, so the policy prices the transition (the base revision the
+caller edited was not sacrificial and the new record is) and spends the token
+before the save runs. Unmarking needs the owner through the REST or Lab
+door, as the destructive classes do, but no token; retiring and reinstating
+need the owner role only.
+`StorePolicy::mark_sacrificial`, which wrote the flag directly, was removed
+with #25.
 
 Unit Creation (it rewrites box identity) and marking a unit sacrificial (it
 makes the unit CDL-eligible) are stricter than the issue text; Marshal had no
@@ -115,9 +126,9 @@ Every refusal names its rule; the code is the `reason` of the
 
 | Rule | Refuses |
 | --- | --- |
-| `owner-required` | a destructive class by a non-owner or through a door without tokens; a Lab injection by an operator |
+| `owner-required` | a destructive class by a non-owner or through a door without tokens; a Lab injection by an operator; any configuration change (`Command::Admin`) by a non-owner or from the DAC's own timers; a change of a unit's `sacrificial` flag through a door without tokens |
 | `guest-read-only` | any command by a guest |
-| `system-cannot-originate` | a destructive class from the DAC's own timers |
+| `system-cannot-originate` | a destructive class from the DAC's own timers, a configuration change that marks or unmarks a unit sacrificial included |
 | `token-missing` | a destructive operation with no token |
 | `token-unknown` | a token this install did not issue, or purged |
 | `token-expired` | a token at or past its lifetime |
@@ -128,7 +139,10 @@ Every refusal names its rule; the code is the `reason` of the
 | `destructive-bulk-no-repeat` | a destructive bulk operation with `repeat_every` or `run_for` |
 | `confirm-text-mismatch` | a typed phrase that is not the required one |
 | `cdl-lock-non-sacrificial` | a CDL class while the lock is on and a target is not sacrificial |
-| `unknown-terminal` | marking, authorizing a CDL class on, or issuing a token for a terminal that does not exist |
+| `unknown-terminal` | marking, authorizing a destructive class on, checking a destructive operation on, or issuing a token for a terminal that does not exist |
+| `terminal-retired` | issuing a token for, authorizing, or checking a destructive operation on a retired unit (#25), a bulk set with a retired member included; read in the spend transaction |
+| `conflict` | a `mark-sacrificial` configuration change whose base revision is no longer the head; refused before the token is spent (#25) |
+| `unknown-revision` | a unit rollback, priced as a possible mark, whose target revision does not exist; refused before the token is spent (#25) |
 | `policy-store-error` | any store failure (fail closed) |
 
 The order of checks is: guest, then owner and door, then the repeat refusal,
@@ -145,9 +159,15 @@ resolve and the spend cannot authorize a stale target: the single writer runs
 one first, and a refusal spends no token.
 
 **A spent token is not refunded.** The token is spent by the policy check, and
-the operation can still fail afterwards (an encode error or a scheduler
-refusal). The token is then gone and the user requests a new one. That errs
+the operation can still fail afterwards (an encode error, a scheduler
+refusal, or a configuration validator refusal of a `mark-sacrificial`
+change). The token is then gone and the user requests a new one. That errs
 safe: a failure can burn a token, never the reverse.
+
+A failure already decidable in the spend transaction spends nothing: a
+retired target (`terminal-retired`) or an unknown one (`unknown-terminal`),
+and for a configuration change a base revision that is not the head
+(`conflict`) or a rollback target that does not exist (`unknown-revision`).
 
 ## The sacrificial-only CDL lock (QA-7)
 
@@ -170,7 +190,8 @@ safe: a failure can burn a token, never the reverse.
   row), because that state reads as ON and must never be reported as changed
   (#59 CP-4).
 - **Turning it ON** needs the owner role only.
-- **Marking a unit sacrificial** is D-hard; unmarking is owner-only.
+- **Marking a unit sacrificial** is D-hard; unmarking needs the owner through
+  the REST or Lab door and no token.
 
 This governs the product's CDL campaigns only. AGENTS.md section 7
 (flash recovery before download) still binds this project's own lab and
@@ -211,7 +232,7 @@ check.
 | --- | --- |
 | class table, rule IDs, token binding, typed phrases, lock seeded ON, check order | 3 (code) |
 | `cdl_sacrificial_only`, the per-terminal `sacrificial` flag | 1 (runtime, owner-only, audited) |
-| token TTL (default 120 s, capped at 600 s) | 1; a `PolicySettings` value until #25 stores it |
+| token TTL (default 120 s, capped at 600 s) | meant to be 1, but no configuration kind holds them yet (#25 stores five kinds; a later issue, to be shaped by oob-po, adds them); a `PolicySettings` value until then |
 
 ## Not built yet
 

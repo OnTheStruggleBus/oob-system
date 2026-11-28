@@ -96,7 +96,11 @@ impl UnitAddress {
     /// `check` in three digits.
     pub fn new(address: u64, check: u16) -> Result<Self, StoreError> {
         if address > Self::MAX || check > 999 {
-            return Err(invalid(format!("unit address {address}/{check}")));
+            // Never echo the value: unit addresses are box-identifying
+            // (ADR-003 §4, #25 QA-8).
+            return Err(invalid(
+                "unit address: want a 40-bit address and 3 check digits".into(),
+            ));
         }
         Ok(Self { address, check })
     }
@@ -133,18 +137,17 @@ impl FromStr for UnitAddress {
         let shape_ok = parts.iter().map(|p| p.len()).eq([3, 5, 5, 3])
             && parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit()));
         if !shape_ok {
-            return Err(invalid(format!("unit address {s:?}")));
+            return Err(invalid(UA_SHAPE.into()));
         }
         let digits = parts[..3].concat();
-        let address = digits
-            .parse()
-            .map_err(|_| invalid(format!("unit address {s:?}")))?;
-        let check = parts[3]
-            .parse()
-            .map_err(|_| invalid(format!("unit address {s:?}")))?;
+        let address = digits.parse().map_err(|_| invalid(UA_SHAPE.into()))?;
+        let check = parts[3].parse().map_err(|_| invalid(UA_SHAPE.into()))?;
         Self::new(address, check)
     }
 }
+
+/// The unit-address shape, named in errors instead of the rejected value.
+const UA_SHAPE: &str = "unit address: want nnn-nnnnn-nnnnn-nnn (16 digits)";
 
 fn invalid(what: String) -> StoreError {
     StoreError::Constraint(ConstraintKind::Invalid(what))
@@ -214,9 +217,11 @@ impl NewTerminal {
         }
     }
 
-    fn validate(&self) -> Result<(), StoreError> {
+    /// Checks every field's domain (serial shape, dates, IP address).
+    pub(crate) fn validate(&self) -> Result<(), StoreError> {
         if self.serial.len() != 12 || !self.serial.bytes().all(|b| b.is_ascii_alphanumeric()) {
-            return Err(invalid(format!("serial {:?}", self.serial)));
+            // Never echo the value: serials are box-identifying (QA-8).
+            return Err(invalid("serial: want 12 ASCII alphanumerics".into()));
         }
         if self.box_type.is_empty() {
             return Err(invalid("empty box type".into()));
@@ -241,7 +246,7 @@ impl NewTerminal {
 }
 
 /// `YYYY-MM-DD` naming a real Gregorian calendar day.
-fn is_calendar_date(s: &str) -> bool {
+pub(crate) fn is_calendar_date(s: &str) -> bool {
     let b = s.as_bytes();
     if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
         return false;
@@ -276,12 +281,25 @@ pub struct Terminal {
     pub created_utc: String,
     /// Everything the operator entered.
     pub record: NewTerminal,
+    /// When the unit was retired (UTC, ISO 8601); `None` while in service.
+    /// A retired unit is never deleted and its ID is never reused; it is
+    /// excluded from targeting (#25).
+    pub retired_utc: Option<String>,
 }
 
 impl Tx<'_> {
     /// Creates a terminal record and its `TerminalCreated` event in this
     /// transaction; returns the allocated ID.
-    pub fn create_terminal(&self, actor: &str, t: &NewTerminal) -> Result<TerminalId, StoreError> {
+    ///
+    /// Crate-internal since #25: a unit is enrolled through
+    /// `Command::Admin(AdminOp::UnitEnroll)`, which also writes the unit's
+    /// first configuration revision and its journal row, so the terminal
+    /// row and the latest revision never disagree.
+    pub(crate) fn create_terminal(
+        &self,
+        actor: &str,
+        t: &NewTerminal,
+    ) -> Result<TerminalId, StoreError> {
         t.validate()?;
         let last: i64 = self
             .conn()
@@ -334,7 +352,7 @@ impl Tx<'_> {
 const SELECT: &str = "SELECT terminal_id, created_utc, unit_address, ua_check, serial, \
     terminal_type, box_type, account_number, on_plant, install_date, auto_registration_date, \
     activated, autodiscovered, ip_address, bsi_name, downstream_plant, upstream_plant, \
-    sacrificial FROM terminal";
+    sacrificial, retired_utc FROM terminal";
 
 impl FromSql for TerminalType {
     fn column_result(v: ValueRef<'_>) -> FromSqlResult<Self> {
@@ -370,6 +388,7 @@ fn from_row(r: &Row<'_>) -> rusqlite::Result<Terminal> {
             upstream_plant: r.get(16)?,
             sacrificial: r.get(17)?,
         },
+        retired_utc: r.get(18)?,
     })
 }
 

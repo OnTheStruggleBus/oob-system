@@ -89,7 +89,8 @@ of leaving it in Downloaded or Active forever.
   moves its handle in. No other `oob-dac` module receives one.
   `SchedulerHandle` is `Clone` and public in `oob-mux`, so the guarantee
   within `oob-dac` is a convention held by the source scan below, not by the
-  type. #25's budget apply and #17's assemblers also need a handle; #29
+  type. The configuration applier's budget apply (#29) and #17's assemblers
+  also need a handle; #29
   decides between a bus pass-through and a daemon-held clone.
 - The sink module and the encode guard are private. Two `compile_fail`
   doctests show an adapter cannot name them.
@@ -223,12 +224,20 @@ recognise as a PDU command** down the non-PDU route (a final wildcard arm),
 and the default handler refuses what it does not know. #25 adds
 `Command::Admin(AdminOp)` for configuration saves by adding the variant and
 registering a handler, so owner role, guest refusal and audit from #23 apply
-to config saves with no change to `dispatch`. There is one handler slot and
+to config saves; `dispatch` gains one arm that records the audit target. There is one handler slot and
 registering replaces the built-in handler (which answers `Ping`), so #25's
 handler wraps or delegates to it.
-`ControlCommand` (`Ping`, `Cancel`) is the stub that proves the path today;
+`ControlCommand` (`Ping`, `Cancel`) is the stub that proves the path;
 a doctest and `a_non_pdu_command_is_dispatched_through_the_seam_after_policy`
 show it.
+
+#25 landed `Command::Admin(AdminOp)`. Its `dispatch` arm records the target
+(a configuration key or `unit/<terminal id>`, never a serial) for the audit
+row, runs the policy check, and hands the op to the handler that
+`CommandBus::with_config_admin` registers; that handler still answers
+`Ping`. A success is `Submitted::Config(AdminOutcome)`; a refusal is
+`CommandError::Config(ConfigError)`, whose reason is the configuration
+store's code. See [the configuration store](oob-dac-config.md).
 
 ## Configuration layer (ADR-003)
 
@@ -236,7 +245,7 @@ show it.
 | --- | --- |
 | catalog sets and support status, the lifecycle table, the 250 ms minimum | 3 (code) |
 | per-operation `delay_between`, `repeat_every`, `run_for`, targets, filters | runtime command parameters (Layer 1, audited by #23) |
-| `BusConfig` (`pdu_deadline`, `queue_full_retries`) | Layer 1 settings once #25 stores them; code defaults until then |
+| `BusConfig` (`pdu_deadline`, `queue_full_retries`) | meant to be Layer 1, but no configuration kind holds them yet (#25 stores five kinds; a later issue, to be shaped by oob-po, adds them); code defaults until then |
 
 ## Not built yet
 

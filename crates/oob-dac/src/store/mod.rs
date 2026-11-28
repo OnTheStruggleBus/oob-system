@@ -26,22 +26,22 @@
 //! - **Migrations.** Forward-only, on `PRAGMA user_version`; a newer file is
 //!   refused ([`StoreError::SchemaTooNew`]).
 //!
+//! - **Writes come from the layers above.** Terminal records are created by
+//!   the configuration store (#25, `Command::Admin(AdminOp::UnitEnroll)`),
+//!   which writes the terminal row, its `TerminalCreated` event, its first
+//!   configuration revision and its journal row in one transaction; see
+//!   [`crate::config`].
+//!
 //! ```
-//! use oob_dac::store::{NewTerminal, Store, StoreOptions, TerminalType};
+//! use oob_dac::store::{BOX_IDENTIFYING, SCHEMA_VERSION, Store, StoreOptions};
 //!
 //! # let dir = std::env::temp_dir().join(format!("oob-dac-doc-{}", std::process::id()));
 //! # std::fs::create_dir_all(&dir)?;
-//! let mut store = Store::open(&dir.join("oob-dac.sqlite"), &StoreOptions::default())?;
-//! let ua = "000-00000-00001-000".parse()?; // synthetic, not a real box
-//! let id = store.write(|tx| {
-//!     // The terminal row and its TerminalCreated event commit together.
-//!     tx.create_terminal(
-//!         "marshal",
-//!         &NewTerminal::new(ua, "GI0000000001", TerminalType::OneWay, "dct2000"),
-//!     )
-//! })?;
-//! assert_eq!(id.get(), 1); // allocated by the store, never supplied
-//! assert!(store.reader()?.has_status_row(id)?); // derived from the event
+//! let store = Store::open(&dir.join("oob-dac.sqlite"), &StoreOptions::default())?;
+//! assert_eq!(SCHEMA_VERSION, 3);
+//! // A fresh store holds no box instance (ADR-003 §6).
+//! assert_eq!(BOX_IDENTIFYING, ["terminal"]);
+//! assert!(store.reader()?.terminals()?.is_empty());
 //! # drop(store);
 //! # std::fs::remove_dir_all(&dir)?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())
@@ -53,6 +53,7 @@ mod error;
 mod handle;
 mod migrate;
 mod outbox;
+mod psi;
 mod terminal;
 
 #[cfg(test)]
@@ -65,12 +66,16 @@ use rusqlite::limits::Limit;
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior};
 
 pub use audit::{AuditEntry, AuditRecord};
-pub use classify::{BOX_IDENTIFYING, Durability, TABLES, TableClass, class_of};
+pub use classify::{
+    BOX_IDENTIFYING, BOX_IDENTIFYING_ROWS, Durability, TABLES, TableClass, class_of,
+};
 pub use error::{ConstraintKind, StoreError};
 pub use handle::StoreHandle;
 pub use migrate::SCHEMA_VERSION;
 pub use outbox::{Deriver, EVENT_KINDS, Event, EventSeq, TerminalStatusDeriver};
+pub use psi::{PsiTableVersion, psi_kind};
 pub use terminal::{NewTerminal, TERMINAL_ID_MAX, Terminal, TerminalId, TerminalType, UnitAddress};
+pub(crate) use terminal::{is_calendar_date, terminal as terminal_of, terminals as terminals_of};
 
 /// Install settings for the store (ADR-003 Layer 1, read from the daemon's
 /// configuration in #29).
@@ -263,10 +268,22 @@ impl Store {
         &mut self,
         f: impl FnOnce(&Tx<'_>) -> Result<T, StoreError>,
     ) -> Result<T, StoreError> {
+        self.write_with(f)
+    }
+
+    /// [`write`](Self::write) for callers with their own error type (the
+    /// configuration store, #25): `f`'s error rolls the transaction back and
+    /// is returned unchanged, so a refusal decided half-way through a
+    /// transaction can never commit what came before it.
+    pub(crate) fn write_with<T, E: From<StoreError>>(
+        &mut self,
+        f: impl FnOnce(&Tx<'_>) -> Result<T, E>,
+    ) -> Result<T, E> {
         let tx = Tx {
             inner: self
                 .conn
-                .transaction_with_behavior(TransactionBehavior::Immediate)?,
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .map_err(StoreError::from)?,
         };
         let value = f(&tx)?;
         tx.commit()?;
@@ -422,6 +439,15 @@ pub struct Reader {
 }
 
 impl Reader {
+    pub(crate) fn conn(&self) -> &Connection {
+        &self.conn
+    }
+
+    /// The persisted PSI table versions, by kind.
+    pub fn psi_table_versions(&self) -> Result<Vec<PsiTableVersion>, StoreError> {
+        psi::psi_table_versions(&self.conn)
+    }
+
     /// One terminal record.
     pub fn terminal(&self, id: TerminalId) -> Result<Option<Terminal>, StoreError> {
         terminal::terminal(&self.conn, id)

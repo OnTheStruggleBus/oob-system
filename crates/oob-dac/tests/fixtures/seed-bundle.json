@@ -1,0 +1,52 @@
+{
+  "lineup": {
+    "plan": "STD",
+    "sem": {
+      "plan": "STD",
+      "outputs": [{ "output": 1, "rf_channel": 80 }]
+    },
+    "rf_channels": [
+      { "channel": 80, "freq_khz": 561000, "modulation": "qam256", "transport_stream_id": 1 }
+    ],
+    "vcm": [
+      { "virtual_channel": 2, "rf_channel": 80, "program_number": 1, "name": "DEMO" }
+    ],
+    "playout": [
+      { "virtual_channel": 2, "source": "demo-loop-1" }
+    ]
+  },
+  "pid_plan": {
+    "transport_stream_id": 1,
+    "programs": [
+      {
+        "program_number": 1,
+        "pmt_pid": 256,
+        "pcr_pid": 257,
+        "streams": [
+          { "stream_type": 2, "pid": 257 },
+          { "stream_type": 129, "pid": 258 }
+        ]
+      }
+    ],
+    "emm_streams": [
+      { "system": "gi-digicipher", "pid": 512, "provider_id": 0 }
+    ],
+    "psi_repetition_ms": 100
+  },
+  "class_budgets": {
+    "insertion_kbps": 1000,
+    "classes": {
+      "c0": { "floor_kbps": 100, "burst_packets": 8 },
+      "c1": { "floor_kbps": 200, "burst_packets": 8 },
+      "c2": { "floor_kbps": 0, "cap_kbps": 300, "burst_packets": 8 },
+      "c3": { "floor_kbps": 100, "burst_packets": 8 },
+      "c4": { "floor_kbps": 0, "cap_kbps": 200, "burst_packets": 8 },
+      "c5": { "floor_kbps": 0, "cap_kbps": 100, "burst_packets": 8 }
+    },
+    "lab_mode": false
+  },
+  "mux_settings": {
+    "pacer": { "packet_rate_bps": 2048000, "max_pull": 64, "pull_budget_us": 2000 },
+    "queues": { "queue_depth": 256, "max_carousels": 32, "outcome_capacity": 1024 }
+  }
+}

@@ -8,9 +8,10 @@ use rusqlite::ffi;
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConstraintKind {
-    /// A second terminal with an existing unit address.
+    /// A second unit in service with the unit address of a unit in service
+    /// (retired units do not count, #25 QA-1).
     DuplicateUnitAddress,
-    /// A second terminal with an existing serial number.
+    /// A second unit in service with the serial of a unit in service.
     DuplicateSerial,
     /// All 16 777 215 terminal IDs (24-bit, never reused) are spent.
     TerminalIdExhausted,
@@ -105,7 +106,7 @@ impl From<serde_json::Error> for StoreError {
 }
 
 /// The journals whose triggers raise `append-only: <table>`.
-const APPEND_ONLY: &[&str] = &["event_log", "audit_log"];
+const APPEND_ONLY: &[&str] = &["event_log", "audit_log", "config_revision"];
 
 impl From<rusqlite::Error> for StoreError {
     fn from(e: rusqlite::Error) -> Self {

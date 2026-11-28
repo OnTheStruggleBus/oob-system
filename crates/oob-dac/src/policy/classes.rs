@@ -177,7 +177,7 @@ pub const CLASSES: &[ClassRow] = &[
         tier: Tier::Hard,
         phrase: "MARK SACRIFICIAL",
         targets: &[TargetKind::Terminal],
-        entry: "StorePolicy::mark_sacrificial",
+        entry: "Command::Admin (UnitUpdate or unit ConfigRollback setting sacrificial)",
     },
     ClassRow {
         op: DestructiveOp::StoreRestore,
