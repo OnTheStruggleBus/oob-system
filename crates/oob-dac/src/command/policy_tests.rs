@@ -1794,3 +1794,86 @@ fn a12_authorize_revalidates_every_terminal_target() {
         .authorize(&with(owner(), &t), DestructiveOp::FactoryInit, tgt)
         .unwrap();
 }
+
+#[test]
+fn qa11_a_unit_rollback_to_a_missing_revision_fails_closed() {
+    let f = fix();
+    f.mark(&owner(), 2, false).unwrap(); // unit 2 at revision 1, not sacrificial
+    let ahead = Command::Admin(AdminOp::ConfigRollback {
+        key: ObjectKey::unit(tid(2)),
+        to: 2,
+        base: BaseRevision::At(3),
+    });
+    // Revision 2 does not exist yet: treated as a possible mark.
+    assert_eq!(
+        rule(
+            f.policy
+                .check(&ctx_as(Role::Owner, FrontDoor::Billing), &ahead, &[])
+        ),
+        "owner-required"
+    );
+    assert_eq!(rule(f.policy.check(&owner(), &ahead, &[])), "conflict");
+    let t = f.issue(
+        DestructiveOp::MarkSacrificial,
+        TokenTarget::Terminal(tid(2)),
+    );
+    assert_eq!(
+        rule(f.policy.check(&with(owner(), &t), &ahead, &[])),
+        "conflict"
+    );
+    assert_eq!(f.unspent(), 1, "a doomed rollback spends no token");
+    // A missing target at the current head: refused by name, no spend.
+    let missing = Command::Admin(AdminOp::ConfigRollback {
+        key: ObjectKey::unit(tid(2)),
+        to: 9,
+        base: BaseRevision::At(1),
+    });
+    assert_eq!(
+        rule(f.policy.check(&with(owner(), &t), &missing, &[])),
+        "unknown-revision"
+    );
+    assert_eq!(f.unspent(), 1);
+    // The interleaving QA-11 found: revisions 2 (a token mark) and 3 (an
+    // unmark) land; the same rollback now restores a sacrificial revision
+    // and needs its own token.
+    f.mark(&with(owner(), &t), 2, true).unwrap();
+    f.mark(&owner(), 2, false).unwrap();
+    assert_eq!(
+        bus_rule(f.bus.submit(&owner(), ahead.clone())),
+        "token-missing"
+    );
+    assert_eq!(
+        bus_rule(
+            f.bus
+                .submit(&ctx_as(Role::Owner, FrontDoor::Billing), ahead.clone())
+        ),
+        "owner-required"
+    );
+    let row = f
+        .store
+        .call_blocking(|s| s.reader()?.terminal(tid(2)))
+        .unwrap()
+        .unwrap();
+    assert!(!row.record.sacrificial);
+    let t2 = f.issue(
+        DestructiveOp::MarkSacrificial,
+        TokenTarget::Terminal(tid(2)),
+    );
+    f.bus.submit(&with(owner(), &t2), ahead).unwrap();
+}
+
+#[test]
+fn qa5_authorize_refuses_a_retired_unit_for_mark_sacrificial_too() {
+    let f = fix();
+    let tgt = TokenTarget::Terminal(tid(2));
+    let t = f.issue(DestructiveOp::MarkSacrificial, tgt.clone());
+    f.retire(2);
+    assert_eq!(
+        rule(
+            f.policy
+                .authorize(&with(owner(), &t), DestructiveOp::MarkSacrificial, tgt)
+        ),
+        "terminal-retired"
+    );
+    assert_eq!(f.unspent(), 1);
+}

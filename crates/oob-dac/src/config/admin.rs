@@ -100,6 +100,11 @@ impl AdminOp {
     pub fn target(&self) -> Option<String> {
         Some(match self {
             Self::ConfigSave { key, .. } | Self::ConfigRollback { key, .. } => key.to_string(),
+            // A batch holds at most the four singletons when it is valid;
+            // a longer one is named by its size (QA-12).
+            Self::ConfigSaveBatch(c) if c.len() > ConfigKind::SINGLETONS.len() => {
+                format!("batch:{} items", c.len())
+            }
             Self::ConfigSaveBatch(c) => {
                 let keys: Vec<String> = c.iter().map(|c| c.key.to_string()).collect();
                 format!("batch:{}", keys.join(","))
@@ -473,7 +478,22 @@ impl ConfigAdmin {
         });
     }
 
-    fn journal(&self, entry: AuditEntry) {
+    fn journal(&self, mut entry: AuditEntry) {
+        // QA-12: a refused proposal is never bigger than a document may be
+        // (the cap protects a precious, append-only table); the target and
+        // outcome are bounded too.
+        let cap = self.service.max_doc_bytes();
+        if let Some(after) = &entry.after
+            && after.len() > cap
+        {
+            entry.after = Some(format!(
+                "{{\"omitted\":true,\"bytes\":{},\"sha256\":\"{}\"}}",
+                after.len(),
+                doc::sha256_hex(after.as_bytes())
+            ));
+        }
+        entry.target = entry.target.map(|t| bounded(t, JOURNAL_TEXT_MAX));
+        entry.outcome = bounded(entry.outcome, JOURNAL_TEXT_MAX);
         if self
             .store
             .call_blocking(move |s| s.write(|tx| tx.append_audit(&entry).map(|_| ())))
@@ -482,6 +502,23 @@ impl ConfigAdmin {
             self.journal_failures.fetch_add(1, Ordering::Relaxed);
         }
     }
+}
+
+/// The longest target or outcome text a refusal journals.
+const JOURNAL_TEXT_MAX: usize = 256;
+
+/// `s` if it fits in `max` bytes, else its first characters with its size
+/// and digest, so the row still identifies it.
+fn bounded(s: String, max: usize) -> String {
+    if s.len() <= max {
+        return s;
+    }
+    let head: String = s.chars().take(64).collect();
+    format!(
+        "{head}… ({} bytes, sha256 {})",
+        s.len(),
+        &doc::sha256_hex(s.as_bytes())[..16]
+    )
 }
 
 /// The journal outcome for a refused change: `refused:<rules>` for a
@@ -502,7 +539,8 @@ fn unit_doc_at(tx: &Tx<'_>, id: TerminalId, n: u32) -> Result<Option<Option<Unit
         return Ok(None);
     };
     let kind = ConfigKind::Unit;
-    Ok(Some(
+    // An upgrade step that panics reads as undecodable (QA-4 containment).
+    let decoded = std::panic::catch_unwind(|| {
         doc::upgrade(
             kind,
             meta.doc_schema,
@@ -510,8 +548,12 @@ fn unit_doc_at(tx: &Tx<'_>, id: TerminalId, n: u32) -> Result<Option<Option<Unit
             &json,
             doc::UPGRADES,
         )
-        .ok()
-        .and_then(|d| d.as_unit().cloned()),
+    });
+    Ok(Some(
+        decoded
+            .ok()
+            .and_then(Result::ok)
+            .and_then(|d| d.as_unit().cloned()),
     ))
 }
 
@@ -571,9 +613,15 @@ pub(crate) fn sacrificial_change(
             to,
             base,
         } => Ok(match unit_doc_at(tx, *id, *to)? {
-            // No such revision: the rollback fails unknown-revision and
-            // cannot commit later either (its base would be stale).
-            None => SacrificialChange::None,
+            // No such revision yet (QA-11): it may exist by the time the
+            // save runs (a future base), so fail closed: a token and the
+            // door to possibly mark, the door to possibly unmark. The
+            // spend's precheck then refuses it (`unknown-revision`) without
+            // spending the token.
+            None => match base_sacrificial(tx, *id, *base)? {
+                Some(true) => SacrificialChange::Unmark(*id),
+                _ => SacrificialChange::Mark(*id),
+            },
             // Undecodable: it may be sacrificial (fail closed).
             Some(target) => change_of(
                 *id,
@@ -595,6 +643,8 @@ pub(crate) enum Doomed {
     Retired,
     /// No such unit.
     Unknown,
+    /// A unit rollback whose target revision does not exist.
+    UnknownRevision,
 }
 
 pub(crate) fn admin_precheck(tx: &Tx<'_>, op: &AdminOp) -> Result<Option<Doomed>, StoreError> {
@@ -618,5 +668,13 @@ pub(crate) fn admin_precheck(tx: &Tx<'_>, op: &AdminOp) -> Result<Option<Doomed>
         return Ok(Some(Doomed::Retired));
     }
     let head = persist::head(tx.conn(), ObjectKey::unit(id))?.map(|(m, _)| m.revision);
-    Ok((BaseRevision::of(head) != base).then_some(Doomed::Conflict))
+    if BaseRevision::of(head) != base {
+        return Ok(Some(Doomed::Conflict));
+    }
+    if let AdminOp::ConfigRollback { to, .. } = op
+        && persist::revision(tx.conn(), ObjectKey::unit(id), *to)?.is_none()
+    {
+        return Ok(Some(Doomed::UnknownRevision));
+    }
+    Ok(None)
 }

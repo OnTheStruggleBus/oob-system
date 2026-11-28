@@ -2456,3 +2456,116 @@ fn a_misfiled_unit_document_is_named_not_journaled() {
         Some("{\"doc_kind\":\"unit\"}")
     );
 }
+
+#[test]
+fn qa12_refused_proposals_are_journaled_within_the_document_cap() {
+    let dir = TempDir::new();
+    let store = open(&dir);
+    let (handle, _t) = store.spawn_writer(8).unwrap();
+    let cap = 2048;
+    let svc = ConfigService::new(
+        Arc::new(StructuralValidator),
+        catalog(),
+        ConfigLimits { max_doc_bytes: cap },
+    );
+    let admin = ConfigAdmin::from_service(handle.clone(), svc, Arc::new(NoApplier));
+    // Over the cap: doc-too-large.
+    let mut big = lineup();
+    big.vcm[0].name = "N".repeat(64 * 1024);
+    let e = admin
+        .run(
+            &owner(),
+            &AdminOp::ConfigSave {
+                key: LINEUP,
+                doc: Doc::Lineup(big),
+                base: BaseRevision::None,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(e.reason(), "doc-too-large");
+    // A huge unknown box type: refused before the size check.
+    let mut u = new_unit(1);
+    u.doc.box_type = "x".repeat(64 * 1024);
+    assert_eq!(
+        admin
+            .run(&owner(), &AdminOp::UnitEnroll(u))
+            .unwrap_err()
+            .reason(),
+        "unknown-box-type"
+    );
+    // A batch far past the four singletons.
+    let many: Vec<SaveChange> = (0..1000)
+        .map(|_| SaveChange {
+            key: LINEUP,
+            doc: lineup_named("A"),
+            base: BaseRevision::None,
+        })
+        .collect();
+    assert!(
+        admin
+            .run(&owner(), &AdminOp::ConfigSaveBatch(many))
+            .is_err()
+    );
+    let audit = handle
+        .call_blocking(|s| s.reader()?.audit_records())
+        .unwrap();
+    assert_eq!(audit.len(), 3);
+    for a in &audit {
+        let after = a.entry.after.as_deref().unwrap();
+        assert!(
+            after.len() <= cap,
+            "{} bytes in {}",
+            after.len(),
+            a.entry.command
+        );
+        assert!(a.entry.target.as_deref().unwrap_or("").len() <= 256);
+        assert!(a.entry.outcome.len() <= 256);
+    }
+    assert!(
+        audit[0]
+            .entry
+            .after
+            .as_deref()
+            .unwrap()
+            .contains("\"omitted\":true")
+    );
+    assert_eq!(audit[2].entry.target.as_deref(), Some("batch:1000 items"));
+}
+
+#[test]
+fn qa13_identical_content_replaces_a_head_at_another_schema() {
+    let dir = TempDir::new();
+    let mut store = open(&dir);
+    let svc = structural();
+    store
+        .write_with(|tx| svc.seed_if_empty(tx, &bundle()))
+        .unwrap();
+    // A newer build stored the same JSON at schema 2.
+    raw_revision(
+        &mut store,
+        MUX,
+        2,
+        &Doc::MuxSettings(mux()).canonical_json(),
+        2,
+    );
+    assert_eq!(
+        save(
+            &mut store,
+            &svc,
+            MUX,
+            Doc::MuxSettings(mux()),
+            BaseRevision::At(2)
+        )
+        .unwrap(),
+        Saved::Revised { revision: 3 }
+    );
+    let (handle, _t) = store.spawn_writer(8).unwrap();
+    let admin = ConfigAdmin::from_service(handle, structural(), Arc::new(NoApplier));
+    assert!(
+        admin
+            .boot()
+            .unwrap()
+            .iter()
+            .all(|b| matches!(b.status, BootStatus::Applied(_)))
+    );
+}

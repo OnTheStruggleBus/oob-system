@@ -117,6 +117,10 @@ the same command and target, outcome `refused:<rule,rule…>` for a validator
 refusal or `refused:<code>` for any other (`conflict`, `unknown-box-type`,
 `sacrificial-at-enroll`, `doc-too-large`, …), and the refused proposal as
 `after`. A store failure (`store-error`) gets none, since nothing was decided.
+The proposal is never larger than a document may be: one over the size cap
+is journaled as `{"omitted":true,"bytes":…,"sha256":…}`, a batch of more than
+four items is targeted `batch:<n> items`, and target and outcome text are
+bounded, so a refusal cannot bloat the append-only journal.
 The bus also writes its usual policy audit row for every outcome (#23). A
 refused **seed**, which does not pass through the bus, gets a `config.seed`
 row with the seed's actor and the bundle as `after`, its only audit row. A
@@ -133,8 +137,10 @@ store has one writer, so saves serialize):
    (`BaseRevision::None` or `BaseRevision::At(n)`); there is no "whatever is
    there". A stale base is `conflict` (HTTP 409 and `If-Match` in #27), with
    the current head.
-2. **Unchanged?** A document whose digest equals the head's writes nothing and
-   returns `Unchanged`; the applier is not called.
+2. **Unchanged?** A document whose digest equals the head's, with the head at
+   the current document schema, writes nothing and returns `Unchanged`; the
+   applier is not called. A head at another schema is replaced even by
+   identical content, so a save can always make an unreadable head readable.
 3. **Candidate.** The current heads with the change applied, plus every unit
    record with the change applied (an enroll's new unit has no ID yet, so it
    is in the `Change`, not in the unit view). A head the change replaces is
@@ -268,10 +274,13 @@ so the [policy layer](oob-dac-policy.md) applies:
 Whether a change marks a unit is decided against the **base revision** the
 caller edited, which is immutable history; the save refuses a base that is no
 longer the head, so the transition the policy priced is the one that commits.
-An unknown base fails closed (a token to mark, the door gate to unmark).
+An unknown base, and a rollback target that does not exist yet (the caller
+may name a future base), fail closed: a token and the door to possibly mark,
+the door to possibly unmark.
 Before the token is spent, the same transaction checks that the change can
-still commit: a stale base (`conflict`), a retired unit (`terminal-retired`)
-or an unknown one (`unknown-terminal`) is refused and spends nothing. A
+still commit: a stale base (`conflict`), a retired unit (`terminal-retired`),
+an unknown one (`unknown-terminal`) or a missing rollback target
+(`unknown-revision`) is refused and spends nothing. A
 validator refusal after the spend still burns the token, as for any
 destructive class (see the [policy layer](oob-dac-policy.md)). Retired units
 pass no destructive check at all (`terminal-retired`). Lowering budgets or

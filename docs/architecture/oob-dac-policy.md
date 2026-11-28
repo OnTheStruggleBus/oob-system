@@ -142,6 +142,7 @@ Every refusal names its rule; the code is the `reason` of the
 | `unknown-terminal` | marking, authorizing a destructive class on, checking a destructive operation on, or issuing a token for a terminal that does not exist |
 | `terminal-retired` | issuing a token for, authorizing, or checking a destructive operation on a retired unit (#25), a bulk set with a retired member included; read in the spend transaction |
 | `conflict` | a `mark-sacrificial` configuration change whose base revision is no longer the head; refused before the token is spent (#25) |
+| `unknown-revision` | a unit rollback, priced as a possible mark, whose target revision does not exist; refused before the token is spent (#25) |
 | `policy-store-error` | any store failure (fail closed) |
 
 The order of checks is: guest, then owner and door, then the repeat refusal,
@@ -166,7 +167,7 @@ safe: a failure can burn a token, never the reverse.
 A failure already decidable in the spend transaction spends nothing: a
 retired target (`terminal-retired`) or an unknown one (`unknown-terminal`),
 and for a configuration change a base revision that is not the head
-(`conflict`).
+(`conflict`) or a rollback target that does not exist (`unknown-revision`).
 
 ## The sacrificial-only CDL lock (QA-7)
 

@@ -490,6 +490,18 @@ impl ConfigService {
         self
     }
 
+    /// Whether a document with digest `sha` equals the head `m`: the same
+    /// digest **at the current document schema** (QA-13). A head stored at
+    /// another schema is replaced even by identical content, so a save can
+    /// always turn an unreadable newer-schema head into a readable one.
+    fn unchanged(&self, m: &RevisionMeta, sha: &str) -> bool {
+        m.doc_sha256 == sha && m.doc_schema == (self.schema)(m.key.kind)
+    }
+
+    pub(crate) fn max_doc_bytes(&self) -> usize {
+        self.limits.max_doc_bytes
+    }
+
     pub(crate) fn catalog(&self) -> &dyn BoxTypeCatalog {
         &*self.catalog
     }
@@ -638,7 +650,7 @@ impl ConfigService {
         check_base(head.as_ref().map(|(m, _)| m.revision), base)?;
         let enc = self.encode(doc)?;
         if let Some((m, _)) = &head
-            && m.doc_sha256 == enc.1
+            && self.unchanged(m, &enc.1)
         {
             return Ok(Written {
                 key,
@@ -695,7 +707,7 @@ impl ConfigService {
             check_base(head.as_ref().map(|(m, _)| m.revision), c.base)?;
             let enc = self.encode(&c.doc)?;
             match &head {
-                Some((m, _)) if m.doc_sha256 == enc.1 => {
+                Some((m, _)) if self.unchanged(m, &enc.1) => {
                     out[i] = Some(Written {
                         key: c.key,
                         saved: Saved::Unchanged {
@@ -765,7 +777,7 @@ impl ConfigService {
         check_base(head.as_ref().map(|(m, _)| m.revision), base)?;
         let enc = self.encode(&doc)?;
         if let Some((m, _)) = &head
-            && m.doc_sha256 == enc.1
+            && self.unchanged(m, &enc.1)
         {
             return Ok(Written {
                 key,
@@ -892,7 +904,7 @@ impl ConfigService {
         let doc = Doc::Unit(new.clone());
         let enc = self.encode(&doc)?;
         if let Some((m, _)) = &head
-            && m.doc_sha256 == enc.1
+            && self.unchanged(m, &enc.1)
         {
             return Ok(Written {
                 key,

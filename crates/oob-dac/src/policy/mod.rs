@@ -121,6 +121,9 @@ pub enum RuleId {
     /// A configuration change's base revision is not the head, so it cannot
     /// commit; its token is not spent (#25).
     Conflict,
+    /// A unit rollback names a revision that does not exist; its token is
+    /// not spent (#25, QA-11).
+    UnknownRevision,
 }
 
 impl RuleId {
@@ -144,11 +147,12 @@ impl RuleId {
             Self::StoreUnavailable => "policy-store-error",
             Self::TerminalRetired => "terminal-retired",
             Self::Conflict => "conflict",
+            Self::UnknownRevision => "unknown-revision",
         }
     }
 
     /// Every rule, for the docs drift test.
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::OwnerRequired,
         Self::GuestReadOnly,
         Self::SystemCannotOriginate,
@@ -166,6 +170,7 @@ impl RuleId {
         Self::StoreUnavailable,
         Self::TerminalRetired,
         Self::Conflict,
+        Self::UnknownRevision,
     ];
 
     fn deny(self, detail: impl Into<String>) -> PolicyDenied {
@@ -204,6 +209,9 @@ impl RuleId {
             Self::Conflict => {
                 "the configuration changed since it was read; read the head and try again \
                  (no token was spent)"
+            }
+            Self::UnknownRevision => {
+                "the rollback names a revision that does not exist (no token was spent)"
             }
         })
     }
@@ -504,6 +512,9 @@ impl StorePolicy {
                             }
                             crate::config::Doomed::Unknown => {
                                 RuleId::UnknownTerminal.deny_default()
+                            }
+                            crate::config::Doomed::UnknownRevision => {
+                                RuleId::UnknownRevision.deny_default()
                             }
                         }));
                     }
