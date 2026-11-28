@@ -237,38 +237,71 @@ gate rules (§5).
 | **E3 — F0 census** (O2/O12) | G2 exit; G6 fidelity call | Every fleet box's d-screen set recorded; platform table built; guide residency known per platform; CPSC 02-227 cord check logged |
 | **E4 — SEM bench** (r4 F4-2) | G2 entry; G3 entry (license) | ACP presence + **license state** verified (FPK selectable, not greyed); SEM-EM jar + MIBs archived to git; tsp loop via GigE → RF out confirmed on the meter; W4 fallback re-documented |
 
-### 4.1 Slice C/D tracking (status, 2026-11-24)
+### 4.1 Slice C/D tracking (status, 2026-11-27)
 
 Marshal's 2026-11-23 ruling schedules ADR-002's Slices C (oob-mux and
 oob-msg) and D (oob-dac) now. This subsection records progress only. It
 sets no gate state and changes no entry, exit or kill criterion; the G0.5
 exit work and the G1 entry criteria are unaffected.
 
-| Issue | Slice | Status at 2026-11-24 |
+| Issue | Slice | Status at 2026-11-27 |
 | --- | --- | --- |
 | #14 scheduler → packetizer → pacer skeleton (oob-mux) | C | merged (PR #42) |
 | #15 mux ↔ PHY pull-seam contract and Rust endpoint | C | merged (PR #47) |
 | #16 class-based insertion scheduler C0–C5 | C | merged (PR #52) |
 | #17 DCII-flavored PSI assemblers | C | merged (PR #55) |
-| #18 box-free stream verification (tsduck analyze in CI) | C | next (Slice C) |
-| #19 message catalog as data (oob-msg) | C | open |
-| #20 mdBook protocol chapters from the catalog | C | open |
+| #18 box-free stream verification (tsduck analyze in CI) | C | merged (PR #60) |
+| #19 message catalog as data (oob-msg) | C | open; design note signed off, no hard dependency |
+| #20 mdBook protocol chapters from the catalog | C | open; builds on #19 |
+| #49 pacer control channel and carousel stats (oob-mux) | C | open; blocks #29; see the note on scope below |
 | #21 sqlite store (oob-dac) | D | merged (PR #43) |
 | #22 command layer (oob-dac) | D | merged (PR #51) |
-| #23 policy layer (oob-dac) | D | merge-ready, not yet merged (PR #57; CI finishing on its head) |
-| #24 whole-file backup, restore and export | D | open |
-| #25 configuration store with revision history | D | next (Slice D) |
-| #26 save-path validators and guardrails | D | open |
-| #27 REST adapter and the `openapi drift` job | D | open |
-| #29 daemon binary | D | open |
+| #23 policy layer (oob-dac) | D | merged (PR #57) |
+| #59 policy-layer fixes following #23 | D | merged (PR #64) |
+| #25 configuration store with revision history | D | merged (PR #87) |
+| #26 save-path validators and guardrails | D | open; unblocked by #25; recommended next build |
+| #24 whole-file backup, restore and export | D | open; unblocked by #25 |
+| #27 REST adapter and the `openapi drift` job | D | open; skeleton unblocked, config resources wait on #26 |
+| #29 daemon binary | D | open; its mux-only first part waits on #49, the full wiring also on #27's config resources |
 
-The merged issues stay open until oob-po records acceptance on each issue
-(AGENTS.md §14 step 8, §12). Follow-ups opened alongside the slices, all in
-Backlog: #53 (scheduler candidate scan, deferred until a bench trigger
-fires), #54 (WireLink vocabulary cross-check page) and #56 (sourcing the
-GI/Motorola DCII `CA_system_id`). The WireLink v3.0 corpus document has
-been ingested on branch `docs/wirelink-v3-corpus` (not yet merged); open
-item O15 is partly acquired, with its §4 and §5 still missing.
+Merged work has not passed a gate. Every merged issue above has oob-po
+acceptance recorded on the issue, and its board card sits in **Gate
+review**; **Done** stays gate-passed only (§1;
+`.github/agents/README.md`). #18, #23 and #59 are closed; the other
+merged issues are open.
+
+**Sequencing (a recommendation; Marshal picks each build).** Slice C and
+D builds currently run one at a time (Marshal's direction, 2026-11-24).
+The order below follows the dependencies in the oob-architect design notes
+on the issues:
+
+1. **#26** — the #25 note says #25 and #26 land back to back, with no
+   adapter merging before #26. #26 also blocks #30's CI wiring.
+2. **#27**, up to its config, unit and validation resources (the second
+   pull request in its design note).
+3. **#49**, then **#29** — the daemon needs #49's pacer control channel
+   and the #27 router; together with #27 it gives the Console C0
+   stub-to-live something to run against.
+4. **#24** — not on the G1 critical path; its design note recommends
+   landing it after #29, and before G1 evidence is taken on a box the
+   owner cares about. #27's backup resources wait on it.
+
+**#19** has no hard dependency and can take any slot in this order; G1's
+exit needs box-accepted messages from oob-msg, whose catalog #19 starts.
+
+**Note on scope:** #49 was split out of the #29 design note. AGENTS.md §1
+names #14–#27 and #29 as the issues the 2026-11-23 ruling covers and does
+not name #49, so Marshal's confirmation is needed before it is built. Its
+issue also asks for oob-architect sign-off before `Ready`; none is
+recorded yet.
+
+Other follow-ups opened alongside the slices: #53 (scheduler candidate
+scan, deferred until a bench trigger fires), #54 (WireLink vocabulary
+cross-check page), #56 (sourcing the GI/Motorola DCII `CA_system_id`) and
+#66 (make a pull-seam test deterministic). The WireLink v3.0 corpus
+document has been ingested on branch `docs/wirelink-v3-corpus` (not yet
+merged); open item O15 is partly acquired, with its §4 and §5 still
+missing.
 
 ## 5. Console & Interconnect gates inherit these rules
 
