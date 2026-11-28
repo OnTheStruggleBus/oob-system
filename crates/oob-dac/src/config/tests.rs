@@ -2185,3 +2185,141 @@ fn a3_box_identifying_rows_are_registered_and_empty_after_the_seed() {
         .unwrap();
     assert_eq!(rows(&raw(&dir)), 3);
 }
+
+// ---- QA-1: identity correction (per oob-architect ruling) -------------------
+
+fn unit_with(address: u64, check: u16, serial: &str) -> NewUnit {
+    NewUnit {
+        unit_address: UnitAddress::new(address, check).unwrap(), // synthetic
+        serial: serial.into(),
+        doc: UnitDoc::new("One-Way", "dct2000"),
+    }
+}
+
+fn try_enroll(
+    store: &mut Store,
+    svc: &ConfigService,
+    u: &NewUnit,
+) -> Result<TerminalId, ConfigError> {
+    store
+        .write_with(|tx| svc.enroll_unit(tx, &owner(), u))
+        .map(|(id, _)| id)
+}
+
+fn retire(store: &mut Store, svc: &ConfigService, id: TerminalId) {
+    assert!(
+        store
+            .write_with(|tx| svc.set_retired(tx, &owner(), id, true))
+            .unwrap()
+    );
+}
+
+#[test]
+fn qa1_a_wrong_identity_is_corrected_by_retire_and_enroll_for_each_field() {
+    let dir = TempDir::new();
+    let mut store = open(&dir);
+    let svc = structural();
+    // (enrolled with a typo, the correct identity, the field that differs)
+    let cases = [
+        (
+            unit_with(10, 1, "GI0000000010"),
+            unit_with(10, 1, "GI0000000011"),
+            "serial",
+        ),
+        (
+            unit_with(20, 1, "GI0000000020"),
+            unit_with(21, 1, "GI0000000020"),
+            "unit address",
+        ),
+        (
+            unit_with(30, 1, "GI0000000030"),
+            unit_with(30, 2, "GI0000000030"),
+            "check digits",
+        ),
+    ];
+    for (wrong, right, field) in cases {
+        let old = try_enroll(&mut store, &svc, &wrong).unwrap();
+        // While the wrong record is live, the correction collides.
+        assert!(try_enroll(&mut store, &svc, &right).is_err(), "{field}");
+        retire(&mut store, &svc, old);
+        let new = try_enroll(&mut store, &svc, &right).unwrap_or_else(|e| panic!("{field}: {e:?}"));
+        assert!(new > old, "{field}: a re-enrollment is a new ID");
+        // A new record: revision 1, non-sacrificial; nothing carried over.
+        let h = head(&store, ObjectKey::unit(new)).unwrap();
+        assert_eq!(h.meta.revision, 1, "{field}");
+        assert!(!h.doc.as_unit().unwrap().sacrificial, "{field}");
+        // The old record keeps its identity and history.
+        let t = reader(&store).terminal(old).unwrap().unwrap();
+        assert_eq!(t.record.unit_address, wrong.unit_address, "{field}");
+        assert_eq!(t.record.serial, wrong.serial, "{field}");
+        assert!(t.retired_utc.is_some());
+    }
+}
+
+#[test]
+fn qa1_reinstate_is_refused_while_a_live_unit_holds_the_identity() {
+    let dir = TempDir::new();
+    let mut store = open(&dir);
+    let svc = structural();
+    let a = try_enroll(&mut store, &svc, &unit_with(1, 0, "GI0000000001")).unwrap();
+    retire(&mut store, &svc, a);
+    // Same unit address, different serial.
+    let b = try_enroll(&mut store, &svc, &unit_with(1, 0, "GI0000000002")).unwrap();
+    let e = store
+        .write_with(|tx| svc.set_retired(tx, &owner(), a, false))
+        .unwrap_err();
+    assert_eq!(e.reason(), "duplicate-unit-address");
+    retire(&mut store, &svc, b);
+    // Same serial, different unit address.
+    let c = try_enroll(&mut store, &svc, &unit_with(2, 0, "GI0000000001")).unwrap();
+    let e = store
+        .write_with(|tx| svc.set_retired(tx, &owner(), a, false))
+        .unwrap_err();
+    assert_eq!(e.reason(), "duplicate-serial");
+    // Once nothing live holds either value, reinstating works.
+    retire(&mut store, &svc, c);
+    assert!(
+        store
+            .write_with(|tx| svc.set_retired(tx, &owner(), a, false))
+            .unwrap()
+    );
+    assert!(
+        reader(&store)
+            .terminal(a)
+            .unwrap()
+            .unwrap()
+            .retired_utc
+            .is_none()
+    );
+}
+
+#[test]
+fn qa1_the_same_identity_can_be_retired_and_enrolled_twice() {
+    let dir = TempDir::new();
+    let mut store = open(&dir);
+    let svc = structural();
+    let u = unit_with(5, 5, "GI0000000005");
+    let first = try_enroll(&mut store, &svc, &u).unwrap();
+    retire(&mut store, &svc, first);
+    let second = try_enroll(&mut store, &svc, &u).unwrap();
+    retire(&mut store, &svc, second);
+    let third = try_enroll(&mut store, &svc, &u).unwrap();
+    assert!(first < second && second < third);
+    let live: Vec<TerminalId> = reader(&store)
+        .terminals()
+        .unwrap()
+        .into_iter()
+        .filter(|t| t.retired_utc.is_none())
+        .map(|t| t.id)
+        .collect();
+    assert_eq!(live, [third]);
+    // Targeting sees only the live record.
+    let d = StoreDirectory::new(reader(&store));
+    let ids: Vec<TerminalId> = d
+        .resolve(&Target::All, &Filters::default())
+        .unwrap()
+        .iter()
+        .map(|t| t.id)
+        .collect();
+    assert_eq!(ids, [third]);
+}

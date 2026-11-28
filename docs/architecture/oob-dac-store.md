@@ -87,9 +87,23 @@ DCT700 and DCT1700 install manuals under "d 05: Unit Address" (cited in
 oob-expert's research note on issue #21); applying it to the DCT2000 is
 same-family inference. The check-digit algorithm is unknown, so
 `ua_check` stores the printed digits verbatim. Oob never computes,
-validates or generates them. `unit_address`, the 40-bit value of the
-address digits, is the unique identity, and the printed form round-trips
-without loss, so a later correction needs only a forward migration.
+validates or generates them. `unit_address` is the 40-bit value of the
+address digits, and the printed form round-trips without loss, so a later
+correction to the split needs only a forward migration.
+
+**Identity** (since #25, per oob-architect ruling on PR #87 QA-1): a
+record's permanent identity is its `terminal_id`. `unit_address` and
+`serial` are unique **among units in service** (partial unique indexes
+`terminal_live_unit_address` and `terminal_live_serial`, `WHERE retired_utc
+IS NULL`), so a unit enrolled with a wrong identity is retired and enrolled
+again correctly: a new ID, revision 1, non-sacrificial, nothing carried
+over. Identity stays immutable per row, and a retired record keeps its
+identity and history. Reinstating a retired record is refused
+(`duplicate-unit-address`, `duplicate-serial`) while a live unit holds
+either value, and any lookup by unit address or serial selects live rows
+only. Migration `0003` rebuilds `terminal` to get there (the `0001` column
+constraints are replaced), keeping every row, the `terminal_status` rows
+and the ID high-water mark.
 
 The other precious tables in the F6-5 list (the entitlement-change
 journal, the purchase ledger, the campaign ledger) arrive with the issues

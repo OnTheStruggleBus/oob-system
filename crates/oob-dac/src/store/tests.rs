@@ -276,6 +276,8 @@ fn empty_db_migrates_to_head() {
     assert_eq!(
         objects,
         [
+            "index terminal_live_serial",
+            "index terminal_live_unit_address",
             "table audit_log",
             "table config_revision",
             "table confirmation_token",
@@ -555,6 +557,27 @@ fn unit_address_printed_form() {
     }
 }
 
+/// A rebuild's copy into `<table>_new` is the only insert a migration may
+/// make into a box-identifying table's replacement, and it must copy from
+/// the table itself (QA-1 rebuild in 0003), never insert values.
+fn assert_rebuild_copies_only(flat: &str, n: u32, table: &str) {
+    let marker = format!("insert into {table}_new");
+    let count = flat.matches(&marker).count();
+    if count == 0 {
+        return;
+    }
+    assert_eq!(
+        count, 1,
+        "migration {n}: more than one insert into {table}_new"
+    );
+    let rest = &flat[flat.find(&marker).unwrap()..];
+    let stmt = &rest[..rest.find(';').unwrap()];
+    assert!(
+        stmt.contains(&format!("from {table}")) && !stmt.contains("values"),
+        "migration {n}: insert into {table}_new must select from {table}: {stmt}"
+    );
+}
+
 #[test]
 fn no_box_instance_comes_from_git() {
     // ARCH-3: the rule is "no box instance", not "no rows" — migrations may
@@ -572,9 +595,11 @@ fn no_box_instance_comes_from_git() {
                 .collect::<Vec<_>>()
                 .join(" ")
                 .to_ascii_lowercase();
+            assert_rebuild_copies_only(&flat, *n, table);
+            let flat = flat.replacen(&format!("insert into {table}_new"), "copy-into-rebuild", 1);
             for verb in ["insert into", "insert or replace into", "replace into"] {
                 for quoted in [table.to_string(), format!("\"{table}\"")] {
-                    for end in [" ", "("] {
+                    for end in [" ", "(", "_new"] {
                         assert!(
                             !flat.contains(&format!("{verb} {quoted}{end}")),
                             "migration {n} inserts into box-identifying table {table}"
@@ -1096,4 +1121,104 @@ fn writer_thread_serves_handles() {
     drop(handle);
     drop(h2);
     thread.join().unwrap();
+}
+
+#[test]
+fn the_v3_rebuild_keeps_terminals_status_rows_and_the_id_high_water_mark() {
+    // QA-1 (per oob-architect ruling): 0003 rebuilds `terminal` with
+    // live-only identity uniqueness, under foreign_keys=ON.
+    let dir = TempDir::new();
+    let mut conn = Connection::open(dir.db()).unwrap();
+    configure_writer(&conn).unwrap();
+    migrate::migrate_with(&mut conn, &migrate::MIGRATIONS[..2]).unwrap();
+    for n in 1..=3i64 {
+        conn.execute(
+            "INSERT INTO terminal (unit_address, ua_check, serial, terminal_type, box_type, \
+             sacrificial) VALUES (?1, 7, ?2, 'One-Way', 'dct2000', ?3)",
+            rusqlite::params![n, format!("GI{n:010}"), n == 1],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO terminal_status (terminal_id, failures) VALUES (?1, ?1)",
+            [n],
+        )
+        .unwrap();
+    }
+    // The high-water mark is above max(terminal_id) (an ID was spent).
+    conn.execute(
+        "UPDATE sqlite_sequence SET seq = 41 WHERE name = 'terminal'",
+        [],
+    )
+    .unwrap();
+    let before = dump(&conn, "terminal");
+    let status_before = dump(&conn, "terminal_status");
+    migrate::migrate(&mut conn).unwrap();
+    assert_eq!(migrate::user_version(&conn).unwrap(), SCHEMA_VERSION);
+    // Every row survives; the new column is NULL (in service).
+    let after: Vec<String> = dump(&conn, "terminal")
+        .into_iter()
+        .map(|r| r.strip_suffix("Null|").unwrap().to_string())
+        .collect();
+    assert_eq!(after, before);
+    assert_eq!(dump(&conn, "terminal_status"), status_before);
+    let seq: i64 = conn
+        .query_row(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'terminal'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(seq, 41);
+    let n: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM sqlite_sequence WHERE name LIKE 'terminal_%'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(n, 0, "a scratch sequence row survived");
+    let fk: Vec<String> = {
+        let mut stmt = conn.prepare("PRAGMA foreign_key_check").unwrap();
+        stmt.query_map([], |r| r.get::<_, String>(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+    };
+    assert!(fk.is_empty(), "foreign key violations: {fk:?}");
+    drop(conn);
+    // The next ID continues above the mark, and the FK still binds.
+    let mut store = open(&dir.db());
+    let id = create(&mut store, 9).unwrap();
+    assert_eq!(id.get(), 42);
+    assert!(store.reader().unwrap().has_status_row(id).unwrap());
+    let err = store
+        .write(|tx| {
+            tx.conn()
+                .execute("INSERT INTO terminal_status (terminal_id) VALUES (999)", [])?;
+            Ok(())
+        })
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        StoreError::Constraint(ConstraintKind::ForeignKey)
+    ));
+    // Identity is unique among live units only; the errors keep their names.
+    store
+        .write(|tx| {
+            tx.conn().execute(
+                "UPDATE terminal SET retired_utc = 'x' WHERE terminal_id = 1",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+    create(&mut store, 1).unwrap();
+    // Both values collide here; sqlite names one of them. The per-field
+    // cases are in the config tests.
+    assert!(matches!(
+        create(&mut store, 1),
+        Err(StoreError::Constraint(
+            ConstraintKind::DuplicateUnitAddress | ConstraintKind::DuplicateSerial
+        ))
+    ));
 }

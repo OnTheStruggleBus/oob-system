@@ -53,10 +53,76 @@ BEGIN
     SELECT RAISE(ABORT, 'append-only: config_revision');
 END;
 
--- Retiring a unit never deletes it: terminal IDs are never reused and the
--- audit trail references them. NULL means in service.
-ALTER TABLE terminal ADD COLUMN retired_utc TEXT
-    CHECK (retired_utc IS NULL OR length(retired_utc) > 0);
+-- The terminal table is rebuilt (PR #87 QA-1, per oob-architect ruling):
+--
+-- * retired_utc: retiring a unit never deletes it; terminal IDs are never
+--   reused and the audit trail references them. NULL means in service.
+-- * Identity uniqueness covers units in service only. terminal_id is a
+--   record's permanent identity; unit_address and serial are unique among
+--   live units (partial unique indexes below), so a unit enrolled with a
+--   wrong identity is retired and enrolled again correctly. Identity stays
+--   immutable per row; a re-enrollment is a new ID.
+--
+-- The runner executes this in a transaction with foreign_keys=ON, so the
+-- rebuild keeps terminal_status (whose FK cascades on the DROP) in a scratch
+-- table and carries the AUTOINCREMENT high-water mark, in this order.
+CREATE TABLE terminal_new (
+    terminal_id            INTEGER PRIMARY KEY AUTOINCREMENT
+                           CHECK (terminal_id BETWEEN 1 AND 16777215),
+    unit_address           INTEGER NOT NULL
+                           CHECK (unit_address BETWEEN 0 AND 1099511627775),
+    ua_check               INTEGER NOT NULL CHECK (ua_check BETWEEN 0 AND 999),
+    serial                 TEXT NOT NULL CHECK (length(serial) = 12),
+    terminal_type          TEXT NOT NULL
+                           CHECK (terminal_type IN ('One-Way', 'Fone-Way', 'Two-Way',
+                                                    'Ethernet', 'DOCSIS')),
+    box_type               TEXT NOT NULL CHECK (length(box_type) > 0),
+    account_number         TEXT,
+    on_plant               INTEGER NOT NULL DEFAULT 0 CHECK (on_plant IN (0, 1)),
+    install_date           TEXT CHECK (install_date IS NULL
+                                       OR date(install_date) IS install_date),
+    auto_registration_date TEXT CHECK (auto_registration_date IS NULL
+                                       OR date(auto_registration_date) IS auto_registration_date),
+    activated              INTEGER NOT NULL DEFAULT 0 CHECK (activated IN (0, 1)),
+    autodiscovered         INTEGER NOT NULL DEFAULT 0 CHECK (autodiscovered IN (0, 1)),
+    ip_address             TEXT CHECK (ip_address IS NULL
+                                       OR (length(ip_address) BETWEEN 2 AND 45
+                                           AND ip_address NOT GLOB '*[^0-9A-Fa-f.:]*')),
+    bsi_name               TEXT,
+    downstream_plant       TEXT,
+    upstream_plant         TEXT,
+    sacrificial            INTEGER NOT NULL DEFAULT 0 CHECK (sacrificial IN (0, 1)),
+    created_utc            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    retired_utc            TEXT CHECK (retired_utc IS NULL OR length(retired_utc) > 0)
+) STRICT;
+
+INSERT INTO terminal_new (terminal_id, unit_address, ua_check, serial, terminal_type, box_type,
+                          account_number, on_plant, install_date, auto_registration_date,
+                          activated, autodiscovered, ip_address, bsi_name, downstream_plant,
+                          upstream_plant, sacrificial, created_utc, retired_utc)
+SELECT terminal_id, unit_address, ua_check, serial, terminal_type, box_type, account_number,
+       on_plant, install_date, auto_registration_date, activated, autodiscovered, ip_address,
+       bsi_name, downstream_plant, upstream_plant, sacrificial, created_utc, NULL
+FROM terminal;
+
+-- Terminal IDs are never reused: carry the high-water mark, which can be
+-- above max(terminal_id).
+DELETE FROM sqlite_sequence WHERE name = 'terminal_new';
+INSERT INTO sqlite_sequence (name, seq)
+SELECT 'terminal_new', seq FROM sqlite_sequence WHERE name = 'terminal';
+
+CREATE TABLE terminal_status_keep AS SELECT * FROM terminal_status;
+
+DROP TABLE terminal;
+ALTER TABLE terminal_new RENAME TO terminal;
+
+CREATE UNIQUE INDEX terminal_live_unit_address ON terminal (unit_address)
+    WHERE retired_utc IS NULL;
+CREATE UNIQUE INDEX terminal_live_serial ON terminal (serial)
+    WHERE retired_utc IS NULL;
+
+INSERT INTO terminal_status SELECT * FROM terminal_status_keep;
+DROP TABLE terminal_status_keep;
 
 -- Precious. oob-mux's per-table PSI version counters and last-emitted
 -- section bytes (#17 TableVersions::snapshot), so a restart continues the

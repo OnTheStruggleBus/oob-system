@@ -214,8 +214,16 @@ latest revision.
 
 - **Immutable after enrollment:** terminal ID, unit address, check digits,
   serial. They are not in the unit document (an extra field is refused), so no
-  update or rollback can touch them. A wrong identity is corrected by retiring
-  the unit and enrolling it again, or by a forward migration.
+  update or rollback can touch them. A record's permanent identity is its
+  terminal ID; unit address and serial are unique among units **in
+  service** only (per oob-architect ruling on PR #87 QA-1). So a wrong
+  identity is corrected by retiring the unit and enrolling it again: the
+  correction is a new record (new ID, revision 1, non-sacrificial; no history,
+  flag or token carries over), and the old one keeps its identity and
+  history. Reinstating it is refused (`duplicate-unit-address`,
+  `duplicate-serial`) while a live unit holds either value. Editing identity
+  in place is deliberately impossible: it would move a record's history,
+  sacrificial flag and terminal-ID-bound tokens onto a different box.
 - **The operational record** (the `unit` document): terminal type, box type,
   account number, On-Plant, install date, Activated, Autodiscovered, IP
   address, BSI name, downstream and upstream plant, sacrificial. The
