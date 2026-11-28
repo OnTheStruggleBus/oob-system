@@ -214,7 +214,8 @@ impl NewTerminal {
         }
     }
 
-    fn validate(&self) -> Result<(), StoreError> {
+    /// Checks every field's domain (serial shape, dates, IP address).
+    pub(crate) fn validate(&self) -> Result<(), StoreError> {
         if self.serial.len() != 12 || !self.serial.bytes().all(|b| b.is_ascii_alphanumeric()) {
             return Err(invalid(format!("serial {:?}", self.serial)));
         }
@@ -241,7 +242,7 @@ impl NewTerminal {
 }
 
 /// `YYYY-MM-DD` naming a real Gregorian calendar day.
-fn is_calendar_date(s: &str) -> bool {
+pub(crate) fn is_calendar_date(s: &str) -> bool {
     let b = s.as_bytes();
     if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
         return false;
@@ -276,12 +277,25 @@ pub struct Terminal {
     pub created_utc: String,
     /// Everything the operator entered.
     pub record: NewTerminal,
+    /// When the unit was retired (UTC, ISO 8601); `None` while in service.
+    /// A retired unit is never deleted and its ID is never reused; it is
+    /// excluded from targeting (#25).
+    pub retired_utc: Option<String>,
 }
 
 impl Tx<'_> {
     /// Creates a terminal record and its `TerminalCreated` event in this
     /// transaction; returns the allocated ID.
-    pub fn create_terminal(&self, actor: &str, t: &NewTerminal) -> Result<TerminalId, StoreError> {
+    ///
+    /// Crate-internal since #25: a unit is enrolled through
+    /// `Command::Admin(AdminOp::UnitEnroll)`, which also writes the unit's
+    /// first configuration revision and its journal row, so the terminal
+    /// row and the latest revision never disagree.
+    pub(crate) fn create_terminal(
+        &self,
+        actor: &str,
+        t: &NewTerminal,
+    ) -> Result<TerminalId, StoreError> {
         t.validate()?;
         let last: i64 = self
             .conn()
@@ -334,7 +348,7 @@ impl Tx<'_> {
 const SELECT: &str = "SELECT terminal_id, created_utc, unit_address, ua_check, serial, \
     terminal_type, box_type, account_number, on_plant, install_date, auto_registration_date, \
     activated, autodiscovered, ip_address, bsi_name, downstream_plant, upstream_plant, \
-    sacrificial FROM terminal";
+    sacrificial, retired_utc FROM terminal";
 
 impl FromSql for TerminalType {
     fn column_result(v: ValueRef<'_>) -> FromSqlResult<Self> {
@@ -370,6 +384,7 @@ fn from_row(r: &Row<'_>) -> rusqlite::Result<Terminal> {
             upstream_plant: r.get(16)?,
             sacrificial: r.get(17)?,
         },
+        retired_utc: r.get(18)?,
     })
 }
 

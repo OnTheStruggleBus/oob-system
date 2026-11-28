@@ -163,7 +163,8 @@ impl TerminalDirectory for InMemoryDirectory {
 
 /// A directory over the #21 store, through a read-only connection.
 ///
-/// The store's Define Terminal record has no RADD assignment and no RPD
+/// Retired units (#25) are excluded. The store's Define Terminal record has
+/// no RADD assignment and no RPD
 /// channel yet, so a RADD or RPD filter is **refused by name** rather than
 /// silently matching nothing: [`CommandError::Unsupported`] with a reason.
 pub struct StoreDirectory {
@@ -217,6 +218,9 @@ impl TerminalDirectory for StoreDirectory {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .terminals()
             .map_err(CommandError::Store)?;
-        resolve_from(all.into_iter().map(to_ref).collect(), target, filters)
+        // A retired unit (#25) is never a target: not in All or a range,
+        // and a Single ID of one is an unknown terminal.
+        let live = all.into_iter().filter(|t| t.retired_utc.is_none());
+        resolve_from(live.map(to_ref).collect(), target, filters)
     }
 }

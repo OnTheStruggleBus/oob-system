@@ -105,7 +105,7 @@ impl From<serde_json::Error> for StoreError {
 }
 
 /// The journals whose triggers raise `append-only: <table>`.
-const APPEND_ONLY: &[&str] = &["event_log", "audit_log"];
+const APPEND_ONLY: &[&str] = &["event_log", "audit_log", "config_revision"];
 
 impl From<rusqlite::Error> for StoreError {
     fn from(e: rusqlite::Error) -> Self {

@@ -13,6 +13,7 @@ use super::StoreError;
 pub(crate) const MIGRATIONS: &[(u32, &str)] = &[
     (1, include_str!("migrations/0001_initial.sql")),
     (2, include_str!("migrations/0002_policy.sql")),
+    (3, include_str!("migrations/0003_config.sql")),
 ];
 
 /// The schema version this build migrates to (the head migration).

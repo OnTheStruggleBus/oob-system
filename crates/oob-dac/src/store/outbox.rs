@@ -24,6 +24,18 @@ pub enum Event {
         /// The store-allocated 24-bit terminal ID.
         terminal_id: u32,
     },
+    /// A configuration object got a new revision (#25): a save, a rollback
+    /// or the first-run seed. The applier (#29) and the Console's live view
+    /// consume it.
+    ConfigSaved {
+        /// The object kind (`lineup`, `pid_plan`, `class_budgets`,
+        /// `mux_settings` or `unit`). Not `kind`: that is the serde tag.
+        config_kind: String,
+        /// The terminal ID for a unit; absent for a singleton.
+        object_id: Option<u32>,
+        /// The new revision.
+        revision: u32,
+    },
 }
 
 impl Event {
@@ -31,6 +43,7 @@ impl Event {
     pub fn kind(&self) -> &'static str {
         match self {
             Self::TerminalCreated { .. } => "TerminalCreated",
+            Self::ConfigSaved { .. } => "ConfigSaved",
         }
     }
 
@@ -45,13 +58,14 @@ impl Event {
     pub fn introduced_in(&self) -> u32 {
         match self {
             Self::TerminalCreated { .. } => 1,
+            Self::ConfigSaved { .. } => 3,
         }
     }
 }
 
 /// Every event kind, by the schema version that introduced it. Entries for
 /// released versions never change; a new kind needs a new version.
-pub const EVENT_KINDS: &[(u32, &[&str])] = &[(1, &["TerminalCreated"])];
+pub const EVENT_KINDS: &[(u32, &[&str])] = &[(1, &["TerminalCreated"]), (3, &["ConfigSaved"])];
 
 /// An `event_log` sequence number (monotonic, never reused).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -95,6 +109,9 @@ impl Deriver for TerminalStatusDeriver {
                     [terminal_id],
                 )?;
             }
+            // No derived table folds configuration yet; the applier (#29)
+            // reads the revision itself.
+            Event::ConfigSaved { .. } => {}
         }
         Ok(())
     }

@@ -251,7 +251,7 @@ fn derivers_write_only_classified_derived_tables() {
 
 #[test]
 fn empty_db_migrates_to_head() {
-    assert_eq!(SCHEMA_VERSION, 2);
+    assert_eq!(SCHEMA_VERSION, 3);
     for (i, (n, _)) in migrate::MIGRATIONS.iter().enumerate() {
         assert_eq!(*n as usize, i + 1, "migrations must be contiguous from 1");
     }
@@ -277,15 +277,20 @@ fn empty_db_migrates_to_head() {
         objects,
         [
             "table audit_log",
+            "table config_revision",
             "table confirmation_token",
             "table derive_watermark",
             "table event_log",
             "table install_setting",
+            "table psi_table_version",
             "table terminal",
             "table terminal_status",
             "trigger audit_log_no_delete",
             "trigger audit_log_no_overwrite",
             "trigger audit_log_no_update",
+            "trigger config_revision_no_delete",
+            "trigger config_revision_no_overwrite",
+            "trigger config_revision_no_update",
             "trigger event_log_no_delete",
             "trigger event_log_no_overwrite",
             "trigger event_log_no_update",
@@ -779,17 +784,26 @@ fn undecodable_event_does_not_brick_open() {
 }
 
 /// Event kinds per **released** schema version (QA-9). Append a row when a
-/// version ships; never edit an existing row. Version 1 ships with #21.
-const RELEASED_EVENT_KINDS: &[(u32, &[&str])] = &[(1, &["TerminalCreated"])];
+/// version ships; never edit an existing row. Version 1 ships with #21,
+/// version 2 (no new kind) with #23; version 3 (`ConfigSaved`, #25) is the
+/// unreleased head.
+const RELEASED_EVENT_KINDS: &[(u32, &[&str])] = &[(1, &["TerminalCreated"]), (2, &[])];
 
 /// One sample of every `Event` variant. The exhaustive `match` (crate-local,
 /// so `#[non_exhaustive]` does not apply) stops a new variant compiling until
 /// it gets an arm here; the arm is where its sample goes.
 fn all_event_samples() -> Vec<Event> {
-    let samples = vec![Event::TerminalCreated { terminal_id: 1 }];
+    let samples = vec![
+        Event::TerminalCreated { terminal_id: 1 },
+        Event::ConfigSaved {
+            config_kind: "lineup".into(),
+            object_id: None,
+            revision: 1,
+        },
+    ];
     for ev in &samples {
         match ev {
-            Event::TerminalCreated { .. } => {}
+            Event::TerminalCreated { .. } | Event::ConfigSaved { .. } => {}
         }
     }
     samples

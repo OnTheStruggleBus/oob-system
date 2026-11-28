@@ -226,9 +226,17 @@ registering a handler, so owner role, guest refusal and audit from #23 apply
 to config saves with no change to `dispatch`. There is one handler slot and
 registering replaces the built-in handler (which answers `Ping`), so #25's
 handler wraps or delegates to it.
-`ControlCommand` (`Ping`, `Cancel`) is the stub that proves the path today;
+`ControlCommand` (`Ping`, `Cancel`) is the stub that proves the path;
 a doctest and `a_non_pdu_command_is_dispatched_through_the_seam_after_policy`
 show it.
+
+#25 landed `Command::Admin(AdminOp)`. Its `dispatch` arm records the target
+(a configuration key or `unit/<terminal id>`, never a serial) for the audit
+row, runs the policy check, and hands the op to the handler that
+`CommandBus::with_config_admin` registers; that handler still answers
+`Ping`. A success is `Submitted::Config(AdminOutcome)`; a refusal is
+`CommandError::Config(ConfigError)`, whose reason is the configuration
+store's code. See [the configuration store](oob-dac-config.md).
 
 ## Configuration layer (ADR-003)
 

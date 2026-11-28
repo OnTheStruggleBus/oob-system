@@ -24,3 +24,6 @@ sub-chapter automatically.
 - `oob-dac-policy.md`: the oob-dac policy layer (roles, the destructive
   classes, confirmation tokens, the dry-run default, the sacrificial-only CDL
   lock, the audit log).
+- `oob-dac-config.md`: the oob-dac configuration store (the five object
+  kinds, revisions, rollback, the journal, the validation hook, units, the
+  first-run seed).

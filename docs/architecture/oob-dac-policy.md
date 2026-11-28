@@ -27,7 +27,7 @@ default policy, so an adapter must pass a `StorePolicy`.
 | Actor | May do |
 | --- | --- |
 | Guest (museum mode) | nothing: every command is refused with `guest-read-only`. Reads do not pass through the command layer; the REST adapter (#27) enforces them |
-| Operator | non-destructive commands, except a Lab injection |
+| Operator | non-destructive commands, except a Lab injection and any configuration change (`Command::Admin`, #25: owner only, `owner-required`) |
 | Owner through REST or Lab | everything, subject to the token rules below |
 | Billing, WireLink-wire | non-destructive commands only; they cannot obtain a token, so they cannot run any destructive class, **Disconnect included** (Marshal, 2026-11-23: Disconnect stays owner plus token; revisit when S5 billing is dispositioned) |
 | The DAC's own timers (Auto) | auto-generated operations only; they can never originate a destructive class (`system-cannot-originate`) |
@@ -49,8 +49,17 @@ plan digest, or the install ID.
 | `code-download-enable` | D-hard | `CDL ENABLE` | terminal | `StorePolicy::authorize` (parameter-level; needs #19) |
 | `cdl-campaign` | D-hard | `CDL CAMPAIGN` | plan | `Command::Auto(CodeDownload)` |
 | `cdl-lock-off` | D-hard | `CDL LOCK OFF` | install | `StorePolicy::set_cdl_lock` |
-| `mark-sacrificial` | D-hard | `MARK SACRIFICIAL` | terminal | `StorePolicy::mark_sacrificial` |
+| `mark-sacrificial` | D-hard | `MARK SACRIFICIAL` | terminal | `Command::Admin` (`UnitUpdate` or a unit `ConfigRollback` that sets `sacrificial`) |
 | `store-restore` | D-hard | `STORE RESTORE` | install | `StorePolicy::authorize` (the restore itself is #24) |
+
+Marking a unit sacrificial is a configuration change since #25: the unit's
+operational record changes only through the [configuration
+store](oob-dac-config.md), which writes a revision and a journal row with
+every change, so the policy prices the transition (the base revision the
+caller edited was not sacrificial and the new record is) and spends the token
+before the save runs. Unmarking, retiring and reinstating are owner-only.
+`StorePolicy::mark_sacrificial`, which wrote the flag directly, was removed
+with #25.
 
 Unit Creation (it rewrites box identity) and marking a unit sacrificial (it
 makes the unit CDL-eligible) are stricter than the issue text; Marshal had no

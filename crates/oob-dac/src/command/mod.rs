@@ -51,6 +51,12 @@
 //! refusal and audit from #23 then apply to config saves.
 //! [`ControlCommand`] is the stub that proves the path today.
 //!
+//! #25 landed that variant: `Command::Admin(`[`AdminOp`]`)` carries every
+//! configuration change. [`CommandBus::with_config_admin`] registers the
+//! configuration runtime as the handler (it keeps answering `Ping`), so
+//! the policy check (owner role, guest refusal, the `mark-sacrificial`
+//! token) and the audit row apply to configuration like any other command.
+//!
 //! # Failure containment
 //!
 //! An **encoder** panic is caught per encode and fails that one command
@@ -99,6 +105,7 @@ use oob_mux::{
 
 pub use oob_mux::Clock;
 
+use crate::config::{AdminOp, AdminOutcome, ConfigAdmin, ConfigError};
 use crate::store::{StoreError, TerminalId};
 
 use self::campaign::{
@@ -263,6 +270,71 @@ pub enum Command {
     Lab(LabInjection),
     /// A command that produces no PDU, dispatched through the seam.
     Control(ControlCommand),
+    /// A configuration change (#25), dispatched through the seam to the
+    /// [`ConfigAdmin`] registered with [`CommandBus::with_config_admin`].
+    ///
+    /// ```
+    /// use std::sync::Arc;
+    /// use oob_dac::command::exec::{EncodeError, Encoder, Work};
+    /// use oob_dac::command::policy::AllowAllPolicy;
+    /// use oob_dac::command::target::{InMemoryDirectory, TerminalRef};
+    /// use oob_dac::command::{Command, CommandBus, CommandContext, FrontDoor, Role, Submitted};
+    /// use oob_dac::config::doc::UnitDoc;
+    /// use oob_dac::config::{
+    ///     AdminOp, AdminOutcome, ConfigAdmin, ConfigLimits, InMemoryCatalog, NewUnit, NoApplier,
+    ///     StructuralValidator,
+    /// };
+    /// use oob_dac::store::{Store, StoreOptions};
+    /// use oob_mux::{ManualClock, Pdu, Scheduler, SchedulerConfig};
+    ///
+    /// struct NoEncoder;
+    /// impl Encoder for NoEncoder {
+    ///     fn encode(&self, _: &Work, _: Option<&TerminalRef>) -> Result<Pdu, EncodeError> {
+    ///         Err(EncodeError { reason: "none".into() })
+    ///     }
+    /// }
+    /// # let dir = std::env::temp_dir().join(format!("oob-dac-admin-doc-{}", std::process::id()));
+    /// # std::fs::create_dir_all(&dir)?;
+    /// let store = Store::open(&dir.join("oob-dac.sqlite"), &StoreOptions::default())?;
+    /// let (handle, _writer) = store.spawn_writer(8)?;
+    /// let admin = Arc::new(ConfigAdmin::new(
+    ///     handle,
+    ///     Arc::new(StructuralValidator), // #26 supplies the real validator
+    ///     Arc::new(InMemoryCatalog::new(["dct2000"])),
+    ///     Arc::new(NoApplier),
+    ///     ConfigLimits::default(),
+    /// ));
+    /// let (_sched, sh, _outcomes) = Scheduler::new(SchedulerConfig {
+    ///     queue_depth: 8, max_carousels: 1, outcome_capacity: 8,
+    ///     budget: oob_mux::scheduler::BudgetConfig::permissive(1000),
+    /// })?;
+    /// let bus = CommandBus::new(
+    ///     sh,
+    ///     Arc::new(AllowAllPolicy), // a test double; an adapter ships StorePolicy
+    ///     Arc::new(InMemoryDirectory::default()),
+    ///     Arc::new(NoEncoder),
+    ///     Arc::new(ManualClock::default()),
+    /// )
+    /// .with_config_admin(admin);
+    /// let owner = CommandContext {
+    ///     actor: "doc".into(), role: Role::Owner, front_door: FrontDoor::Rest, confirmation: None,
+    /// };
+    /// let enroll = AdminOp::UnitEnroll(NewUnit {
+    ///     unit_address: "000-00000-00001-000".parse()?, // synthetic, not a real box
+    ///     serial: "GI0000000001".into(),
+    ///     doc: UnitDoc::new("One-Way", "dct2000"),
+    /// });
+    /// let Submitted::Config(AdminOutcome::Enrolled { id, item }) =
+    ///     bus.submit(&owner, Command::Admin(enroll))?
+    /// else {
+    ///     unreachable!()
+    /// };
+    /// assert_eq!((id.get(), item.saved.revision()), (1, 1));
+    /// # drop(bus);
+    /// # std::fs::remove_dir_all(&dir)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    Admin(AdminOp),
 }
 
 /// What the bus learned about a command while dispatching it, for the audit
@@ -286,6 +358,7 @@ impl Command {
             Self::Lab(_) => "lab",
             Self::Control(ControlCommand::Ping) => "ping",
             Self::Control(ControlCommand::Cancel(_)) => "cancel",
+            Self::Admin(op) => op.name(),
             #[allow(unreachable_patterns)]
             _ => "non-pdu",
         }
@@ -299,6 +372,7 @@ impl Command {
             Self::Auto(_) => "auto",
             Self::Lab(_) => "lab",
             Self::Control(_) => "control",
+            Self::Admin(_) => "admin",
             // Same reasoning as the dispatch wildcard: a new non-PDU variant
             // is audited under a generic name until it names itself.
             #[allow(unreachable_patterns)]
@@ -375,6 +449,24 @@ pub trait NonPduHandler: Send + Sync {
 /// by name.
 struct DefaultHandler;
 
+/// The configuration runtime as the non-PDU handler (#25). Private, so the
+/// only way to reach [`ConfigAdmin`]'s changes is through the bus and its
+/// policy check.
+struct AdminHandler(Arc<ConfigAdmin>);
+
+impl NonPduHandler for AdminHandler {
+    fn handle(&self, ctx: &CommandContext, cmd: &Command) -> Result<Submitted, CommandError> {
+        match cmd {
+            Command::Admin(op) => self
+                .0
+                .run(ctx, op)
+                .map(Submitted::Config)
+                .map_err(CommandError::Config),
+            other => DefaultHandler.handle(ctx, other),
+        }
+    }
+}
+
 impl NonPduHandler for DefaultHandler {
     fn handle(&self, _ctx: &CommandContext, cmd: &Command) -> Result<Submitted, CommandError> {
         match cmd {
@@ -397,6 +489,9 @@ pub enum Submitted {
     DryRun(DryRunReport),
     /// A non-PDU command completed.
     Done,
+    /// A configuration change completed (#25): the revision and what
+    /// applying it did.
+    Config(AdminOutcome),
 }
 
 /// What a dry run would have done.
@@ -468,6 +563,8 @@ pub enum CommandError {
     Scheduler(SubmitError),
     /// The store failed.
     Store(StoreError),
+    /// A configuration change was refused or failed (#25).
+    Config(ConfigError),
     /// A status transition the lifecycle table does not allow.
     IllegalTransition {
         /// Current status.
@@ -508,6 +605,7 @@ impl CommandError {
             Self::EncoderPanic { .. } => "encoder-panic",
             Self::Scheduler(_) => "scheduler-refused",
             Self::Store(_) => "store-error",
+            Self::Config(e) => e.reason(),
             Self::IllegalTransition { .. } => "illegal-transition",
             Self::IllegalOverlay { .. } => "illegal-overlay",
             Self::UnknownOperation(_) => "unknown-operation",
@@ -557,6 +655,7 @@ impl fmt::Display for CommandError {
             Self::EncoderPanic { work } => write!(f, "the {work} encoder panicked"),
             Self::Scheduler(e) => write!(f, "scheduler refused: {e}"),
             Self::Store(e) => write!(f, "store error: {e}"),
+            Self::Config(e) => write!(f, "configuration: {e}"),
             Self::IllegalTransition { from, to } => {
                 write!(f, "illegal transition {} -> {}", from.label(), to.label())
             }
@@ -772,6 +871,14 @@ impl CommandBus {
         self
     }
 
+    /// Registers the configuration runtime (#25) as the non-PDU handler:
+    /// `Command::Admin` goes to it after the policy check, and
+    /// [`ControlCommand::Ping`] is still answered.
+    #[must_use]
+    pub fn with_config_admin(self, admin: Arc<ConfigAdmin>) -> Self {
+        self.with_non_pdu_handler(Arc::new(AdminHandler(admin)))
+    }
+
     /// Replaces the tunables.
     #[must_use]
     pub fn with_config(mut self, cfg: BusConfig) -> Self {
@@ -955,6 +1062,13 @@ impl CommandBus {
             Command::Control(ControlCommand::Cancel(id)) => {
                 self.admit(ctx, cmd, &[])?;
                 self.cancel_op(*id).map(|()| Submitted::Done)
+            }
+            // Configuration (#25): the seam below, with its target recorded
+            // for the audit row (a key or terminal ID, never a serial).
+            Command::Admin(op) => {
+                seen.target = op.target();
+                self.admit(ctx, cmd, &[])?;
+                self.handler.handle(ctx, cmd)
             }
             // The seam: every command not matched above is non-PDU. It gets
             // the same policy check and goes to the handler, so a new

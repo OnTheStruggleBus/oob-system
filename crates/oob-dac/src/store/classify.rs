@@ -80,6 +80,20 @@ pub const TABLES: &[TableClass] = &[
         why: "per-install owner settings (the sacrificial-only CDL lock, seeded ON; \
               the install id); changes are audited by the policy layer",
     },
+    TableClass {
+        name: "config_revision",
+        durability: Durability::Precious,
+        append_only: true,
+        why: "every revision of every Layer 1 configuration object (ADR-003 §2, #25): \
+              operator-entered, so nothing can regenerate it; rollback reads it",
+    },
+    TableClass {
+        name: "psi_table_version",
+        durability: Durability::Precious,
+        append_only: false,
+        why: "the PSI version counters and last-emitted bytes (#17); losing them \
+              re-emits a changed table at version 0, which a box that cached it may ignore",
+    },
 ];
 
 /// Tables whose rows are box instances or box-identifying data (unit

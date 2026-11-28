@@ -22,6 +22,9 @@
 //!   the owner role and a confirmation token and nothing else (Marshal,
 //!   QA-7: the product imposes no D0 evidence check; AGENTS.md section 7
 //!   still binds this project's own lab).
+//! - **Configuration** (`Command::Admin`, #25) is owner-only; turning a unit
+//!   sacrificial (an update or a unit rollback) is the D-hard
+//!   `mark-sacrificial` class.
 //! - **Audit.** Every command outcome, token issuance and setting change is
 //!   appended to the precious `audit_log`. A refusal names its rule.
 //!
@@ -56,6 +59,7 @@ use rusqlite::OptionalExtension;
 use crate::command::policy::{AuditNote, Grant, Policy, PolicyDenied};
 use crate::command::target::TerminalRef;
 use crate::command::{Clock, Command, CommandContext, ConfirmationToken, FrontDoor, Role};
+use crate::config::AdminOp;
 use crate::store::{AuditEntry, StoreError, StoreHandle, TerminalId, Tx};
 
 pub use classes::{CLASSES, ClassRow, DestructiveOp, TargetKind, Tier, classify_terminal_op};
@@ -731,74 +735,37 @@ impl StorePolicy {
         res.map_err(|d| self.refuse(ctx, cmd, key, d))
     }
 
-    /// Marks or unmarks a terminal as the sacrificial unit. Marking widens
-    /// what CDL can reach, so it is D-hard (owner plus a token for
-    /// `MARK SACRIFICIAL <terminal id>`); unmarking is owner-only.
-    ///
-    /// # Errors
-    ///
-    /// [`PolicyDenied`] naming the rule.
-    pub fn mark_sacrificial(
-        &self,
-        ctx: &CommandContext,
-        terminal: TerminalId,
-        sacrificial: bool,
-    ) -> Result<(), PolicyDenied> {
-        let cmd = "mark-sacrificial";
-        let target = TokenTarget::Terminal(terminal);
-        let key = Some(target.key());
-        let run = || -> Result<(), PolicyDenied> {
+    /// The gate for a configuration change (`Command::Admin`, #25): the
+    /// owner role (an operator is refused; the DAC's own timers cannot
+    /// originate one), and when the change turns a unit sacrificial, the
+    /// `mark-sacrificial` token bound to that terminal, spent in the same
+    /// transaction that revalidates it exists. Unmarking, retiring and
+    /// reinstating need the owner role only.
+    fn check_admin(&self, ctx: &CommandContext, op: &AdminOp) -> Result<Grant, PolicyDenied> {
+        if ctx.front_door == FrontDoor::Auto {
+            return Err(RuleId::OwnerRequired
+                .deny("the DAC's own timers may issue auto-generated operations only"));
+        }
+        if ctx.role != Role::Owner {
+            return Err(RuleId::OwnerRequired.deny("a configuration change needs the owner role"));
+        }
+        let probe = op.clone();
+        let marks = self
+            .store
+            .call_blocking(move |s| s.write(|tx| crate::config::marks_sacrificial(tx, &probe)))
+            .map_err(|e| store_denied(&e))?;
+        if let Some(id) = marks {
             Self::gate_destructive(ctx)?;
-            let token = if sacrificial {
-                Some(
-                    ctx.confirmation
-                        .as_ref()
-                        .ok_or_else(|| RuleId::TokenMissing.deny_default())?
-                        .0
-                        .clone(),
-                )
-            } else {
-                None
-            };
-            let now = self.now_ms();
-            let mut audit = Self::entry(ctx, cmd, key.clone(), "ok");
-            let tgt = target.clone();
-            let res = self
-                .store
-                .call_blocking(move |s| {
-                    s.write(|tx| {
-                        let before: Option<bool> = tx
-                            .conn()
-                            .query_row(
-                                "SELECT sacrificial FROM terminal WHERE terminal_id = ?1",
-                                [terminal.get()],
-                                |r| r.get(0),
-                            )
-                            .optional()?;
-                        let Some(before) = before else {
-                            return Ok(Some(RuleId::UnknownTerminal));
-                        };
-                        if let Some(t) = token {
-                            let c =
-                                token::consume(tx, &t, DestructiveOp::MarkSacrificial, &tgt, now)?;
-                            if c.is_some() {
-                                return Ok(c);
-                            }
-                        }
-                        tx.conn().execute(
-                            "UPDATE terminal SET sacrificial = ?1 WHERE terminal_id = ?2",
-                            rusqlite::params![sacrificial, terminal.get()],
-                        )?;
-                        audit.before = Some(format!("{{\"sacrificial\":{before}}}"));
-                        audit.after = Some(format!("{{\"sacrificial\":{sacrificial}}}"));
-                        tx.append_audit(&audit)?;
-                        Ok(None)
-                    })
-                })
-                .map_err(|e| store_denied(&e))?;
-            res.map_or(Ok(()), |rule| Err(rule.deny_default()))
-        };
-        run().map_err(|d| self.refuse(ctx, cmd, key.clone(), d))
+            self.spend_checked(
+                ctx,
+                ctx.confirmation.as_ref(),
+                DestructiveOp::MarkSacrificial,
+                TokenTarget::Terminal(id),
+                None,
+                Some(id),
+            )?;
+        }
+        Ok(Grant::new())
     }
 }
 
@@ -811,6 +778,9 @@ impl Policy for StorePolicy {
     ) -> Result<Grant, PolicyDenied> {
         if ctx.role == Role::Guest {
             return Err(RuleId::GuestReadOnly.deny_default());
+        }
+        if let Command::Admin(op) = cmd {
+            return self.check_admin(ctx, op);
         }
         let Some(need) = classes::need(cmd, resolved) else {
             Self::gate_plain(ctx, cmd)?;

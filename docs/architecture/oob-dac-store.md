@@ -61,7 +61,20 @@ Migration `0002_policy` (#23) adds the policy layer's two tables:
 | `confirmation_token` | DerivedObserved | Short-lived F6-10 confirmation tokens, stored as a SHA-256 only; worthless after a restart, so losing them on a restore is correct |
 | `install_setting` | Precious | Per-install owner settings: the sacrificial-only CDL lock (seeded ON) and the random install ID. See [the policy layer](oob-dac-policy.md) |
 
-Append-only is enforced by the schema. On both journals, `BEFORE UPDATE`
+Migration `0003_config` (#25) adds the configuration store's tables and
+retires units without deleting them:
+
+| Table | Class | Content |
+| --- | --- | --- |
+| `config_revision` | Precious, append-only | Every revision of every configuration object (lineup, PID plan, class budgets, mux settings, unit records), with its canonical JSON, digest, schema version, origin and journal row. See [the configuration store](oob-dac-config.md) |
+| `psi_table_version` | Precious | The PSI version counters and last-emitted section bytes (#17), upserted and never pruned, so a restart continues the mod-32 count |
+| `terminal.retired_utc` (column) | Precious | When a unit was retired; a retired unit is never deleted and is out of targeting |
+
+Terminal rows are created only by the configuration store's enroll
+(`Tx::create_terminal` is crate-internal since #25), so the row and the
+unit's latest revision never disagree.
+
+Append-only is enforced by the schema. On every journal, `BEFORE UPDATE`
 and `BEFORE DELETE` triggers abort the statement, and a `BEFORE INSERT`
 trigger aborts any insert that targets an existing sequence number. The
 last one closes `REPLACE` and `INSERT OR REPLACE`, which would otherwise

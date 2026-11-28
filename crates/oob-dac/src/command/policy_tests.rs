@@ -21,6 +21,11 @@ use crate::command::{
     Command, CommandBus, CommandContext, CommandError, ConfirmationToken, ControlCommand,
     DefineOperation, FrontDoor, LabInjection, Role, Submitted, TemplateId,
 };
+use crate::config::doc::UnitDoc;
+use crate::config::{
+    AdminOp, BaseRevision, ConfigAdmin, ConfigLimits, InMemoryCatalog, NoApplier, ObjectKey,
+    StructuralValidator,
+};
 use crate::store::{
     AuditRecord, NewTerminal, Store, StoreHandle, StoreOptions, TerminalId, TerminalType,
     UnitAddress,
@@ -72,6 +77,7 @@ struct Fix {
     policy: Arc<StorePolicy>,
     clock: Arc<ManualClock>,
     bus: CommandBus,
+    config: Arc<ConfigAdmin>,
     _sched: Scheduler,
 }
 
@@ -117,6 +123,13 @@ fn fix_ttl(ttl: Duration) -> Fix {
         budget: BudgetConfig::permissive(1000),
     })
     .unwrap();
+    let config = Arc::new(ConfigAdmin::new(
+        handle.clone(),
+        Arc::new(StructuralValidator),
+        Arc::new(InMemoryCatalog::new(["dct2000"])),
+        Arc::new(NoApplier),
+        ConfigLimits::default(),
+    ));
     let bus = CommandBus::new(
         shandle,
         policy.clone(),
@@ -127,13 +140,15 @@ fn fix_ttl(ttl: Duration) -> Fix {
     .with_config(crate::command::BusConfig {
         release_window: Duration::from_secs(3600),
         ..Default::default()
-    });
+    })
+    .with_config_admin(config.clone());
     Fix {
         _dir: dir,
         store: handle,
         policy,
         clock,
         bus,
+        config,
         _sched: sched,
     }
 }
@@ -193,10 +208,45 @@ impl Fix {
             .collect()
     }
 
+    /// The `Command::Admin(UnitUpdate)` that sets terminal `id`'s
+    /// sacrificial flag to `on`, against its current head (#25: the only
+    /// path that writes the flag).
+    fn mark_cmd(&self, id: u32, on: bool) -> Command {
+        mark_cmd(&self.store, id, on)
+    }
+
+    /// Submits [`mark_cmd`](Self::mark_cmd) through the bus as `ctx`.
+    fn mark(&self, ctx: &CommandContext, id: u32, on: bool) -> Result<Submitted, CommandError> {
+        self.bus.submit(ctx, self.mark_cmd(id, on))
+    }
+
     fn lock_off(&self) {
         let t = self.issue(DestructiveOp::CdlLockOff, self.install());
         self.policy.set_cdl_lock(&with(owner(), &t), false).unwrap();
     }
+}
+
+fn mark_cmd(store: &StoreHandle, id: u32, on: bool) -> Command {
+    let (doc, base) = store
+        .call_blocking(move |s| {
+            let r = s.reader()?;
+            let t = r.terminal(tid(id))?;
+            let head = r
+                .config_head(ObjectKey::unit(tid(id)))
+                .map_err(|e| crate::store::StoreError::Corrupt(e.to_string()))?;
+            Ok((t, head))
+        })
+        .unwrap();
+    let mut doc = match doc {
+        Some(t) => UnitDoc::from_record(&t.record),
+        None => UnitDoc::new("One-Way", "dct2000"),
+    };
+    doc.sacrificial = on;
+    Command::Admin(AdminOp::UnitUpdate {
+        id: tid(id),
+        doc,
+        base: BaseRevision::of(base.map(|r| r.meta.revision)),
+    })
 }
 
 fn rule(r: Result<impl std::fmt::Debug, PolicyDenied>) -> &'static str {
@@ -309,10 +359,7 @@ fn a_guest_is_refused_every_command_kind_by_name() {
     };
     assert_eq!(rule(f.policy.issue_token(&guest, &req)), "guest-read-only");
     assert_eq!(rule(f.policy.set_cdl_lock(&guest, true)), "guest-read-only");
-    assert_eq!(
-        rule(f.policy.mark_sacrificial(&guest, tid(2), false)),
-        "guest-read-only"
-    );
+    assert_eq!(bus_rule(f.mark(&guest, 2, false)), "guest-read-only");
 }
 
 #[test]
@@ -872,10 +919,7 @@ fn turning_the_lock_on_needs_the_owner_only() {
 #[test]
 fn marking_a_unit_sacrificial_needs_a_token_and_unmarking_the_owner_only() {
     let f = fix();
-    assert_eq!(
-        rule(f.policy.mark_sacrificial(&owner(), tid(2), true)),
-        "token-missing"
-    );
+    assert_eq!(bus_rule(f.mark(&owner(), 2, true)), "token-missing");
     let t = f.issue(
         DestructiveOp::MarkSacrificial,
         TokenTarget::Terminal(tid(2)),
@@ -885,15 +929,10 @@ fn marking_a_unit_sacrificial_needs_a_token_and_unmarking_the_owner_only() {
         TokenTarget::Terminal(tid(3)),
     );
     assert_eq!(
-        rule(
-            f.policy
-                .mark_sacrificial(&with(owner(), &other), tid(2), true)
-        ),
+        bus_rule(f.mark(&with(owner(), &other), 2, true)),
         "token-target-mismatch"
     );
-    f.policy
-        .mark_sacrificial(&with(owner(), &t), tid(2), true)
-        .unwrap();
+    f.mark(&with(owner(), &t), 2, true).unwrap();
     // Terminal 2 is now CDL-eligible under the lock: authorize passes.
     let e = f.issue(
         DestructiveOp::CodeDownloadEnable,
@@ -907,11 +946,8 @@ fn marking_a_unit_sacrificial_needs_a_token_and_unmarking_the_owner_only() {
         )
         .unwrap();
     // Unmarking: owner only, no token.
-    f.policy.mark_sacrificial(&owner(), tid(2), false).unwrap();
-    assert_eq!(
-        rule(f.policy.mark_sacrificial(&owner(), tid(99), false)),
-        "unknown-terminal"
-    );
+    f.mark(&owner(), 2, false).unwrap();
+    assert_eq!(bus_rule(f.mark(&owner(), 99, false)), "unknown-object");
     // Back to non-sacrificial: code-download enable is refused by the lock.
     let e = f.issue(
         DestructiveOp::CodeDownloadEnable,
@@ -1223,7 +1259,7 @@ fn cp2_authorize_refuses_a_terminal_unmarked_before_the_spend_and_spends_nothing
     let f = fix();
     let tgt = TokenTarget::Terminal(tid(1));
     let t = f.issue(DestructiveOp::CodeDownloadEnable, tgt.clone());
-    f.policy.mark_sacrificial(&owner(), tid(1), false).unwrap();
+    f.mark(&owner(), 1, false).unwrap();
     let e = f
         .policy
         .authorize(
@@ -1275,15 +1311,20 @@ fn cp2_a_concurrent_unmark_cannot_slip_a_non_sacrificial_unit_through() {
             })
         };
         let b = {
-            let (p, g) = (f.policy.clone(), gate.clone());
+            // Straight to the configuration runtime: unmarking needs the
+            // owner role only, and this test is about write serialization.
+            let (c, g, cmd) = (f.config.clone(), gate.clone(), f.mark_cmd(1, false));
             thread::spawn(move || {
                 g.wait();
-                p.mark_sacrificial(&owner(), tid(1), false)
+                let Command::Admin(op) = cmd else {
+                    unreachable!()
+                };
+                c.run(&owner(), &op)
             })
         };
         let res = a.join().unwrap();
         b.join().unwrap().unwrap();
-        let unmark = seq_of(&f, "mark-sacrificial", "ok").expect("the unmark landed");
+        let unmark = seq_of(&f, "unit.update", "ok").expect("the unmark landed");
         match res {
             Ok(()) => {
                 let auth = seq_of(&f, op.name(), "authorized").expect("authorized row");
@@ -1454,4 +1495,143 @@ fn cp4_a_malformed_lock_value_fails_closed_and_rolls_back() {
     f.sql("UPDATE install_setting SET value = '1' WHERE key = 'cdl_sacrificial_only'");
     f.policy.set_cdl_lock(&with(owner(), &t), false).unwrap();
     assert!(!f.policy.cdl_lock_on().unwrap());
+}
+
+// ---- configuration through the bus (#25) -----------------------------
+
+fn lineup_save(name: &str, base: BaseRevision) -> Command {
+    let mut b =
+        crate::config::SeedBundle::from_json(include_str!("../../tests/fixtures/seed-bundle.json"))
+            .unwrap();
+    b.lineup.vcm[0].name = name.into();
+    Command::Admin(AdminOp::ConfigSave {
+        key: ObjectKey::singleton(crate::config::ConfigKind::Lineup),
+        doc: crate::config::Doc::Lineup(b.lineup),
+        base,
+    })
+}
+
+#[test]
+fn a_configuration_change_needs_the_owner_role_and_is_audited_with_its_target() {
+    let f = fix();
+    let operator = ctx_as(Role::Operator, FrontDoor::Rest);
+    assert_eq!(
+        bus_rule(
+            f.bus
+                .submit(&operator, lineup_save("A", BaseRevision::None))
+        ),
+        "owner-required"
+    );
+    assert_eq!(
+        bus_rule(f.bus.submit(
+            &ctx_as(Role::Owner, FrontDoor::Auto),
+            lineup_save("A", BaseRevision::None)
+        )),
+        "owner-required"
+    );
+    assert_eq!(
+        bus_rule(f.bus.submit(
+            &ctx_as(Role::Guest, FrontDoor::Rest),
+            lineup_save("A", BaseRevision::None)
+        )),
+        "guest-read-only"
+    );
+    let ok = f
+        .bus
+        .submit(&owner(), lineup_save("A", BaseRevision::None))
+        .unwrap();
+    assert!(matches!(ok, Submitted::Config(_)), "{ok:?}");
+    // A stale base through the bus: the configuration store's code.
+    assert_eq!(
+        bus_rule(f.bus.submit(&owner(), lineup_save("B", BaseRevision::None))),
+        "conflict"
+    );
+    // The bus audit rows name the key; the journal row names the revision.
+    let rows = f.rows("config-save");
+    let outcomes: Vec<&str> = rows.iter().map(|r| r.entry.outcome.as_str()).collect();
+    assert_eq!(
+        outcomes,
+        [
+            "owner-required",
+            "owner-required",
+            "guest-read-only",
+            "ok",
+            "conflict"
+        ]
+    );
+    assert!(
+        rows.iter()
+            .all(|r| r.entry.target.as_deref() == Some("lineup"))
+    );
+    assert_eq!(
+        f.rows("config.save")[0].entry.target.as_deref(),
+        Some("lineup@1")
+    );
+    // Ping still crosses the bus with the configuration handler registered.
+    assert_eq!(
+        f.bus
+            .submit(&owner(), Command::Control(ControlCommand::Ping))
+            .unwrap(),
+        Submitted::Done
+    );
+}
+
+#[test]
+fn rolling_a_unit_back_to_a_sacrificial_revision_needs_the_mark_token() {
+    let f = fix();
+    // Terminal 2: revision 1 sacrificial (marked with a token), revision 2 not.
+    let t = f.issue(
+        DestructiveOp::MarkSacrificial,
+        TokenTarget::Terminal(tid(2)),
+    );
+    f.mark(&with(owner(), &t), 2, true).unwrap();
+    f.mark(&owner(), 2, false).unwrap();
+    let back = Command::Admin(AdminOp::ConfigRollback {
+        key: ObjectKey::unit(tid(2)),
+        to: 1,
+        base: BaseRevision::At(2),
+    });
+    assert_eq!(
+        bus_rule(f.bus.submit(&owner(), back.clone())),
+        "token-missing"
+    );
+    let t = f.issue(
+        DestructiveOp::MarkSacrificial,
+        TokenTarget::Terminal(tid(2)),
+    );
+    f.bus.submit(&with(owner(), &t), back).unwrap();
+    let row = f
+        .store
+        .call_blocking(|s| s.reader()?.terminal(tid(2)))
+        .unwrap()
+        .unwrap();
+    assert!(row.record.sacrificial);
+    // Rolling back to the unmarked revision is owner-only.
+    f.bus
+        .submit(
+            &owner(),
+            Command::Admin(AdminOp::ConfigRollback {
+                key: ObjectKey::unit(tid(2)),
+                to: 2,
+                base: BaseRevision::At(3),
+            }),
+        )
+        .unwrap();
+    // Marking is priced against the base: an already-sacrificial base needs
+    // no token for an unrelated edit.
+    let t = f.issue(
+        DestructiveOp::MarkSacrificial,
+        TokenTarget::Terminal(tid(2)),
+    );
+    f.mark(&with(owner(), &t), 2, true).unwrap();
+    let Command::Admin(AdminOp::UnitUpdate { id, mut doc, base }) = f.mark_cmd(2, true) else {
+        unreachable!()
+    };
+    doc.account_number = Some("ACCT-NEW".into());
+    f.bus
+        .submit(
+            &owner(),
+            Command::Admin(AdminOp::UnitUpdate { id, doc, base }),
+        )
+        .unwrap();
 }
