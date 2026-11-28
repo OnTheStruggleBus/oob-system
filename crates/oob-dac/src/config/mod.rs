@@ -79,13 +79,14 @@ mod tests;
 
 use std::collections::BTreeSet;
 use std::fmt;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use crate::command::CommandContext;
 use crate::store::{AuditEntry, ConstraintKind, Event, NewTerminal, StoreError, TerminalId, Tx};
 
-pub(crate) use admin::marks_sacrificial;
 pub use admin::{AdminOp, AdminOutcome, BootHead, BootStatus, ConfigAdmin, SaveChange, SavedItem};
+pub(crate) use admin::{Doomed, SacrificialChange, admin_precheck, sacrificial_change};
 pub use apply::{ApplyStatus, ConfigApplier, NoApplier};
 pub use catalog::{BoxTypeCatalog, CatalogError, FileCatalog, InMemoryCatalog};
 pub use check::{
@@ -197,6 +198,9 @@ pub enum ConfigError {
     Constraint(ConstraintKind),
     /// A stored document could not be read (a bug or damage).
     Undecodable(String),
+    /// The validator panicked; the change was refused and the store writer
+    /// kept running (QA-4).
+    ValidatorPanic,
     /// The store failed.
     Store(StoreError),
 }
@@ -220,12 +224,13 @@ impl ConfigError {
             Self::Constraint(ConstraintKind::TerminalIdExhausted) => "terminal-id-exhausted",
             Self::Constraint(_) => "invalid-field",
             Self::Undecodable(_) => "doc-undecodable",
+            Self::ValidatorPanic => "validator-panic",
             Self::Store(_) => "store-error",
         }
     }
 
     /// Every stable code, for the docs drift test.
-    pub const REASONS: [&'static str; 16] = [
+    pub const REASONS: [&'static str; 17] = [
         "conflict",
         "config-refused",
         "unknown-box-type",
@@ -241,6 +246,7 @@ impl ConfigError {
         "terminal-id-exhausted",
         "invalid-field",
         "doc-undecodable",
+        "validator-panic",
         "store-error",
     ];
 }
@@ -275,6 +281,7 @@ impl fmt::Display for ConfigError {
             ),
             Self::Constraint(k) => write!(f, "constraint violated: {k:?}"),
             Self::Undecodable(s) => write!(f, "a stored document does not decode: {s}"),
+            Self::ValidatorPanic => f.write_str("the validator panicked; the change was refused"),
             Self::Store(e) => write!(f, "store error: {e}"),
         }
     }
@@ -325,7 +332,7 @@ impl Actor {
         }
     }
 
-    fn seed(bundle_sha: &str) -> Self {
+    pub(crate) fn seed(bundle_sha: &str) -> Self {
         Self {
             actor: format!("seed:{}", &bundle_sha[..12]),
             role: "System".into(),
@@ -363,16 +370,6 @@ impl Heads {
         }
     }
 
-    fn get(&self, kind: ConfigKind) -> Option<Doc> {
-        match kind {
-            ConfigKind::Lineup => self.lineup.clone().map(Doc::Lineup),
-            ConfigKind::PidPlan => self.pid_plan.clone().map(Doc::PidPlan),
-            ConfigKind::ClassBudgets => self.class_budgets.clone().map(Doc::ClassBudgets),
-            ConfigKind::MuxSettings => self.mux_settings.clone().map(Doc::MuxSettings),
-            ConfigKind::Unit => None,
-        }
-    }
-
     fn snapshot<'a>(
         &'a self,
         units: &'a Units,
@@ -398,7 +395,21 @@ pub(crate) enum Fault {
 
 /// One singleton at boot: its key and, when it has a head, the revision,
 /// the document and today's verdict on it.
-pub(crate) type BootRow = (ObjectKey, Option<(u32, Doc, Result<(), Refusal>)>);
+pub(crate) type BootRow = (ObjectKey, BootVerdict);
+
+/// What boot found for one singleton.
+pub(crate) enum BootVerdict {
+    /// No revision.
+    Unconfigured,
+    /// The head could not be read or checked.
+    Error { revision: u32, reason: String },
+    /// The head decoded; the validator's verdict on it (scoped to its kind).
+    Checked {
+        revision: u32,
+        doc: Doc,
+        verdict: Result<(), Refusal>,
+    },
+}
 
 /// One row read for a change: the head's metadata and stored text.
 type HeadRow = Option<(RevisionMeta, String)>;
@@ -484,20 +495,30 @@ impl ConfigService {
     }
 
     /// A stored document, upgraded to the current schema in memory.
+    /// An upgrade step that panics is an undecodable document, never a
+    /// stopped writer thread (QA-4).
     fn load(&self, meta: &RevisionMeta, json: &str) -> Result<Doc, ConfigError> {
         let kind = meta.key.kind;
-        Ok(doc::upgrade(
-            kind,
-            meta.doc_schema,
-            (self.schema)(kind),
-            json,
-            self.upgrades,
-        )?)
+        let current = (self.schema)(kind);
+        let upgrades = self.upgrades;
+        catch_unwind(AssertUnwindSafe(|| {
+            doc::upgrade(kind, meta.doc_schema, current, json, upgrades)
+        }))
+        .map_err(|_| ConfigError::Undecodable(format!("the {kind} upgrade step panicked")))?
+        .map_err(ConfigError::from)
     }
 
-    fn heads(&self, tx: &Tx<'_>) -> Result<Heads, ConfigError> {
+    /// The current singleton heads, except the kinds in `replaced`: the
+    /// change supplies those, so a head that no longer decodes (a newer
+    /// document schema after a downgrade, damage) can still be replaced or
+    /// rolled back (QA-3). Every other head must decode: a rule is never
+    /// skipped silently.
+    fn heads(&self, tx: &Tx<'_>, replaced: &[ConfigKind]) -> Result<Heads, ConfigError> {
         let mut h = Heads::default();
         for kind in ConfigKind::SINGLETONS {
+            if replaced.contains(&kind) {
+                continue;
+            }
             if let Some((meta, json)) = persist::head(tx.conn(), ObjectKey::singleton(kind))? {
                 h.set(self.load(&meta, &json)?);
             }
@@ -505,15 +526,21 @@ impl ConfigService {
         Ok(h)
     }
 
+    /// Runs the validator. It runs on the store's single writer thread, so
+    /// a panic is contained here and refuses the change (`validator-panic`)
+    /// instead of stopping the writer for every later caller (QA-4).
     fn validate(
         &self,
         heads: &Heads,
         units: &Units,
         change: &Change<'_>,
     ) -> Result<(), ConfigError> {
-        self.validator
-            .validate(&heads.snapshot(units, &*self.catalog), change)
-            .map_err(ConfigError::Refused)
+        let snapshot = heads.snapshot(units, &*self.catalog);
+        catch_unwind(AssertUnwindSafe(|| {
+            self.validator.validate(&snapshot, change)
+        }))
+        .map_err(|_| ConfigError::ValidatorPanic)?
+        .map_err(ConfigError::Refused)
     }
 
     /// Canonical JSON and digest, under the size cap.
@@ -621,7 +648,7 @@ impl ConfigService {
                 doc: doc.clone(),
             });
         }
-        let mut heads = self.heads(tx)?;
+        let mut heads = self.heads(tx, &[key.kind])?;
         heads.set(doc.clone());
         let units = Units::load(tx.conn())?;
         self.validate(&heads, &units, &Change::Save { key, doc })?;
@@ -654,8 +681,9 @@ impl ConfigService {
     ) -> Result<Vec<Written>, ConfigError> {
         let mut keys = BTreeSet::new();
         let mut pending = Vec::new();
-        let mut out = Vec::new();
-        for c in changes {
+        // One slot per change, in submission order (QA-6).
+        let mut out: Vec<Option<Written>> = vec![None; changes.len()];
+        for (i, c) in changes.iter().enumerate() {
             singleton_checks(c.key, &c.doc)?;
             if !keys.insert(c.key) {
                 return Err(ConfigError::WrongKind(format!(
@@ -667,50 +695,52 @@ impl ConfigService {
             check_base(head.as_ref().map(|(m, _)| m.revision), c.base)?;
             let enc = self.encode(&c.doc)?;
             match &head {
-                Some((m, _)) if m.doc_sha256 == enc.1 => out.push(Written {
-                    key: c.key,
-                    saved: Saved::Unchanged {
-                        revision: m.revision,
-                    },
-                    doc: c.doc.clone(),
-                }),
-                _ => pending.push((c, head, enc)),
+                Some((m, _)) if m.doc_sha256 == enc.1 => {
+                    out[i] = Some(Written {
+                        key: c.key,
+                        saved: Saved::Unchanged {
+                            revision: m.revision,
+                        },
+                        doc: c.doc.clone(),
+                    });
+                }
+                _ => pending.push((i, c, head, enc)),
             }
         }
-        if pending.is_empty() {
-            return Ok(out);
+        if !pending.is_empty() {
+            let replaced: Vec<ConfigKind> = pending.iter().map(|(_, c, _, _)| c.key.kind).collect();
+            let mut heads = self.heads(tx, &replaced)?;
+            let changed: Vec<(ObjectKey, Doc)> = pending
+                .iter()
+                .map(|(_, c, _, _)| (c.key, c.doc.clone()))
+                .collect();
+            for (_, d) in &changed {
+                heads.set(d.clone());
+            }
+            let units = Units::load(tx.conn())?;
+            self.validate(&heads, &units, &Change::Batch(&changed))?;
+            let who = Actor::of(ctx);
+            for (i, c, head, enc) in pending {
+                let (prior, before) = split(head);
+                let revision = self.commit(
+                    tx,
+                    &who,
+                    c.key,
+                    prior,
+                    before,
+                    (&enc.0, &enc.1),
+                    Origin::Save,
+                    None,
+                    "config.save",
+                )?;
+                out[i] = Some(Written {
+                    key: c.key,
+                    saved: Saved::Revised { revision },
+                    doc: c.doc.clone(),
+                });
+            }
         }
-        let mut heads = self.heads(tx)?;
-        let changed: Vec<(ObjectKey, Doc)> = pending
-            .iter()
-            .map(|(c, _, _)| (c.key, c.doc.clone()))
-            .collect();
-        for (_, d) in &changed {
-            heads.set(d.clone());
-        }
-        let units = Units::load(tx.conn())?;
-        self.validate(&heads, &units, &Change::Batch(&changed))?;
-        let who = Actor::of(ctx);
-        for (c, head, enc) in pending {
-            let (prior, before) = split(head);
-            let revision = self.commit(
-                tx,
-                &who,
-                c.key,
-                prior,
-                before,
-                (&enc.0, &enc.1),
-                Origin::Save,
-                None,
-                "config.save",
-            )?;
-            out.push(Written {
-                key: c.key,
-                saved: Saved::Revised { revision },
-                doc: c.doc.clone(),
-            });
-        }
-        Ok(out)
+        Ok(out.into_iter().flatten().collect())
     }
 
     /// Rolls `key` back to revision `to`: a validated save of that
@@ -745,7 +775,12 @@ impl ConfigService {
                 doc,
             });
         }
-        let mut heads = self.heads(tx)?;
+        let replaced: &[ConfigKind] = if key.kind.is_singleton() {
+            &[key.kind]
+        } else {
+            &[]
+        };
+        let mut heads = self.heads(tx, replaced)?;
         let mut units = Units::load(tx.conn())?;
         if let (Some(id), Doc::Unit(u)) = (key.object_id, &doc) {
             match units.map.get_mut(&id) {
@@ -796,7 +831,7 @@ impl ConfigService {
         self.require_box_type(&new.doc)?;
         let doc = Doc::Unit(new.doc.clone());
         let enc = self.encode(&doc)?;
-        let heads = self.heads(tx)?;
+        let heads = self.heads(tx, &[])?;
         let units = Units::load(tx.conn())?;
         // The validator first, so a bad field is refused by its rule name;
         // the store's own domain check stays as the backstop.
@@ -867,7 +902,7 @@ impl ConfigService {
                 doc,
             });
         }
-        let heads = self.heads(tx)?;
+        let heads = self.heads(tx, &[])?;
         let mut units = Units::load(tx.conn())?;
         units.map.insert(id, (new.clone(), false));
         self.validate(&heads, &units, &Change::UnitUpdate { id, doc: new })?;
@@ -925,7 +960,7 @@ impl ConfigService {
         if was == retire {
             return Ok(false);
         }
-        let heads = self.heads(tx)?;
+        let heads = self.heads(tx, &[])?;
         let mut units = Units::load(tx.conn())?;
         if let Some(slot) = units.map.get_mut(&id) {
             slot.1 = retire;
@@ -1001,26 +1036,64 @@ impl ConfigService {
 
     /// Each singleton head and whether the validator accepts it today
     /// (boot-time apply: a guardrail tightened after a save must not crash
-    /// the daemon).
+    /// the daemon). Each kind is judged on its own (A-1, QA-3): a head that
+    /// does not decode is reported for that kind and left out of the
+    /// candidate, and a refusal counts against a kind only through the
+    /// violations that name it (or name no object at all).
     pub(crate) fn boot_heads(&self, tx: &Tx<'_>) -> Result<Vec<BootRow>, ConfigError> {
-        let heads = self.heads(tx)?;
-        let units = Units::load(tx.conn())?;
-        let mut out = Vec::new();
+        let mut heads = Heads::default();
+        let mut rows = Vec::new();
         for kind in ConfigKind::SINGLETONS {
             let key = ObjectKey::singleton(kind);
-            let Some((meta, _)) = persist::head(tx.conn(), key)? else {
-                out.push((key, None));
-                continue;
+            let row = match persist::head(tx.conn(), key)? {
+                None => Err(None),
+                Some((meta, json)) => match self.load(&meta, &json) {
+                    Ok(doc) => {
+                        heads.set(doc.clone());
+                        Ok((meta.revision, doc))
+                    }
+                    Err(e) => Err(Some((meta.revision, e.to_string()))),
+                },
             };
-            let Some(doc) = heads.get(kind) else {
-                out.push((key, None));
-                continue;
+            rows.push((key, row));
+        }
+        let units = Units::load(tx.conn())?;
+        let mut out = Vec::new();
+        for (key, row) in rows {
+            let verdict = match row {
+                Err(None) => BootVerdict::Unconfigured,
+                Err(Some((revision, reason))) => BootVerdict::Error { revision, reason },
+                Ok((revision, doc)) => {
+                    match self.validate(&heads, &units, &Change::Save { key, doc: &doc }) {
+                        Ok(()) => BootVerdict::Checked {
+                            revision,
+                            doc,
+                            verdict: Ok(()),
+                        },
+                        Err(ConfigError::Refused(r)) => {
+                            let mine: Vec<Violation> = r
+                                .violations()
+                                .iter()
+                                .filter(|v| {
+                                    v.objects.is_empty()
+                                        || v.objects.iter().any(|o| o.kind == key.kind)
+                                })
+                                .cloned()
+                                .collect();
+                            BootVerdict::Checked {
+                                revision,
+                                doc,
+                                verdict: Refusal::check(mine),
+                            }
+                        }
+                        Err(e) => BootVerdict::Error {
+                            revision,
+                            reason: e.to_string(),
+                        },
+                    }
+                }
             };
-            let verdict = self.validator.validate(
-                &heads.snapshot(&units, &*self.catalog),
-                &Change::Save { key, doc: &doc },
-            );
-            out.push((key, Some((meta.revision, doc, verdict))));
+            out.push((key, verdict));
         }
         Ok(out)
     }

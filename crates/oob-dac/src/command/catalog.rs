@@ -257,7 +257,9 @@ impl CatalogEntry for OperationKind {
 }
 
 /// Define Operations, auto-generated types: operations the DAC schedules
-/// itself (their cadences are runtime settings, #25).
+/// itself. Their cadences are meant to be runtime settings, but no
+/// configuration kind holds them yet (#25 stores five other kinds; a later
+/// issue adds them).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AutoOp {
     /// Global Authorization Refresh.

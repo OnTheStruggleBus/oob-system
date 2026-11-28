@@ -47,8 +47,9 @@
 //! `Command::Admin(AdminOp)` (configuration saves) by adding a variant and
 //! registering a handler that wraps or delegates to the previous one (the
 //! slot holds one handler, and the default answers
-//! [`ControlCommand::Ping`]). `dispatch` does not change: owner role, guest
-//! refusal and audit from #23 then apply to config saves.
+//! [`ControlCommand::Ping`]), so owner role, guest refusal and audit from
+//! #23 apply to config saves. `dispatch` gained one `Command::Admin` arm,
+//! which only records the audit target before taking the same seam.
 //! [`ControlCommand`] is the stub that proves the path today.
 //!
 //! #25 landed that variant: `Command::Admin(`[`AdminOp`]`)` carries every
@@ -672,7 +673,9 @@ impl fmt::Display for CommandError {
 
 impl std::error::Error for CommandError {}
 
-/// Bus tunables (runtime settings, #25).
+/// Bus tunables. Meant to be runtime settings, but no configuration kind
+/// holds them yet (#25 stores five other kinds; a later issue adds them):
+/// code defaults until then.
 #[derive(Debug, Clone)]
 pub struct BusConfig {
     /// How long after its release time a PDU whose first packet has not been
@@ -1071,8 +1074,8 @@ impl CommandBus {
                 self.handler.handle(ctx, cmd)
             }
             // The seam: every command not matched above is non-PDU. It gets
-            // the same policy check and goes to the handler, so a new
-            // non-PDU variant (#25's `Admin`) needs no change here. Fail-safe:
+            // the same policy check and goes to the handler (the `Admin` arm
+            // above takes the same route after recording its target). Fail-safe:
             // the default handler refuses what it does not know. (The lint
             // fires only while every variant is matched above; `Command` is
             // `#[non_exhaustive]` for other crates, not for this one.)

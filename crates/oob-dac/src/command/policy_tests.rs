@@ -1635,3 +1635,139 @@ fn rolling_a_unit_back_to_a_sacrificial_revision_needs_the_mark_token() {
         )
         .unwrap();
 }
+
+impl Fix {
+    fn retire(&self, id: u32) {
+        self.bus
+            .submit(&owner(), Command::Admin(AdminOp::UnitRetire(tid(id))))
+            .unwrap();
+    }
+}
+
+#[test]
+fn qa5_a_retired_unit_gets_no_token_and_passes_no_destructive_check() {
+    let f = fix();
+    let cdl = TokenTarget::Terminal(tid(1)); // the sacrificial unit
+    let t = f.issue(DestructiveOp::CodeDownloadEnable, cdl.clone());
+    let cold = f.issue(DestructiveOp::ColdInitialize, TokenTarget::Terminal(tid(1)));
+    f.retire(1);
+    // A token issued before the retire is not spent by a retired target.
+    assert_eq!(
+        rule(f.policy.authorize(
+            &with(owner(), &t),
+            DestructiveOp::CodeDownloadEnable,
+            cdl.clone()
+        )),
+        "terminal-retired"
+    );
+    // The bus resolved the unit before it was retired (a stale ref).
+    assert_eq!(
+        rule(f.policy.check(
+            &with(owner(), &cold),
+            &term(TerminalOp::ColdInitialize, 1),
+            &refs(&[1], &[1])
+        )),
+        "terminal-retired"
+    );
+    assert_eq!(f.unspent(), 2, "a refusal spends no token");
+    // And no new token is issued for it.
+    let req = TokenRequest {
+        op: DestructiveOp::CodeDownloadEnable,
+        target: cdl.clone(),
+        confirm_text: confirmation_phrase(DestructiveOp::CodeDownloadEnable, &cdl),
+    };
+    assert_eq!(
+        rule(f.policy.issue_token(&owner(), &req)),
+        "terminal-retired"
+    );
+    // A bulk plan with one retired member is refused too.
+    let plan = refs(&[], &[1, 2]);
+    let bulk = DefineOperation::new(OperationKind::Terminal(TerminalOp::Initialize), Target::All)
+        .execute();
+    let pt = f.issue(
+        DestructiveOp::Initialize,
+        TokenTarget::Plan(plan_digest(TerminalOp::Initialize.name(), &plan)),
+    );
+    assert_eq!(
+        rule(
+            f.policy
+                .check(&with(owner(), &pt), &Command::Operation(bulk), &plan)
+        ),
+        "terminal-retired"
+    );
+}
+
+#[test]
+fn qa9_a4_any_sacrificial_change_keeps_the_destructive_door_gate() {
+    let f = fix();
+    // Unmarking terminal 1 from the billing or WireLink door is refused.
+    for door in [FrontDoor::Billing, FrontDoor::WireLinkWire] {
+        assert_eq!(
+            bus_rule(f.mark(&ctx_as(Role::Owner, door), 1, false)),
+            "owner-required"
+        );
+    }
+    // Marking from the DAC's own timers: the destructive-class rule.
+    assert_eq!(
+        bus_rule(f.mark(&ctx_as(Role::Owner, FrontDoor::Auto), 2, true)),
+        "system-cannot-originate"
+    );
+    // A plain configuration change from the timers stays owner-required.
+    // Terminal 2's row has no revision yet, and an unknown base counts as
+    // an unmark (gated), so give it one first.
+    f.mark(&owner(), 2, false).unwrap();
+    let Command::Admin(AdminOp::UnitUpdate { id, mut doc, base }) = f.mark_cmd(2, false) else {
+        unreachable!()
+    };
+    doc.account_number = Some("Y".into());
+    let plain_now = Command::Admin(AdminOp::UnitUpdate { id, doc, base });
+    assert_eq!(
+        bus_rule(
+            f.bus
+                .submit(&ctx_as(Role::Owner, FrontDoor::Auto), plain_now.clone())
+        ),
+        "owner-required"
+    );
+    // The owner through the WireLink door may make a plain change.
+    f.bus
+        .submit(&ctx_as(Role::Owner, FrontDoor::WireLinkWire), plain_now)
+        .unwrap();
+    // Unmarking through REST is still owner-only, no token.
+    f.mark(&owner(), 1, false).unwrap();
+}
+
+#[test]
+fn qa10_a_mark_that_cannot_commit_spends_no_token() {
+    let f = fix();
+    f.mark(&owner(), 2, false).unwrap(); // revision 1
+    let t = f.issue(
+        DestructiveOp::MarkSacrificial,
+        TokenTarget::Terminal(tid(2)),
+    );
+    let Command::Admin(AdminOp::UnitUpdate { id, doc, .. }) = f.mark_cmd(2, true) else {
+        unreachable!()
+    };
+    // A stale base (and a future one) is refused before the spend.
+    for stale in [BaseRevision::None, BaseRevision::At(5)] {
+        let cmd = Command::Admin(AdminOp::UnitUpdate {
+            id,
+            doc: doc.clone(),
+            base: stale,
+        });
+        assert_eq!(bus_rule(f.bus.submit(&with(owner(), &t), cmd)), "conflict");
+        assert_eq!(f.unspent(), 1, "the token was spent on a doomed change");
+    }
+    // A retired unit likewise.
+    f.retire(2);
+    assert_eq!(
+        bus_rule(f.mark(&with(owner(), &t), 2, true)),
+        "terminal-retired"
+    );
+    assert_eq!(f.unspent(), 1);
+    f.bus
+        .submit(&owner(), Command::Admin(AdminOp::UnitReinstate(tid(2))))
+        .unwrap();
+    // The right base then succeeds with the same token.
+    f.mark(&with(owner(), &t), 2, true).unwrap();
+    assert_eq!(f.unspent(), 0);
+}

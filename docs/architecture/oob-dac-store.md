@@ -105,7 +105,11 @@ they may seed install settings (#23 seeds the sacrificial-only CDL lock),
 but never a row in a box-identifying table. Those tables are listed in
 `store::BOX_IDENTIFYING` (today only `terminal`), and a test checks that a
 fresh store has none of their rows and that no migration inserts into
-them. Unit addresses and serials identify real boxes, so they live only in
+them. Since #25, shared tables also hold per-box records at row level:
+unit revisions in `config_revision` and the unit journal rows in
+`audit_log` (a unit's operational record, keyed by terminal ID, without
+unit address or serial). They are listed in `store::BOX_IDENTIFYING_ROWS`
+as (table, condition), and a test checks that a seeded store has none. Unit addresses and serials identify real boxes, so they live only in
 the store file (ADR-003 §4).
 
 ## The outbox

@@ -13,8 +13,8 @@
 //! (r4 F4-4); a record in the store is the precondition for targeting a
 //! box, not a claim that the box has it.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::command::CommandContext;
 use crate::store::{AuditEntry, StoreError, StoreHandle, TerminalId, Tx};
@@ -25,7 +25,9 @@ use super::check::{ConfigValidator, NewUnit, Refusal};
 use super::doc::{self, Doc, UnitDoc};
 use super::key::{BaseRevision, ConfigKind, ObjectKey};
 use super::seed::{SeedBundle, SeedReport};
-use super::{Actor, ConfigError, ConfigLimits, ConfigService, Saved, Written, persist};
+use super::{
+    Actor, BootVerdict, ConfigError, ConfigLimits, ConfigService, Saved, Written, persist,
+};
 
 /// One singleton save inside a batch.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,6 +197,13 @@ pub enum BootStatus {
     Invalid(Refusal),
     /// The head was handed to the applier.
     Applied(ApplyStatus),
+    /// The head could not be read (a newer document schema, damage) or the
+    /// validator failed on it. It was **not** applied; the other kinds are
+    /// unaffected (QA-3).
+    Error {
+        /// Why.
+        reason: String,
+    },
 }
 
 /// One singleton's boot result.
@@ -221,6 +230,8 @@ pub struct ConfigAdmin {
     service: Arc<ConfigService>,
     applier: Arc<dyn ConfigApplier>,
     journal_failures: AtomicU64,
+    /// Held across commit and apply (QA-2).
+    apply_order: Mutex<()>,
 }
 
 impl std::fmt::Debug for ConfigAdmin {
@@ -256,6 +267,7 @@ impl ConfigAdmin {
             service: Arc::new(service),
             applier,
             journal_failures: AtomicU64::new(0),
+            apply_order: Mutex::new(()),
         }
     }
 
@@ -290,8 +302,26 @@ impl ConfigAdmin {
     ///
     /// [`ConfigError`]; a refusal writes nothing.
     pub fn seed_if_empty(&self, bundle: &SeedBundle) -> Result<SeedReport, ConfigError> {
-        let bundle = bundle.clone();
-        self.txn(move |svc, tx| svc.seed_if_empty(tx, &bundle))
+        let owned = bundle.clone();
+        let result = self.txn(move |svc, tx| svc.seed_if_empty(tx, &owned));
+        if let Err(e) = &result
+            && let Some(outcome) = refusal_outcome(e)
+        {
+            // A refused seed bypasses the bus, so this is its only audit
+            // row (QA-7).
+            let who = Actor::seed(&bundle.sha256());
+            self.journal(AuditEntry {
+                actor: who.actor,
+                role: who.role,
+                front_door: who.front_door,
+                command: "config.seed".to_owned(),
+                target: Some("seed".to_owned()),
+                outcome,
+                before: None,
+                after: Some(doc::canonical(bundle)),
+            });
+        }
+        result
     }
 
     /// Boot-time apply: every singleton head that today's validator
@@ -302,21 +332,39 @@ impl ConfigAdmin {
     ///
     /// [`ConfigError`] if the store cannot be read.
     pub fn boot(&self) -> Result<Vec<BootHead>, ConfigError> {
+        // Apply in revision order with any concurrent save (QA-2).
+        let _order = self
+            .apply_order
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         let heads = self.txn(|svc, tx| svc.boot_heads(tx))?;
         Ok(heads
             .into_iter()
-            .map(|(key, head)| match head {
-                None => BootHead {
+            .map(|(key, verdict)| match verdict {
+                BootVerdict::Unconfigured => BootHead {
                     key,
                     revision: None,
                     status: BootStatus::Unconfigured,
                 },
-                Some((revision, _, Err(refusal))) => BootHead {
+                BootVerdict::Error { revision, reason } => BootHead {
+                    key,
+                    revision: Some(revision),
+                    status: BootStatus::Error { reason },
+                },
+                BootVerdict::Checked {
+                    revision,
+                    verdict: Err(refusal),
+                    ..
+                } => BootHead {
                     key,
                     revision: Some(revision),
                     status: BootStatus::Invalid(refusal),
                 },
-                Some((revision, doc, Ok(()))) => BootHead {
+                BootVerdict::Checked {
+                    revision,
+                    doc,
+                    verdict: Ok(()),
+                } => BootHead {
                     key,
                     revision: Some(revision),
                     status: BootStatus::Applied(self.applier.apply(key, &doc, revision)),
@@ -344,6 +392,13 @@ impl ConfigAdmin {
         ctx: &CommandContext,
         op: &AdminOp,
     ) -> Result<AdminOutcome, ConfigError> {
+        // Commit and apply happen in one critical section, so revisions
+        // reach the applier in the order they commit (QA-2). The applier
+        // runs off the writer thread, so it may read the store.
+        let _order = self
+            .apply_order
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         let c = ctx.clone();
         let result = match op.clone() {
             AdminOp::ConfigSave { key, doc, base } => self
@@ -381,26 +436,31 @@ impl ConfigAdmin {
                     changed,
                 }),
         };
-        if let Err(ConfigError::Refused(r)) = &result {
-            self.journal_refusal(ctx, op, r);
+        if let Err(e) = &result
+            && let Some(outcome) = refusal_outcome(e)
+        {
+            self.journal_refusal(ctx, op, outcome);
         }
         result
     }
 
     /// A refusal stores nothing, so its journal row is written in its own
     /// transaction: the target, the rules, and the proposal it refused.
-    fn journal_refusal(&self, ctx: &CommandContext, op: &AdminOp, r: &Refusal) {
+    fn journal_refusal(&self, ctx: &CommandContext, op: &AdminOp, outcome: String) {
         let who = Actor::of(ctx);
-        let entry = AuditEntry {
+        self.journal(AuditEntry {
             actor: who.actor,
             role: who.role,
             front_door: who.front_door,
             command: op.journal_command().to_owned(),
             target: op.target(),
-            outcome: format!("refused:{}", r.rules().join(",")),
+            outcome,
             before: None,
             after: Some(op.proposal()),
-        };
+        });
+    }
+
+    fn journal(&self, entry: AuditEntry) {
         if self
             .store
             .call_blocking(move |s| s.write(|tx| tx.append_audit(&entry).map(|_| ())))
@@ -411,44 +471,84 @@ impl ConfigAdmin {
     }
 }
 
-fn unit_doc_at(tx: &Tx<'_>, id: TerminalId, n: u32) -> Result<Option<UnitDoc>, StoreError> {
+/// The journal outcome for a refused change: `refused:<rules>` for a
+/// validator refusal, `refused:<reason>` for every other refusal. `None`
+/// for a store failure, where nothing was decided about the change.
+fn refusal_outcome(e: &ConfigError) -> Option<String> {
+    match e {
+        ConfigError::Store(_) => None,
+        ConfigError::Refused(r) => Some(format!("refused:{}", r.rules().join(","))),
+        e => Some(format!("refused:{}", e.reason())),
+    }
+}
+
+/// A unit's document at revision `n`: `Ok(None)` when there is no such
+/// revision, `Ok(Some(None))` when it exists but does not decode.
+fn unit_doc_at(tx: &Tx<'_>, id: TerminalId, n: u32) -> Result<Option<Option<UnitDoc>>, StoreError> {
     let Some((meta, json)) = persist::revision(tx.conn(), ObjectKey::unit(id), n)? else {
         return Ok(None);
     };
     let kind = ConfigKind::Unit;
-    Ok(doc::upgrade(
-        kind,
-        meta.doc_schema,
-        doc::doc_schema(kind),
-        &json,
-        doc::UPGRADES,
-    )
-    .ok()
-    .and_then(|d| d.as_unit().cloned()))
+    Ok(Some(
+        doc::upgrade(
+            kind,
+            meta.doc_schema,
+            doc::doc_schema(kind),
+            &json,
+            doc::UPGRADES,
+        )
+        .ok()
+        .and_then(|d| d.as_unit().cloned()),
+    ))
 }
 
-/// Whether the base revision the caller edited already had the unit
-/// sacrificial. Unknown (no base, missing or undecodable) reads as `false`,
-/// so the policy asks for a token: fail closed.
-fn base_sacrificial(tx: &Tx<'_>, id: TerminalId, base: BaseRevision) -> Result<bool, StoreError> {
+/// The sacrificial flag in the base revision the caller edited, or `None`
+/// when it is unknown (no base, missing or undecodable).
+fn base_sacrificial(
+    tx: &Tx<'_>,
+    id: TerminalId,
+    base: BaseRevision,
+) -> Result<Option<bool>, StoreError> {
     Ok(match base {
-        BaseRevision::None => false,
-        BaseRevision::At(n) => unit_doc_at(tx, id, n)?.is_some_and(|d| d.sacrificial),
+        BaseRevision::None => None,
+        BaseRevision::At(n) => unit_doc_at(tx, id, n)?.flatten().map(|d| d.sacrificial),
     })
 }
 
-/// The unit an op would turn sacrificial, if any (the `mark-sacrificial`
-/// D-hard class, #23). Decided against the **base** revision, which is
-/// immutable history; the save itself refuses a base that is no longer the
-/// head, so the transition the policy priced is the one that commits.
-pub(crate) fn marks_sacrificial(
+/// How an admin op changes a unit's sacrificial flag (#23 classes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SacrificialChange {
+    /// It does not touch the flag.
+    None,
+    /// It turns the unit sacrificial: D-hard `mark-sacrificial`.
+    Mark(TerminalId),
+    /// It clears the flag: owner through REST or Lab, no token.
+    Unmark(TerminalId),
+}
+
+fn change_of(id: TerminalId, was: Option<bool>, now: bool) -> SacrificialChange {
+    match (was, now) {
+        (Some(true), true) | (Some(false), false) => SacrificialChange::None,
+        // Unknown base: fail closed (a token to mark, the door to unmark).
+        (_, true) => SacrificialChange::Mark(id),
+        (_, false) => SacrificialChange::Unmark(id),
+    }
+}
+
+/// What an op does to a unit's sacrificial flag. Decided against the
+/// **base** revision, which is immutable history; the save refuses a base
+/// that is no longer the head, so the transition the policy priced is the
+/// one that commits.
+pub(crate) fn sacrificial_change(
     tx: &Tx<'_>,
     op: &AdminOp,
-) -> Result<Option<TerminalId>, StoreError> {
+) -> Result<SacrificialChange, StoreError> {
     match op {
-        AdminOp::UnitUpdate { id, doc, base } if doc.sacrificial => {
-            Ok((!base_sacrificial(tx, *id, *base)?).then_some(*id))
-        }
+        AdminOp::UnitUpdate { id, doc, base } => Ok(change_of(
+            *id,
+            base_sacrificial(tx, *id, *base)?,
+            doc.sacrificial,
+        )),
         AdminOp::ConfigRollback {
             key:
                 ObjectKey {
@@ -457,11 +557,53 @@ pub(crate) fn marks_sacrificial(
                 },
             to,
             base,
-        } => {
-            // An undecodable target fails closed: it may be sacrificial.
-            let target = unit_doc_at(tx, *id, *to)?.is_none_or(|d| d.sacrificial);
-            Ok((target && !base_sacrificial(tx, *id, *base)?).then_some(*id))
-        }
-        _ => Ok(None),
+        } => Ok(match unit_doc_at(tx, *id, *to)? {
+            // No such revision: the rollback fails unknown-revision and
+            // cannot commit later either (its base would be stale).
+            None => SacrificialChange::None,
+            // Undecodable: it may be sacrificial (fail closed).
+            Some(target) => change_of(
+                *id,
+                base_sacrificial(tx, *id, *base)?,
+                target.is_none_or(|d| d.sacrificial),
+            ),
+        }),
+        _ => Ok(SacrificialChange::None),
     }
+}
+
+/// Why a unit change cannot commit, checked in the token's spend
+/// transaction so a doomed change spends nothing (QA-10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Doomed {
+    /// The base revision is not the head.
+    Conflict,
+    /// The unit is retired.
+    Retired,
+    /// No such unit.
+    Unknown,
+}
+
+pub(crate) fn admin_precheck(tx: &Tx<'_>, op: &AdminOp) -> Result<Option<Doomed>, StoreError> {
+    let (id, base) = match op {
+        AdminOp::UnitUpdate { id, base, .. } => (*id, *base),
+        AdminOp::ConfigRollback {
+            key:
+                ObjectKey {
+                    kind: ConfigKind::Unit,
+                    object_id: Some(id),
+                },
+            base,
+            ..
+        } => (*id, *base),
+        _ => return Ok(None),
+    };
+    let Some(row) = crate::store::terminal_of(tx.conn(), id)? else {
+        return Ok(Some(Doomed::Unknown));
+    };
+    if row.retired_utc.is_some() {
+        return Ok(Some(Doomed::Retired));
+    }
+    let head = persist::head(tx.conn(), ObjectKey::unit(id))?.map(|(m, _)| m.revision);
+    Ok((BaseRevision::of(head) != base).then_some(Doomed::Conflict))
 }

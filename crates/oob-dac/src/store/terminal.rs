@@ -96,7 +96,11 @@ impl UnitAddress {
     /// `check` in three digits.
     pub fn new(address: u64, check: u16) -> Result<Self, StoreError> {
         if address > Self::MAX || check > 999 {
-            return Err(invalid(format!("unit address {address}/{check}")));
+            // Never echo the value: unit addresses are box-identifying
+            // (ADR-003 §4, #25 QA-8).
+            return Err(invalid(
+                "unit address: want a 40-bit address and 3 check digits".into(),
+            ));
         }
         Ok(Self { address, check })
     }
@@ -133,18 +137,17 @@ impl FromStr for UnitAddress {
         let shape_ok = parts.iter().map(|p| p.len()).eq([3, 5, 5, 3])
             && parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit()));
         if !shape_ok {
-            return Err(invalid(format!("unit address {s:?}")));
+            return Err(invalid(UA_SHAPE.into()));
         }
         let digits = parts[..3].concat();
-        let address = digits
-            .parse()
-            .map_err(|_| invalid(format!("unit address {s:?}")))?;
-        let check = parts[3]
-            .parse()
-            .map_err(|_| invalid(format!("unit address {s:?}")))?;
+        let address = digits.parse().map_err(|_| invalid(UA_SHAPE.into()))?;
+        let check = parts[3].parse().map_err(|_| invalid(UA_SHAPE.into()))?;
         Self::new(address, check)
     }
 }
+
+/// The unit-address shape, named in errors instead of the rejected value.
+const UA_SHAPE: &str = "unit address: want nnn-nnnnn-nnnnn-nnn (16 digits)";
 
 fn invalid(what: String) -> StoreError {
     StoreError::Constraint(ConstraintKind::Invalid(what))
@@ -217,7 +220,8 @@ impl NewTerminal {
     /// Checks every field's domain (serial shape, dates, IP address).
     pub(crate) fn validate(&self) -> Result<(), StoreError> {
         if self.serial.len() != 12 || !self.serial.bytes().all(|b| b.is_ascii_alphanumeric()) {
-            return Err(invalid(format!("serial {:?}", self.serial)));
+            // Never echo the value: serials are box-identifying (QA-8).
+            return Err(invalid("serial: want 12 ASCII alphanumerics".into()));
         }
         if self.box_type.is_empty() {
             return Err(invalid("empty box type".into()));

@@ -210,8 +210,9 @@ impl TableVersions {
 
     /// Everything needed to restore this set after a restart: each table
     /// with its version and last-emitted section bytes, in table order.
-    /// oob-dac (#25) stores this and feeds it to [`TableVersions::from_parts`];
-    /// until #25 lands, persistence is the caller's job. Without a restore a
+    /// oob-dac's store keeps it (#25 added the table) and the daemon (#29)
+    /// wires the save and the restore through [`TableVersions::from_parts`];
+    /// until #29 lands, persistence is the caller's job. Without a restore a
     /// restart would re-emit a changed table at version 0, which a box that
     /// cached that version could ignore.
     pub fn snapshot(&self) -> Vec<TableVersionEntry> {

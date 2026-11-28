@@ -223,7 +223,7 @@ recognise as a PDU command** down the non-PDU route (a final wildcard arm),
 and the default handler refuses what it does not know. #25 adds
 `Command::Admin(AdminOp)` for configuration saves by adding the variant and
 registering a handler, so owner role, guest refusal and audit from #23 apply
-to config saves with no change to `dispatch`. There is one handler slot and
+to config saves; `dispatch` gains one arm that records the audit target. There is one handler slot and
 registering replaces the built-in handler (which answers `Ping`), so #25's
 handler wraps or delegates to it.
 `ControlCommand` (`Ping`, `Cancel`) is the stub that proves the path;
@@ -244,7 +244,7 @@ store's code. See [the configuration store](oob-dac-config.md).
 | --- | --- |
 | catalog sets and support status, the lifecycle table, the 250 ms minimum | 3 (code) |
 | per-operation `delay_between`, `repeat_every`, `run_for`, targets, filters | runtime command parameters (Layer 1, audited by #23) |
-| `BusConfig` (`pdu_deadline`, `queue_full_retries`) | Layer 1 settings once #25 stores them; code defaults until then |
+| `BusConfig` (`pdu_deadline`, `queue_full_retries`) | meant to be Layer 1, but no configuration kind holds them yet (#25 stores five kinds; a later issue, to be shaped by oob-po, adds them); code defaults until then |
 
 ## Not built yet
 

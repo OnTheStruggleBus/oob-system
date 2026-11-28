@@ -61,11 +61,16 @@ ALTER TABLE terminal ADD COLUMN retired_utc TEXT
 -- Precious. oob-mux's per-table PSI version counters and last-emitted
 -- section bytes (#17 TableVersions::snapshot), so a restart continues the
 -- mod-32 version count instead of re-emitting a changed table at version 0.
--- kind is the table kind's name as the daemon (#29) writes it. Rows are
--- upserted and never pruned: a retired table keeps its version so a re-add
--- continues the count, and the set is bounded by the number of table kinds.
+-- kind is 'pat', 'cat' or 'pmt:<program_number>' (store::psi_kind; the
+-- daemon, #29, writes it). Rows are upserted and never pruned: a retired
+-- table keeps its version so a re-add continues the count, and the set is
+-- bounded by two plus the program numbers ever used.
 CREATE TABLE psi_table_version (
-    kind        TEXT    PRIMARY KEY CHECK (length(kind) > 0),
+    kind        TEXT    PRIMARY KEY
+                CHECK (kind IN ('pat', 'cat')
+                       OR (kind GLOB 'pmt:[1-9]*' AND substr(kind, 5) NOT GLOB '*[^0-9]*'
+                           AND length(kind) <= 9
+                           AND CAST(substr(kind, 5) AS INTEGER) <= 65535)),
     version     INTEGER NOT NULL CHECK (version BETWEEN 0 AND 31),
     bytes       BLOB    NOT NULL,
     retired     INTEGER NOT NULL CHECK (retired IN (0, 1)),

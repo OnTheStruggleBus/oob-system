@@ -102,6 +102,22 @@ pub const TABLES: &[TableClass] = &[
 /// A later table holding box-identifying data joins this list.
 pub const BOX_IDENTIFYING: &[&str] = &["terminal"];
 
+/// Rows of shared tables that hold per-box records (A-3 on #87): a unit's
+/// operational record (box type, account number, IP address, BSI name,
+/// sacrificial flag), keyed by terminal ID, in its configuration revisions
+/// and in the journal's before and after documents. `(table, SQL WHERE
+/// condition)`. No unit address or serial is in them, but they are box
+/// instances: no seed may write them, a fresh or seeded store has none, and
+/// export and seed work (#24, #30) treats them like [`BOX_IDENTIFYING`].
+pub const BOX_IDENTIFYING_ROWS: &[(&str, &str)] = &[
+    ("config_revision", "kind = 'unit'"),
+    (
+        "audit_log",
+        "command IN ('unit.enroll', 'unit.update', 'unit.retire', 'unit.reinstate') \
+         OR (command = 'config.rollback' AND target LIKE 'unit/%')",
+    ),
+];
+
 /// The registry entry for `name`, if any.
 pub fn class_of(name: &str) -> Option<&'static TableClass> {
     TABLES.iter().find(|t| t.name == name)

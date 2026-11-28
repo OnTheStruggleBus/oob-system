@@ -77,10 +77,18 @@ Migration `0003_config` adds them (see [the store](oob-dac-store.md)).
 - **`psi_table_version`** (Precious): the #17 hand-off. The daemon stores
   oob-mux's per-table PSI `version_number` and last-emitted bytes, so a
   restart continues the mod-32 count instead of re-emitting a changed table at
-  version 0. **Pruning policy: none.** Rows are upserted and never deleted; a
-  table that left the plan keeps its version (`retired`) so a re-add
-  continues the count, and the set is bounded by the number of PSI table
-  kinds. An explicit owner reset is the only future way to drop one.
+  version 0. `kind` is `pat`, `cat` or `pmt:<program_number>` (1 to 65535,
+  decimal, no leading zero; `store::psi_kind`, also a schema `CHECK`).
+  **Pruning policy: none.** Rows are upserted and never deleted; a table that
+  left the plan keeps its version (`retired`) so a re-add continues the
+  count, and the set is bounded by two plus the program numbers ever used. An
+  explicit owner reset is the only future way to drop one. This PR adds the
+  storage only; the daemon (#29) wires the save on emit and the restore at
+  start.
+- **Box records at row level.** Unit revisions in `config_revision` and the
+  unit journal rows in `audit_log` hold per-box records (without unit address
+  or serial). They are registered in `store::BOX_IDENTIFYING_ROWS`, and a
+  seeded store has none (tested).
 
 ## The journal
 
@@ -103,9 +111,14 @@ part of the unit document.
 | `unit.reinstate` | a reinstate (likewise) |
 
 A refusal stores nothing, so its journal row is written in its own
-transaction: the same command and target, outcome `refused:<rule,rule…>`, and
-the refused proposal as `after`. The bus also writes its usual policy audit
-row for every outcome (#23).
+transaction. **Every** refused change gets one, whichever check refused it:
+the same command and target, outcome `refused:<rule,rule…>` for a validator
+refusal or `refused:<code>` for any other (`conflict`, `unknown-box-type`,
+`sacrificial-at-enroll`, `doc-too-large`, …), and the refused proposal as
+`after`. A store failure (`store-error`) gets none, since nothing was decided.
+The bus also writes its usual policy audit row for every outcome (#23). A
+refused **seed**, which does not pass through the bus, gets a `config.seed`
+row with the seed's actor and the bundle as `after`, its only audit row.
 
 ## The save sequence
 
@@ -119,9 +132,18 @@ store has one writer, so saves serialize):
 2. **Unchanged?** A document whose digest equals the head's writes nothing and
    returns `Unchanged`; the applier is not called.
 3. **Candidate.** The current heads with the change applied, plus every unit
-   record.
+   record with the change applied (an enroll's new unit has no ID yet, so it
+   is in the `Change`, not in the unit view). A head the change replaces is
+   not decoded, so a head that no longer decodes (a newer document schema
+   after a downgrade, or damage) can still be replaced or rolled back; any
+   other head must decode, or the change fails closed
+   (`doc-schema-too-new`, `doc-undecodable`), so no rule is skipped
+   silently.
 4. **Validate.** The mandatory validator sees the **whole candidate** and the
-   change. A refusal (`config-refused`) stores nothing.
+   change. A refusal (`config-refused`) stores nothing. A validator panic is
+   contained (`validator-panic`): the change is refused and the store's
+   single writer keeps serving; an upgrade step that panics reads as
+   `doc-undecodable`.
 5. **Write**: the journal row, the `config_revision` row (`head + 1`), and the
    outbox event `ConfigSaved`, together. The commit is the outcome. A failure
    anywhere rolls all of it back (tested by fault injection after the
@@ -131,10 +153,12 @@ store has one writer, so saves serialize):
    and the result is returned beside the revision ("saved, not applied:
    reason"). **A failed apply never un-saves**: the previous good
    configuration keeps running, and the daemon's head-versus-applied metrics
-   show the divergence.
+   show the divergence. Commit and apply run in one critical section of the
+   runtime (boot included), so revisions reach the applier in the order they
+   commit.
 
 A **batch** saves several singletons validated as one candidate, all or
-nothing; a key may appear once.
+nothing; a key may appear once. Its results come back in submission order.
 
 ## Rollback
 
@@ -215,14 +239,21 @@ so the [policy layer](oob-dac-policy.md) applies:
 
 | Op | Needs |
 | --- | --- |
-| `config-save`, `config-save-batch`, `config-rollback`, `unit-enroll`, `unit-update` | the owner role (an operator is refused `owner-required`, a guest `guest-read-only`; the DAC's own timers cannot originate one) |
-| `unit-update` or a unit `config-rollback` that turns a unit sacrificial | also the D-hard `mark-sacrificial` token bound to the terminal, through the REST or Lab door |
-| `unit-retire`, `unit-reinstate`, unmarking sacrificial | the owner role only: store-only and reversible |
+| every `Command::Admin` op | the owner role (an operator is refused `owner-required`, a guest `guest-read-only`; from the DAC's own timers `owner-required`) |
+| `unit-update` or a unit `config-rollback` that turns a unit sacrificial | also the REST or Lab door and the D-hard `mark-sacrificial` token bound to the terminal; from the timers `system-cannot-originate` |
+| one that clears the flag (unmarking) | also the REST or Lab door, as the destructive classes have; no token |
+| `unit-retire`, `unit-reinstate` | the owner role only: store-only and reversible |
 
 Whether a change marks a unit is decided against the **base revision** the
 caller edited, which is immutable history; the save refuses a base that is no
 longer the head, so the transition the policy priced is the one that commits.
-An unknown base fails closed (a token is required). Lowering budgets or
+An unknown base fails closed (a token to mark, the door gate to unmark).
+Before the token is spent, the same transaction checks that the change can
+still commit: a stale base (`conflict`), a retired unit (`terminal-retired`)
+or an unknown one (`unknown-terminal`) is refused and spends nothing. A
+validator refusal after the spend still burns the token, as for any
+destructive class (see the [policy layer](oob-dac-policy.md)). Retired units
+pass no destructive check at all (`terminal-retired`). Lowering budgets or
 changing the lineup needs no token: the guardrails protect those, not a typed
 phrase.
 
@@ -242,11 +273,18 @@ the real seed files, the bundle is the fixture
 ## Boot
 
 `ConfigAdmin::boot` hands every singleton head that today's validator accepts
-to the applier. A head that a guardrail tightened since its save now refuses
-is reported `Invalid` with its rules and **not applied**; the daemon serves
-nothing for that subsystem, reports it in health and metrics, and waits for
-the owner to save a fix. It never crash-loops. A fresh store reports every
-kind `Unconfigured`.
+to the applier, judging **each kind on its own**:
+
+- `Invalid` (with its rules): a violation names that kind in its objects, or
+  names no object at all. Violations about other kinds do not hold it back.
+- `Error` (with a reason): the head does not decode (a newer document schema,
+  damage) or the validator panicked on it. It is left out of the candidate.
+- `Unconfigured`: no revision yet.
+
+None of those is applied; the daemon serves nothing for that subsystem,
+reports it in health and metrics, and waits for the owner to save a fix (the
+save works, see step 3). It never crash-loops, and the other kinds are
+applied.
 
 ## Reads
 
@@ -276,4 +314,16 @@ Every refusal has a stable code (`ConfigError::reason`), which is also
 | `terminal-id-exhausted` | all 24-bit terminal IDs are spent |
 | `invalid-field` | a field outside its domain |
 | `doc-undecodable` | a stored document does not decode (damage or a bug) |
+| `validator-panic` | the validator panicked; the change was refused and the writer kept running |
 | `store-error` | the store failed |
+
+## Configuration layer (ADR-003)
+
+| Item | Layer |
+| --- | --- |
+| the object kinds, document schemas and `doc_schema` versions, error codes, `StructuralValidator` rule IDs, the immutable-identity list, the PSI kind encoding | 3 (code) |
+| the history page ceiling (500 per read; amends design note §8, which listed it as an install setting) | 3 (code) |
+| the box-type catalog contents | 3 (upstream data, read-only in the image) |
+| the document size cap (`ConfigLimits::max_doc_bytes`, default 1 MiB) | install setting (bootstrap configuration, #29) |
+| lineup, PID plan, class budgets, mux settings, unit operational records | 1 (runtime, owner, journaled, revisioned) |
+| bus tunables, token TTL, auto-operation cadences | meant to be 1; no configuration kind holds them yet (a later issue) |

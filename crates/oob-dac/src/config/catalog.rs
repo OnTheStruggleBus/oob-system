@@ -34,8 +34,8 @@ pub trait BoxTypeCatalog: Send + Sync {
     fn digest(&self) -> String;
 }
 
-/// A catalog from a fixed list (tests, doctests, and the daemon before
-/// #30's files exist).
+/// A catalog from a fixed list, for tests and doctests. The daemon loads
+/// the catalog the install shipped with ([`FileCatalog`]).
 #[derive(Debug, Clone)]
 pub struct InMemoryCatalog {
     ids: BTreeSet<String>,

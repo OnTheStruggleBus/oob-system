@@ -1657,25 +1657,52 @@ fn psi_table_versions_upsert_and_are_never_pruned() {
         retired,
     };
     store
-        .write(|tx| tx.save_psi_table_versions(&[row("Pat", 3, false), row("Pmt1", 7, false)]))
+        .write(|tx| tx.save_psi_table_versions(&[row("pat", 3, false), row("pmt:1", 7, false)]))
         .unwrap();
     // Pmt1 left the plan: it is saved retired; a later snapshot without it
     // keeps it.
     store
-        .write(|tx| tx.save_psi_table_versions(&[row("Pat", 4, false), row("Pmt1", 7, true)]))
+        .write(|tx| tx.save_psi_table_versions(&[row("pat", 4, false), row("pmt:1", 7, true)]))
         .unwrap();
     store
-        .write(|tx| tx.save_psi_table_versions(&[row("Pat", 5, false)]))
+        .write(|tx| tx.save_psi_table_versions(&[row("pat", 5, false)]))
         .unwrap();
     assert_eq!(
         reader(&store).psi_table_versions().unwrap(),
-        [row("Pat", 5, false), row("Pmt1", 7, true)]
+        [row("pat", 5, false), row("pmt:1", 7, true)]
     );
     assert!(
         store
-            .write(|tx| tx.save_psi_table_versions(&[row("Cat", 32, false)]))
+            .write(|tx| tx.save_psi_table_versions(&[row("cat", 32, false)]))
             .is_err()
     );
+    // A-9: the kind encoding is defined, in Rust and in the schema.
+    for bad in [
+        "Pat",
+        "pmt:",
+        "pmt:0",
+        "pmt:01",
+        "pmt:65536",
+        "pmt:1x",
+        "nit",
+        "",
+    ] {
+        assert!(!crate::store::psi_kind(bad), "{bad}");
+        assert!(
+            store
+                .write(|tx| tx.save_psi_table_versions(&[row(bad, 1, false)]))
+                .is_err(),
+            "{bad}"
+        );
+        let raw_insert = raw(&dir).execute(
+            "INSERT INTO psi_table_version (kind, version, bytes, retired) VALUES (?1, 1, x'00', 0)",
+            [bad],
+        );
+        assert!(raw_insert.is_err(), "the schema accepted {bad:?}");
+    }
+    for good in ["pat", "cat", "pmt:1", "pmt:65535"] {
+        assert!(crate::store::psi_kind(good), "{good}");
+    }
     let c = class_of("psi_table_version").unwrap();
     assert_eq!(c.durability, Durability::Precious);
 }
@@ -1715,4 +1742,446 @@ fn the_docs_page_carries_every_kind_reason_and_structural_rule() {
             "journal command {cmd} missing"
         );
     }
+}
+
+// ---- review fixes (PR #87) ---------------------------------------------------
+
+/// Writes revision `rev` of `key` straight to the table, as an older or
+/// newer build would have (`schema` is its document schema).
+fn raw_revision(store: &mut Store, key: ObjectKey, rev: u32, json: &str, schema: u32) {
+    let json = json.to_owned();
+    store
+        .write_with(|tx| -> Result<(), ConfigError> {
+            let seq = tx.append_audit(&crate::store::AuditEntry {
+                actor: "other-build".into(),
+                role: "Owner".into(),
+                front_door: "Rest".into(),
+                command: "config.save".into(),
+                target: Some(key.target(rev)),
+                outcome: "ok".into(),
+                before: None,
+                after: Some(json.clone()),
+            })?;
+            persist::insert(
+                tx.conn(),
+                &persist::NewRevision {
+                    key,
+                    revision: rev,
+                    doc: &json,
+                    sha: &doc::sha256_hex(json.as_bytes()),
+                    schema,
+                    origin: Origin::Save,
+                    rolled_back_to: None,
+                    actor: "other-build",
+                    audit_seq: seq,
+                },
+            )?;
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn qa3_an_unreadable_head_can_be_replaced_and_rolled_back_and_boot_isolates_it() {
+    let dir = TempDir::new();
+    let mut store = open(&dir);
+    let svc = structural();
+    store
+        .write_with(|tx| svc.seed_if_empty(tx, &bundle()))
+        .unwrap();
+    // A newer build saved mux_settings at document schema 2.
+    raw_revision(
+        &mut store,
+        MUX,
+        2,
+        &Doc::MuxSettings(mux()).canonical_json(),
+        2,
+    );
+    // Other kinds fail closed: no rule is skipped silently.
+    let e = save(
+        &mut store,
+        &svc,
+        LINEUP,
+        lineup_named("X"),
+        BaseRevision::At(1),
+    )
+    .unwrap_err();
+    assert_eq!(e.reason(), "doc-schema-too-new");
+    // The unreadable kind itself can be replaced and rolled back.
+    let mut fix = mux();
+    fix.pacer.max_pull = 32;
+    assert_eq!(
+        save(
+            &mut store,
+            &svc,
+            MUX,
+            Doc::MuxSettings(fix),
+            BaseRevision::At(2)
+        )
+        .unwrap(),
+        Saved::Revised { revision: 3 }
+    );
+    let mut newer = mux();
+    newer.pacer.max_pull = 48;
+    raw_revision(
+        &mut store,
+        MUX,
+        4,
+        &Doc::MuxSettings(newer).canonical_json(),
+        2,
+    );
+    let w = store
+        .write_with(|tx| svc.rollback(tx, &owner(), MUX, 1, BaseRevision::At(4)))
+        .unwrap();
+    assert_eq!(w.saved, Saved::Revised { revision: 5 });
+    // Boot: only the unreadable kind is held back.
+    raw_revision(
+        &mut store,
+        MUX,
+        6,
+        &Doc::MuxSettings(mux()).canonical_json(),
+        2,
+    );
+    let (handle, _t) = store.spawn_writer(8).unwrap();
+    let admin = ConfigAdmin::from_service(handle, structural(), Arc::new(NoApplier));
+    for b in admin.boot().unwrap() {
+        if b.key == MUX {
+            assert!(
+                matches!(&b.status, BootStatus::Error { reason } if reason.contains("schema")),
+                "{b:?}"
+            );
+            assert_eq!(b.revision, Some(6));
+        } else {
+            assert_eq!(
+                b.status,
+                BootStatus::Applied(ApplyStatus::NotApplicable),
+                "{b:?}"
+            );
+        }
+    }
+}
+
+struct Panics;
+
+impl ConfigValidator for Panics {
+    fn validate(&self, _: &ConfigSnapshot<'_>, _: &Change<'_>) -> Result<(), Refusal> {
+        panic!("validator bug");
+    }
+}
+
+#[test]
+fn qa4_a_validator_panic_refuses_the_change_and_the_writer_keeps_running() {
+    let dir = TempDir::new();
+    let store = open(&dir);
+    let (handle, _t) = store.spawn_writer(8).unwrap();
+    let admin = ConfigAdmin::from_service(
+        handle.clone(),
+        service(Arc::new(Panics)),
+        Arc::new(NoApplier),
+    );
+    let e = admin
+        .run(
+            &owner(),
+            &AdminOp::ConfigSave {
+                key: LINEUP,
+                doc: lineup_named("A"),
+                base: BaseRevision::None,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(e.reason(), "validator-panic");
+    // The single writer still serves every caller.
+    let audit = handle
+        .call_blocking(|s| s.reader()?.audit_records())
+        .unwrap();
+    assert_eq!(
+        audit.len(),
+        1,
+        "the refusal journal row was written by the live writer"
+    );
+    assert_eq!(audit[0].entry.outcome, "refused:validator-panic");
+    handle
+        .call_blocking(|s| s.write(|tx| tx.save_psi_table_versions(&[])))
+        .unwrap();
+    // Boot reports it per kind instead of failing.
+    let svc = service(Arc::new(AllowAll));
+    handle
+        .call_blocking(move |s| {
+            s.write_with(|tx| svc.seed_if_empty(tx, &bundle()))
+                .map_err(|e| StoreError::Corrupt(e.to_string()))
+        })
+        .unwrap();
+    for b in admin.boot().unwrap() {
+        assert!(matches!(b.status, BootStatus::Error { .. }), "{b:?}");
+    }
+}
+
+#[test]
+fn qa6_a_batch_reports_items_in_submission_order() {
+    let dir = TempDir::new();
+    let mut store = open(&dir);
+    let svc = structural();
+    store
+        .write_with(|tx| svc.seed_if_empty(tx, &bundle()))
+        .unwrap();
+    let out = store
+        .write_with(|tx| {
+            svc.save_batch(
+                tx,
+                &owner(),
+                &[
+                    SaveChange {
+                        key: LINEUP,
+                        doc: lineup_named("CHANGED"),
+                        base: BaseRevision::At(1),
+                    },
+                    SaveChange {
+                        key: BUDGETS,
+                        doc: Doc::ClassBudgets(budgets()),
+                        base: BaseRevision::At(1),
+                    },
+                    SaveChange {
+                        key: MUX,
+                        doc: Doc::MuxSettings(mux()),
+                        base: BaseRevision::At(1),
+                    },
+                ],
+            )
+        })
+        .unwrap();
+    let got: Vec<(ObjectKey, Saved)> = out.iter().map(|w| (w.key, w.saved)).collect();
+    assert_eq!(
+        got,
+        [
+            (LINEUP, Saved::Revised { revision: 2 }),
+            (BUDGETS, Saved::Unchanged { revision: 1 }),
+            (MUX, Saved::Unchanged { revision: 1 }),
+        ]
+    );
+}
+
+/// Records the order revisions reach it; the first call is slow.
+struct SlowFirst {
+    calls: Mutex<Vec<u32>>,
+    first: AtomicU64,
+}
+
+impl ConfigApplier for SlowFirst {
+    fn apply(&self, _key: ObjectKey, _doc: &Doc, revision: u32) -> ApplyStatus {
+        if self.first.fetch_add(1, Ordering::SeqCst) == 0 {
+            thread::sleep(std::time::Duration::from_millis(150));
+        }
+        self.calls.lock().unwrap().push(revision);
+        ApplyStatus::Applied
+    }
+}
+
+#[test]
+fn qa2_revisions_reach_the_applier_in_commit_order() {
+    for _ in 0..5 {
+        let dir = TempDir::new();
+        let store = open(&dir);
+        let (handle, _t) = store.spawn_writer(8).unwrap();
+        let applier = Arc::new(SlowFirst {
+            calls: Mutex::new(Vec::new()),
+            first: AtomicU64::new(0),
+        });
+        let admin = Arc::new(ConfigAdmin::from_service(
+            handle,
+            structural(),
+            applier.clone(),
+        ));
+        let save_as = |name: &'static str, base| {
+            let a = admin.clone();
+            thread::spawn(move || {
+                a.run(
+                    &owner(),
+                    &AdminOp::ConfigSave {
+                        key: LINEUP,
+                        doc: lineup_named(name),
+                        base,
+                    },
+                )
+            })
+        };
+        let first = save_as("A", BaseRevision::None);
+        thread::sleep(std::time::Duration::from_millis(30));
+        // Retries until revision 1 is visible, then saves revision 2.
+        let second = {
+            let a = admin.clone();
+            thread::spawn(move || {
+                loop {
+                    match a.run(
+                        &owner(),
+                        &AdminOp::ConfigSave {
+                            key: LINEUP,
+                            doc: lineup_named("B"),
+                            base: BaseRevision::At(1),
+                        },
+                    ) {
+                        Err(ConfigError::Conflict { head: 0 }) => {
+                            thread::sleep(std::time::Duration::from_millis(5))
+                        }
+                        other => return other,
+                    }
+                }
+            })
+        };
+        first.join().unwrap().unwrap();
+        second.join().unwrap().unwrap();
+        assert_eq!(*applier.calls.lock().unwrap(), [1, 2]);
+    }
+}
+
+#[test]
+fn qa7_every_refused_change_and_a_refused_seed_are_journaled() {
+    let dir = TempDir::new();
+    let store = open(&dir);
+    let (handle, _t) = store.spawn_writer(8).unwrap();
+    let admin = ConfigAdmin::from_service(handle.clone(), structural(), Arc::new(NoApplier));
+    let mut u = new_unit(1);
+    u.doc.box_type = "dct9999".into();
+    assert_eq!(
+        admin
+            .run(&owner(), &AdminOp::UnitEnroll(u))
+            .unwrap_err()
+            .reason(),
+        "unknown-box-type"
+    );
+    let mut s = new_unit(2);
+    s.doc.sacrificial = true;
+    assert_eq!(
+        admin
+            .run(&owner(), &AdminOp::UnitEnroll(s))
+            .unwrap_err()
+            .reason(),
+        "sacrificial-at-enroll"
+    );
+    let audit = handle
+        .call_blocking(|s| s.reader()?.audit_records())
+        .unwrap();
+    let outcomes: Vec<(&str, &str)> = audit
+        .iter()
+        .map(|a| (a.entry.command.as_str(), a.entry.outcome.as_str()))
+        .collect();
+    assert_eq!(
+        outcomes,
+        [
+            ("unit.enroll", "refused:unknown-box-type"),
+            ("unit.enroll", "refused:sacrificial-at-enroll"),
+        ]
+    );
+    assert!(audit[0].entry.after.as_deref().unwrap().contains("dct9999"));
+    // A refused seed (it bypasses the bus) leaves its own row.
+    let refusing = ConfigAdmin::from_service(
+        handle.clone(),
+        service(Arc::new(Recording::new(|_, _| {
+            vec![Violation {
+                rule: "test-seed",
+                objects: Vec::new(),
+                detail: String::new(),
+                hard: true,
+            }]
+        }))),
+        Arc::new(NoApplier),
+    );
+    assert_eq!(
+        refusing.seed_if_empty(&bundle()).unwrap_err().reason(),
+        "config-refused"
+    );
+    let audit = handle
+        .call_blocking(|s| s.reader()?.audit_records())
+        .unwrap();
+    let seed = audit.last().unwrap();
+    assert_eq!(seed.entry.command, "config.seed");
+    assert_eq!(seed.entry.outcome, "refused:test-seed");
+    assert!(seed.entry.actor.starts_with("seed:"));
+    assert_eq!(
+        seed.entry.after.as_deref(),
+        Some(doc::canonical(&bundle()).as_str())
+    );
+}
+
+#[test]
+fn qa8_a_rejected_serial_or_unit_address_is_never_echoed() {
+    let dir = TempDir::new();
+    let mut store = open(&dir);
+    let svc = structural();
+    let mut u = new_unit(1);
+    u.serial = "SECRET-SN-99".into();
+    let e = store
+        .write_with(|tx| svc.enroll_unit(tx, &owner(), &u))
+        .unwrap_err();
+    let text = CommandError::Config(e).to_string();
+    assert!(!text.contains("SECRET-SN-99"), "{text}");
+    assert!(text.contains("serial"), "{text}");
+    let e = "123-45678-90123-4567"
+        .parse::<UnitAddress>()
+        .unwrap_err()
+        .to_string();
+    assert!(!e.contains("123-45678"), "{e}");
+}
+
+#[test]
+fn a1_boot_holds_back_only_the_kinds_a_violation_names() {
+    let dir = TempDir::new();
+    let mut store = open(&dir);
+    store
+        .write_with(|tx| service(Arc::new(AllowAll)).seed_if_empty(tx, &bundle()))
+        .unwrap();
+    let (handle, _t) = store.spawn_writer(8).unwrap();
+    // Ignores the Change: reports every violation on the candidate.
+    let strict = service(Arc::new(Recording::new(|_, _| {
+        vec![Violation {
+            rule: "test-lineup-only",
+            objects: vec![ObjectRef::new(LINEUP, "/rf_channels/0/freq_khz")],
+            detail: String::new(),
+            hard: true,
+        }]
+    })));
+    let admin = ConfigAdmin::from_service(handle, strict, Arc::new(NoApplier));
+    for b in admin.boot().unwrap() {
+        if b.key == LINEUP {
+            let BootStatus::Invalid(r) = &b.status else {
+                panic!("{b:?}")
+            };
+            assert_eq!(r.rules(), ["test-lineup-only"]);
+        } else {
+            assert_eq!(
+                b.status,
+                BootStatus::Applied(ApplyStatus::NotApplicable),
+                "{b:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a3_box_identifying_rows_are_registered_and_empty_after_the_seed() {
+    let dir = TempDir::new();
+    let mut store = open(&dir);
+    let svc = structural();
+    store
+        .write_with(|tx| svc.seed_if_empty(tx, &bundle()))
+        .unwrap();
+    let rows = |c: &Connection| -> i64 {
+        crate::store::BOX_IDENTIFYING_ROWS
+            .iter()
+            .map(|(t, w)| {
+                c.query_row(
+                    &format!("SELECT count(*) FROM \"{t}\" WHERE {w}"),
+                    [],
+                    |r| r.get::<_, i64>(0),
+                )
+                .unwrap()
+            })
+            .sum()
+    };
+    assert_eq!(rows(&raw(&dir)), 0, "a seeded store holds a box record");
+    // The registry is not vacuous: an enrollment lands in both tables.
+    let id = enroll(&mut store, &svc, 1);
+    store
+        .write_with(|tx| svc.set_retired(tx, &owner(), id, true))
+        .unwrap();
+    assert_eq!(rows(&raw(&dir)), 3);
 }

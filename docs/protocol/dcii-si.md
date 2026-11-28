@@ -98,7 +98,9 @@ A table's 5-bit `version_number` advances (mod 32) only when its bytes
 change, and the counters live in a caller-owned `TableVersions` so oob-dac
 can persist them. `TableVersions::snapshot` returns one
 `TableVersionEntry` per table (kind, version, last bytes, retired) and
-`from_parts` restores from them; oob-dac #25 wires the actual persistence.
+`from_parts` restores from them. oob-dac #25 added the storage
+(`psi_table_version`, kinds `pat`, `cat`, `pmt:<program_number>`); the
+daemon (#29) wires the save on emit and the restore at start.
 A program that leaves the plan keeps its last version and bytes (withdrawn
 once), so re-adding it continues the count: changed bytes advance the
 version rather than reusing 0, identical bytes keep it.

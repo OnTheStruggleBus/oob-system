@@ -66,12 +66,14 @@ use rusqlite::limits::Limit;
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior};
 
 pub use audit::{AuditEntry, AuditRecord};
-pub use classify::{BOX_IDENTIFYING, Durability, TABLES, TableClass, class_of};
+pub use classify::{
+    BOX_IDENTIFYING, BOX_IDENTIFYING_ROWS, Durability, TABLES, TableClass, class_of,
+};
 pub use error::{ConstraintKind, StoreError};
 pub use handle::StoreHandle;
 pub use migrate::SCHEMA_VERSION;
 pub use outbox::{Deriver, EVENT_KINDS, Event, EventSeq, TerminalStatusDeriver};
-pub use psi::PsiTableVersion;
+pub use psi::{PsiTableVersion, psi_kind};
 pub use terminal::{NewTerminal, TERMINAL_ID_MAX, Terminal, TerminalId, TerminalType, UnitAddress};
 pub(crate) use terminal::{is_calendar_date, terminal as terminal_of, terminals as terminals_of};
 
